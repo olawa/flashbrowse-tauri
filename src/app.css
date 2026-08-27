@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+:root {
+  --bg-base: #0d0e11;
+  --bg-surface: #14171d;
+  --bg-panel: #191d24;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: #232a36;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --accent: #e85422;
+  --accent-hover: #ff6b35;
+  --accent-subtle: rgba(232, 84, 34, 0.15);
+  --border: #262d3d;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme="cyberpunk"] {
+  --bg-base: #050814;
+  --bg-surface: #0a0f26;
+  --bg-panel: #11183c;
+  --bg-hover: rgba(0, 255, 204, 0.08);
+  --bg-active: #1e295d;
+  --text-primary: #00ffcc;
+  --text-secondary: #ff77bc;
+  --text-muted: #7284b8;
+  --accent: #00ffcc;
+  --accent-hover: #ff007f;
+  --accent-subtle: rgba(0, 255, 204, 0.18);
+  --border: #2b3a7a;
+}
+
+[data-theme="retro-mac"] {
+  --bg-base: #a6a6a6;
+  --bg-surface: #dfdfdf;
+  --bg-panel: #ffffff;
+  --bg-hover: #e8e8e8;
+  --bg-active: #000080;
+  --text-primary: #000000;
+  --text-secondary: #333333;
+  --text-muted: #666666;
+  --accent: #000080;
+  --accent-hover: #1034a6;
+  --accent-subtle: #d0d8f0;
+  --border: #7f7f7f;
+}
+
+[data-theme="kids-mode"] {
+  --bg-base: #fef6e4;
+  --bg-surface: #fffffe;
+  --bg-panel: #ffffff;
+  --bg-hover: #f3d2c1;
+  --bg-active: #ff99c8;
+  --text-primary: #001858;
+  --text-secondary: #172c66;
+  --text-muted: #8bd3dd;
+  --accent: #f582ae;
+  --accent-hover: #8bd3dd;
+  --accent-subtle: rgba(245, 130, 174, 0.2);
+  --border: #f3d2c1;
+}
+
+* {
+  box-sizing: border-box;
+  user-select: none;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Custom modern scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
