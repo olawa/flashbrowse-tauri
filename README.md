@@ -142,7 +142,14 @@ Detach the inspector into a standalone window and place it on an external displa
 
 1. Download the latest **`Flashbrowse_0.2.0_aarch64.dmg`** from [GitHub Releases](https://github.com/olawa/flashbrowse-tauri/releases/latest).
 2. Open the `.dmg` and drag **Flashbrowse** to your `/Applications` folder.
-3. Launch **Flashbrowse**!
+3. **First launch on macOS (Gatekeeper notice)**:
+   Since Flashbrowse is an independent open-source project without a paid Apple Developer certificate, macOS Gatekeeper may flag downloaded binaries as *"damaged"* (`com.apple.quarantine`). 
+   To clear the quarantine flag, run this command once in Terminal:
+   ```bash
+   xattr -cr /Applications/Flashbrowse.app
+   ```
+   *Alternatively*: Right-click `Flashbrowse.app` in Finder $\rightarrow$ hold `Option` $\rightarrow$ click **Open** $\rightarrow$ confirm **Open Anyway** in *System Settings > Privacy & Security*.
+4. Launch **Flashbrowse**!
 
 ---
 
