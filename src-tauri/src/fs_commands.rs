@@ -380,3 +380,57 @@ pub fn reveal_in_os(path: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[tauri::command]
+pub fn quick_look(path: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("qlmanage")
+            .args(["-p", path])
+            .spawn()
+            .map_err(|e| format!("Failed to launch QuickLook: {}", e))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        open_in_default(path)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
+    use tauri::Manager;
+    let target_url = if let Some(p) = path {
+        format!("/inspector?path={}", urlencoding_encode(&p))
+    } else {
+        "/inspector".to_string()
+    };
+
+    if let Some(window) = app.get_webview_window("inspector") {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    } else {
+        let _win = tauri::WebviewWindowBuilder::new(
+            &app,
+            "inspector",
+            tauri::WebviewUrl::App(target_url.into()),
+        )
+        .title("Flashbrowse Inspector")
+        .inner_size(850.0, 650.0)
+        .min_inner_size(500.0, 400.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn urlencoding_encode(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace(' ', "%20")
+        .replace('#', "%23")
+        .replace('&', "%26")
+}

@@ -1,7 +1,18 @@
 <script lang="ts">
-  import { leftPane, rightPane, activePaneId, navigatePane, sortPaneItems, goUp } from '../stores/navigation';
+  import { onMount } from 'svelte';
+  import {
+    leftPane,
+    rightPane,
+    activePaneId,
+    navigatePane,
+    sortPaneItems,
+    goUp,
+    clickMode,
+    smartHoverPreview,
+    refreshPane,
+  } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
-  import { openInDefault } from '../invoke';
+  import { openInDefault, quickLook, renameItem } from '../invoke';
   import ContextMenu from './ContextMenu.svelte';
   import type { FileItem } from '../types';
   import {
@@ -12,7 +23,6 @@
     FileImage,
     FileArchive,
     File,
-    ArrowUpDown,
     ArrowUp,
     ArrowDown,
     Search,
@@ -27,6 +37,22 @@
   let filterText = '';
   let contextMenuItem: FileItem | null = null;
   let contextMenuPos = { x: 0, y: 0 };
+  let tableContainerEl: HTMLDivElement;
+
+  // Hover preview state
+  let hoverTimer: any = null;
+  let hoveredPath: string | null = null;
+
+  // Inline rename state (Finder style delayed click)
+  let lastClickedPath: string | null = null;
+  let lastClickTimestamp = 0;
+  let renamingPath: string | null = null;
+  let renameInputText = '';
+  let renameInputEl: HTMLInputElement;
+
+  // Trackpad pinch gesture accumulator
+  let pinchDeltaAccumulator = 0;
+  let lastPinchTriggerTime = 0;
 
   $: filteredItems = pane.items.filter((item) => {
     if (!filterText) return true;
@@ -54,10 +80,14 @@
     return 'text-slate-400';
   }
 
+  // MARK: - Single / Double Click & Finder Rename Handling
   function handleRowClick(item: FileItem, event: MouseEvent) {
     activePaneId.set(paneId);
     const store = paneId === 'left' ? leftPane : rightPane;
+    const now = Date.now();
+    const timeSinceLastClick = now - lastClickTimestamp;
 
+    // Multi-select with Shift or Cmd/Ctrl
     if (event.metaKey || event.ctrlKey) {
       store.update((s) => {
         const next = new Set(s.selectedPaths);
@@ -65,14 +95,43 @@
         else next.add(item.path);
         return { ...s, selectedPaths: next };
       });
-    } else {
-      store.update((s) => ({
-        ...s,
-        selectedPaths: new Set([item.path]),
-      }));
+      lastClickedPath = item.path;
+      lastClickTimestamp = now;
+      onSelectPreview(item);
+      return;
     }
 
-    onSelectPreview(item);
+    // Finder-style delayed click on already single-selected item to start rename!
+    const isAlreadySingleSelected = pane.selectedPaths.has(item.path) && pane.selectedPaths.size === 1;
+    if (isAlreadySingleSelected && lastClickedPath === item.path && timeSinceLastClick > 450 && timeSinceLastClick < 2500) {
+      startInlineRename(item);
+      lastClickedPath = null;
+      return;
+    }
+
+    lastClickedPath = item.path;
+    lastClickTimestamp = now;
+
+    // Click Mode Handling
+    if ($clickMode === 'folders-only') {
+      if (item.is_dir) {
+        navigatePane(paneId, item.path);
+        return;
+      } else {
+        store.update((s) => ({ ...s, selectedPaths: new Set([item.path]) }));
+        onSelectPreview(item);
+      }
+    } else if ($clickMode === 'always') {
+      if (item.is_dir) {
+        navigatePane(paneId, item.path);
+      } else {
+        openInDefault(item.path);
+      }
+    } else {
+      // double-click mode
+      store.update((s) => ({ ...s, selectedPaths: new Set([item.path]) }));
+      onSelectPreview(item);
+    }
   }
 
   function handleDoubleClick(item: FileItem) {
@@ -80,6 +139,123 @@
       navigatePane(paneId, item.path);
     } else {
       openInDefault(item.path);
+    }
+  }
+
+  // MARK: - Smart Hover Live Preview
+  function handleRowMouseEnter(item: FileItem) {
+    hoveredPath = item.path;
+    if ($smartHoverPreview) {
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => {
+        if (hoveredPath === item.path) {
+          onSelectPreview(item);
+        }
+      }, 70);
+    }
+  }
+
+  function handleRowMouseLeave() {
+    hoveredPath = null;
+    clearTimeout(hoverTimer);
+  }
+
+  // MARK: - Inline Rename
+  function startInlineRename(item: FileItem) {
+    renamingPath = item.path;
+    renameInputText = item.name;
+    setTimeout(() => {
+      renameInputEl?.focus();
+      renameInputEl?.select();
+    }, 50);
+  }
+
+  async function commitInlineRename() {
+    if (!renamingPath || !renameInputText.trim()) {
+      renamingPath = null;
+      return;
+    }
+    try {
+      await renameItem(renamingPath, renameInputText.trim());
+      await refreshPane(paneId);
+    } catch (e: any) {
+      alert(`Failed to rename: ${e}`);
+    } finally {
+      renamingPath = null;
+    }
+  }
+
+  function cancelInlineRename() {
+    renamingPath = null;
+  }
+
+  // MARK: - Trackpad Pinch to Open / Up
+  function handleWheel(e: WheelEvent) {
+    if (e.ctrlKey) {
+      e.preventDefault();
+      pinchDeltaAccumulator += e.deltaY;
+      const now = Date.now();
+
+      if (now - lastPinchTriggerTime > 400) {
+        if (pinchDeltaAccumulator > 30) {
+          // Pinch Out -> Open first selected folder
+          lastPinchTriggerTime = now;
+          pinchDeltaAccumulator = 0;
+          const firstSelected = Array.from(pane.selectedPaths)[0];
+          const item = pane.items.find((i) => i.path === firstSelected);
+          if (item && item.is_dir) {
+            navigatePane(paneId, item.path);
+          }
+        } else if (pinchDeltaAccumulator < -30) {
+          // Pinch In -> Go up to parent folder
+          lastPinchTriggerTime = now;
+          pinchDeltaAccumulator = 0;
+          goUp(paneId);
+        }
+      }
+    }
+  }
+
+  // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter)
+  function handleKeyDown(e: KeyboardEvent) {
+    if (renamingPath) return;
+
+    if (e.key === ' ' && pane.selectedPaths.size > 0) {
+      e.preventDefault();
+      const firstSelected = Array.from(pane.selectedPaths)[0];
+      if (firstSelected) {
+        quickLook(firstSelected);
+      }
+    } else if (e.key === 'Enter') {
+      const firstSelected = Array.from(pane.selectedPaths)[0];
+      const item = pane.items.find((i) => i.path === firstSelected);
+      if (item) {
+        handleDoubleClick(item);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      selectOffset(-1);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      selectOffset(1);
+    } else if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      goUp(paneId);
+    }
+  }
+
+  function selectOffset(offset: number) {
+    if (filteredItems.length === 0) return;
+    const firstSelected = Array.from(pane.selectedPaths)[0];
+    const currentIndex = filteredItems.findIndex((i) => i.path === firstSelected);
+    let nextIndex = currentIndex === -1 ? 0 : currentIndex + offset;
+    nextIndex = Math.max(0, Math.min(filteredItems.length - 1, nextIndex));
+
+    const nextItem = filteredItems[nextIndex];
+    if (nextItem) {
+      const store = paneId === 'left' ? leftPane : rightPane;
+      store.update((s) => ({ ...s, selectedPaths: new Set([nextItem.path]) }));
+      onSelectPreview(nextItem);
     }
   }
 
@@ -97,8 +273,14 @@
 <svelte:window on:click={closeContextMenu} />
 
 <div
-  class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
+  bind:this={tableContainerEl}
+  tabindex="0"
+  class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
   on:mousedown={() => activePaneId.set(paneId)}
+  on:wheel|passive={handleWheel}
+  on:keydown={handleKeyDown}
+  role="region"
+  aria-label="File table pane"
 >
   <!-- Top Filter bar inside panel -->
   <div class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)]">
@@ -185,25 +367,59 @@
       <div class="divide-y divide-[var(--border)]/40">
         {#each filteredItems as item}
           {@const isSelected = pane.selectedPaths.has(item.path)}
+          {@const isHovered = hoveredPath === item.path}
+          {@const isRenaming = renamingPath === item.path}
+          {@const isLargeFile = !item.is_dir && item.size_bytes >= 50_000_000}
+          {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
+
           <div
-            class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-colors {isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+            class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-colors {isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
             on:click={(e) => handleRowClick(item, e)}
             on:dblclick={() => handleDoubleClick(item)}
+            on:mouseenter={() => handleRowMouseEnter(item)}
+            on:mouseleave={handleRowMouseLeave}
             on:contextmenu={(e) => handleContextMenu(item, e)}
+            role="row"
+            tabindex="-1"
           >
+            <!-- Name Column -->
             <div class="col-span-6 flex items-center gap-2 min-w-0">
               <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
-              <span class="truncate font-sans {item.is_dir ? 'font-semibold' : ''}">{item.name}</span>
+              
+              {#if isRenaming}
+                <input
+                  bind:this={renameInputEl}
+                  type="text"
+                  bind:value={renameInputText}
+                  on:keydown={(e) => {
+                    if (e.key === 'Enter') commitInlineRename();
+                    else if (e.key === 'Escape') cancelInlineRename();
+                  }}
+                  on:blur={commitInlineRename}
+                  class="flex-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-1 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
+                />
+              {:else}
+                <span class="truncate font-sans {item.is_dir ? 'font-semibold' : ''}">{item.name}</span>
+              {/if}
             </div>
 
-            <div class="col-span-2 text-right text-[var(--text-secondary)] font-mono text-[11px]">
-              {item.formatted_size}
+            <!-- Size Column with Visual Bar for >= 50 MB -->
+            <div class="col-span-2 relative text-right font-mono text-[11px] flex items-center justify-end">
+              {#if isLargeFile}
+                <div
+                  class="absolute right-0 h-4 rounded opacity-25 {item.size_bytes >= 1_000_000_000 ? 'bg-[var(--accent)]' : 'bg-cyan-400'}"
+                  style="width: {proportion}%"
+                ></div>
+              {/if}
+              <span class="relative z-10 text-[var(--text-secondary)]">{item.formatted_size}</span>
             </div>
 
+            <!-- Modified Column -->
             <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate pl-2 font-mono">
               {item.formatted_modified}
             </div>
 
+            <!-- Permissions Column -->
             <div class="col-span-2 text-right text-[var(--text-muted)] text-[10px] font-mono">
               {item.permissions}
             </div>

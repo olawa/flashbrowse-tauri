@@ -30,7 +30,9 @@ pub fn run() {
             run_command,
             tab_complete,
             ssh_list_directory,
-            ssh_run_command
+            ssh_run_command,
+            quick_look,
+            toggle_detached_inspector
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

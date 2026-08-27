@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { getPreview, calculateDirSize, revealInOs, openInDefault } from '../invoke';
+  import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -12,6 +12,7 @@
     ExternalLink,
     PieChart,
     Check,
+    SquareArrowOutUpRight,
   } from 'lucide-svelte';
 
   export let item: FileItem | null = null;
@@ -90,6 +91,13 @@
 
     {#if item}
       <div class="flex items-center gap-1">
+        <button
+          class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--accent)]"
+          on:click={() => toggleDetachedInspector(item.path)}
+          title="Koppla loss inspektor till eget fönster (Detach Window)"
+        >
+          <SquareArrowOutUpRight size={12} />
+        </button>
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
           on:click={() => openInDefault(item.path)}

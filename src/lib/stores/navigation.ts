@@ -41,6 +41,8 @@ export const activePaneId = writable<'left' | 'right'>('left');
 export const isDualPane = writable<boolean>(true);
 export const isDualInspector = writable<boolean>(true);
 export const showHiddenFiles = writable<boolean>(false);
+export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
+export const smartHoverPreview = writable<boolean>(true);
 
 export async function initNavigation() {
   const home = await getHomeDirectory();

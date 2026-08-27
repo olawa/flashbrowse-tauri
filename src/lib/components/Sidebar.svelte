@@ -1,7 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { getHomeDirectory } from '../invoke';
-  import { navigatePane, activePaneId, showHiddenFiles, leftPane, rightPane } from '../stores/navigation';
+  import {
+    navigatePane,
+    activePaneId,
+    showHiddenFiles,
+    leftPane,
+    rightPane,
+    clickMode,
+    smartHoverPreview,
+  } from '../stores/navigation';
   import { currentTheme, setTheme, isKidsMode } from '../stores/theme';
   import DiskBar from './DiskBar.svelte';
   import {
@@ -17,6 +25,8 @@
     Sparkles,
     Baby,
     Lock,
+    MousePointerClick,
+    Zap,
   } from 'lucide-svelte';
   import type { ThemeName } from '../types';
 
@@ -147,10 +157,36 @@
       </div>
     </div>
 
-    <!-- Options -->
+    <!-- Options & Behavior -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Options</span>
-      <div class="mt-1">
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Behavior</span>
+      <div class="mt-1 space-y-0.5">
+        <button
+          class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
+          on:click={() => clickMode.update((m) => (m === 'folders-only' ? 'double-click' : 'folders-only'))}
+        >
+          <div class="flex items-center gap-2">
+            <MousePointerClick size={14} class={$clickMode === 'folders-only' ? 'text-[var(--accent)]' : ''} />
+            <span>{$clickMode === 'folders-only' ? 'Enkelklick Mappar' : 'Dubbelklick Mappar'}</span>
+          </div>
+          <span class="text-[9px] px-1 rounded bg-[var(--border)] font-mono">
+            {$clickMode === 'folders-only' ? '1x' : '2x'}
+          </span>
+        </button>
+
+        <button
+          class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
+          on:click={() => smartHoverPreview.update((v) => !v)}
+        >
+          <div class="flex items-center gap-2">
+            <Zap size={14} class={$smartHoverPreview ? 'text-amber-400' : ''} />
+            <span>Hover Preview</span>
+          </div>
+          <span class="text-[9px] px-1 rounded bg-[var(--border)] font-mono">
+            {$smartHoverPreview ? 'ON' : 'OFF'}
+          </span>
+        </button>
+
         <button
           class="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
           on:click={() => showHiddenFiles.update((v) => !v)}

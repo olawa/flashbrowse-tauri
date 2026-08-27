@@ -75,3 +75,12 @@ export async function sshListDirectory(host: string, path: string): Promise<File
 export async function sshRunCommand(host: string, cmd: string, cwd: string): Promise<TerminalOutput> {
   return await invoke<TerminalOutput>('ssh_run_command', { host, cmd, cwd });
 }
+
+export async function quickLook(path: string): Promise<void> {
+  await invoke('quick_look', { path });
+}
+
+export async function toggleDetachedInspector(path?: string): Promise<void> {
+  await invoke('toggle_detached_inspector', { path });
+}
+
