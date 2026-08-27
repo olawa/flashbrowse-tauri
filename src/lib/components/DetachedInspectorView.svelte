@@ -4,6 +4,7 @@
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
+  import FolderInspector from './FolderInspector.svelte';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -199,83 +200,51 @@
       <div class="h-full flex items-center justify-center text-slate-500">
         Läser in filinnehåll...
       </div>
-    {:else if preview}
-      {#if preview.kind === 'directory'}
-        <div class="max-w-md mx-auto mt-8 p-6 rounded-2xl bg-[#14171d] border border-[#262d3d] space-y-4 text-center">
-          <div class="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto text-2xl">
-            📁
-          </div>
-          <div>
-            <h3 class="font-bold text-lg text-white">{currentItem.name}</h3>
-            <p class="text-xs text-slate-400 mt-1 font-mono">{currentItem.path}</p>
-          </div>
-
-          {#if dirSummary}
-            <div class="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800 text-emerald-300 text-left space-y-2">
-              <div class="flex justify-between font-bold text-sm">
-                <span>Total storlek:</span>
-                <span>{dirSummary.formatted_total_size}</span>
-              </div>
-              <div class="flex justify-between text-xs text-emerald-400/80">
-                <span>Filer: {dirSummary.total_files}</span>
-                <span>Mappar: {dirSummary.total_dirs}</span>
-              </div>
-            </div>
-          {:else}
-            <button
-              class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-[#e85422] hover:bg-[#ff6b35] text-white font-semibold transition-all shadow-lg disabled:opacity-50"
-              disabled={isCalculatingDu}
-              on:click={calculateFolderDu}
-            >
-              <PieChart size={15} />
-              <span>{isCalculatingDu ? 'Beräknar storlek...' : 'Beräkna rekursiv mappstorlek (du -h)'}</span>
-            </button>
-          {/if}
-        </div>
-      {:else if preview.kind === 'image' && preview.image_base64}
-        <div class="h-full flex items-center justify-center bg-black/50 p-6 rounded-xl border border-[#262d3d]">
-          <img
-            src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
-            alt={currentItem.name}
-            class="max-h-[85vh] max-w-full object-contain rounded-lg shadow-2xl"
-          />
-        </div>
-      {:else if preview.kind === 'table' && preview.table_headers && preview.table_rows}
-        <div class="overflow-x-auto rounded-lg border border-[#262d3d] bg-[#14171d]">
-          <table class="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr class="border-b border-[#262d3d] bg-[#191d24]">
-                {#each preview.table_headers as header}
-                  <th class="p-2 font-bold text-[#e85422]">{header}</th>
+    {:else if currentItem.is_dir || (preview && preview.kind === 'directory')}
+      <FolderInspector item={currentItem} />
+    {:else if preview && preview.kind === 'image' && preview.image_base64}
+      <div class="h-full flex items-center justify-center bg-black/50 p-6 rounded-xl border border-[#262d3d]">
+        <img
+          src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
+          alt={currentItem.name}
+          class="max-h-[85vh] max-w-full object-contain rounded-lg shadow-2xl"
+        />
+      </div>
+    {:else if preview && preview.kind === 'table' && preview.table_headers && preview.table_rows}
+      <div class="overflow-x-auto rounded-lg border border-[#262d3d] bg-[#14171d]">
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="border-b border-[#262d3d] bg-[#191d24]">
+              {#each preview.table_headers as header}
+                <th class="p-2 font-bold text-[#e85422]">{header}</th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each preview.table_rows as row}
+              <tr class="border-b border-[#262d3d]/50 hover:bg-white/5">
+                {#each row as cell}
+                  <td class="p-2 text-slate-300">{cell}</td>
                 {/each}
               </tr>
-            </thead>
-            <tbody>
-              {#each preview.table_rows as row}
-                <tr class="border-b border-[#262d3d]/50 hover:bg-white/5">
-                  {#each row as cell}
-                    <td class="p-2 text-slate-300">{cell}</td>
-                  {/each}
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-      {:else if preview.kind === 'code' || preview.kind === 'text'}
-        <div class="p-4 rounded-xl bg-[#14171d] border border-[#262d3d] leading-relaxed text-slate-200">
-          <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
-        </div>
-      {:else if preview.kind === 'hex' && preview.hex_lines}
-        <div class="p-4 rounded-xl bg-[#14171d] border border-[#262d3d] text-purple-300 leading-tight">
-          {#each preview.hex_lines as line}
-            <div>{line}</div>
-          {/each}
-        </div>
-      {:else if preview.kind === 'error'}
-        <div class="p-8 text-center text-red-400">
-          {preview.error_message || 'Kunde inte läsa fil'}
-        </div>
-      {/if}
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {:else if preview && (preview.kind === 'code' || preview.kind === 'text')}
+      <div class="p-4 rounded-xl bg-[#14171d] border border-[#262d3d] leading-relaxed text-slate-200">
+        <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
+      </div>
+    {:else if preview && preview.kind === 'hex' && preview.hex_lines}
+      <div class="p-4 rounded-xl bg-[#14171d] border border-[#262d3d] text-purple-300 leading-tight">
+        {#each preview.hex_lines as line}
+          <div>{line}</div>
+        {/each}
+      </div>
+    {:else if preview && preview.kind === 'error'}
+      <div class="p-8 text-center text-red-400">
+        {preview.error_message || 'Kunde inte läsa fil'}
+      </div>
     {/if}
   </div>
 

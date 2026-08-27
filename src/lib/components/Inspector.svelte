@@ -5,6 +5,7 @@
   import { isInspectorDetached } from '../stores/navigation';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
+  import FolderInspector from './FolderInspector.svelte';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -156,45 +157,7 @@
         Loading preview...
       </div>
     {:else if item.is_dir}
-      <!-- Directory View -->
-      <div class="p-4 space-y-4">
-        <div class="p-3 rounded-lg bg-[var(--bg-panel)] border border-[var(--border)] space-y-2">
-          <div class="flex items-center justify-between text-[var(--text-secondary)]">
-            <span>Folder:</span>
-            <span class="font-semibold text-[var(--text-primary)]">{item.name}</span>
-          </div>
-          <div class="flex items-center justify-between text-[var(--text-secondary)]">
-            <span>Modified:</span>
-            <span>{item.formatted_modified}</span>
-          </div>
-          <div class="flex items-center justify-between text-[var(--text-secondary)]">
-            <span>Permissions:</span>
-            <span class="font-mono text-[11px]">{item.permissions}</span>
-          </div>
-        </div>
-
-        {#if dirSummary}
-          <div class="p-3 rounded-lg bg-emerald-950/30 border border-emerald-800 text-emerald-300 space-y-1">
-            <div class="font-bold flex items-center justify-between">
-              <span>Recursive Size:</span>
-              <span>{dirSummary.formatted_total_size}</span>
-            </div>
-            <div class="text-[11px] text-emerald-400/80 flex justify-between">
-              <span>Files: {dirSummary.total_files}</span>
-              <span>Subfolders: {dirSummary.total_dirs}</span>
-            </div>
-          </div>
-        {:else}
-          <button
-            class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-medium shadow-sm disabled:opacity-50"
-            disabled={isCalculatingDu}
-            on:click={calculateFolderDu}
-          >
-            <PieChart size={14} />
-            <span>{isCalculatingDu ? 'Calculating Size...' : 'Calculate Folder Size (du -h)'}</span>
-          </button>
-        {/if}
-      </div>
+      <FolderInspector {item} />
     {:else if preview}
       <!-- File Preview Types -->
       {#if preview.kind === 'image' && preview.image_base64}
