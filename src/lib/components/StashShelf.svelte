@@ -46,16 +46,22 @@
   }
 
   async function runQcOnStash() {
-    const bam = $stashItems.find(
+    const bams = $stashItems.filter(
       (i) => i.extension.toLowerCase() === 'bam' || i.name.endsWith('.bam') || i.name.endsWith('.cram')
     );
-    if (!bam) {
-      alert('Ingen BAM-fil hittades i stashen.');
+    if (bams.length === 0) {
+      alert('Inga BAM/CRAM-filer hittades i samlingsfacket.');
       return;
     }
     isRunningQc = true;
+    qcReportModal = '';
     try {
-      qcReportModal = await runRsQc(bam.path);
+      const reports: string[] = [];
+      for (const bam of bams) {
+        const report = await runRsQc(bam.path);
+        reports.push(`======================================================================\n📊 BAM: ${bam.name} (${bam.path})\n======================================================================\n${report}`);
+      }
+      qcReportModal = reports.join('\n\n');
     } catch (e: any) {
       alert(`rs-qc fel: ${e}`);
     } finally {
@@ -65,9 +71,13 @@
 
   async function copyAllPaths() {
     const text = $stashItems.map((i) => i.path).join('\n');
-    await navigator.clipboard.writeText(text);
-    copied = true;
-    setTimeout(() => (copied = false), 2000);
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+    }
   }
 </script>
 

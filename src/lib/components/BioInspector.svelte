@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { getBamHeader, generateRsnapSnapshot, launchRsnap, runRsQc } from '../invoke';
   import type { FileItem, BamHeaderData } from '../types';
   import {
@@ -10,10 +9,6 @@
     ExternalLink,
     RefreshCw,
     Search,
-    ChevronRight,
-    Layers,
-    Play,
-    Check,
   } from 'lucide-svelte';
 
   export let item: FileItem;

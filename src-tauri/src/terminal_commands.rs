@@ -1,4 +1,4 @@
-use crate::fs_commands::dirs_home;
+use crate::fs_commands::{dirs_home, resolve_path};
 use crate::models::{TabCompletionResult, TerminalOutput};
 use std::fs;
 use std::path::PathBuf;
@@ -16,99 +16,97 @@ const COMMON_COMMANDS: &[&str] = &[
 ];
 
 #[tauri::command]
-pub fn run_command(cmd: &str, cwd: &str) -> Result<TerminalOutput, String> {
-    let trimmed = cmd.trim();
-    if trimmed.is_empty() {
-        return Ok(TerminalOutput {
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code: 0,
-            new_cwd: None,
-        });
-    }
-
-    let working_dir = if cwd.is_empty() || cwd == "~" {
-        dirs_home()
-    } else if cwd.starts_with('~') {
-        dirs_home().join(cwd.trim_start_matches("~/").trim_start_matches('~'))
-    } else {
-        PathBuf::from(cwd)
-    };
-
-    // 1. Handle "cd" command directly
-    if trimmed == "cd" || trimmed == "cd ~" {
-        let home = dirs_home().to_string_lossy().to_string();
-        return Ok(TerminalOutput {
-            stdout: String::new(),
-            stderr: String::new(),
-            exit_code: 0,
-            new_cwd: Some(home),
-        });
-    } else if trimmed.starts_with("cd ") {
-        let target_str = trimmed[3..].trim().trim_matches('"').trim_matches('\'');
-        let target_path = if target_str == "~" || target_str.starts_with("~/") {
-            dirs_home().join(target_str.trim_start_matches("~/").trim_start_matches('~'))
-        } else if target_str.starts_with('/') {
-            PathBuf::from(target_str)
-        } else {
-            working_dir.join(target_str)
-        };
-
-        if target_path.is_dir() {
-            if let Ok(canonical) = target_path.canonicalize() {
-                return Ok(TerminalOutput {
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    exit_code: 0,
-                    new_cwd: Some(canonical.to_string_lossy().to_string()),
-                });
-            } else {
-                return Ok(TerminalOutput {
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    exit_code: 0,
-                    new_cwd: Some(target_path.to_string_lossy().to_string()),
-                });
-            }
-        } else {
+pub async fn run_command(cmd: String, cwd: String) -> Result<TerminalOutput, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let trimmed = cmd.trim();
+        if trimmed.is_empty() {
             return Ok(TerminalOutput {
                 stdout: String::new(),
-                stderr: format!("cd: no such file or directory: {}\n", target_str),
-                exit_code: 1,
+                stderr: String::new(),
+                exit_code: 0,
                 new_cwd: None,
             });
         }
-    }
 
-    // 2. Handle generic shell execution
-    #[cfg(not(target_os = "windows"))]
-    let output_res = Command::new("sh")
-        .arg("-c")
-        .arg(trimmed)
-        .current_dir(&working_dir)
-        .output();
+        let working_dir = resolve_path(&cwd);
 
-    #[cfg(target_os = "windows")]
-    let output_res = Command::new("cmd")
-        .args(["/c", trimmed])
-        .current_dir(&working_dir)
-        .output();
+        // 1. Handle "cd" command directly
+        if trimmed == "cd" || trimmed == "cd ~" {
+            let home = dirs_home().to_string_lossy().to_string();
+            return Ok(TerminalOutput {
+                stdout: String::new(),
+                stderr: String::new(),
+                exit_code: 0,
+                new_cwd: Some(home),
+            });
+        } else if trimmed.starts_with("cd ") {
+            let target_str = trimmed[3..].trim().trim_matches('"').trim_matches('\'');
+            let target_path = if target_str == "~" || target_str.starts_with("~/") {
+                resolve_path(target_str)
+            } else if target_str.starts_with('/') {
+                PathBuf::from(target_str)
+            } else {
+                working_dir.join(target_str)
+            };
 
-    match output_res {
-        Ok(out) => {
-            let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-            let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-            let exit_code = out.status.code().unwrap_or(-1);
-
-            Ok(TerminalOutput {
-                stdout,
-                stderr,
-                exit_code,
-                new_cwd: None,
-            })
+            if target_path.is_dir() {
+                if let Ok(canonical) = target_path.canonicalize() {
+                    return Ok(TerminalOutput {
+                        stdout: String::new(),
+                        stderr: String::new(),
+                        exit_code: 0,
+                        new_cwd: Some(canonical.to_string_lossy().to_string()),
+                    });
+                } else {
+                    return Ok(TerminalOutput {
+                        stdout: String::new(),
+                        stderr: String::new(),
+                        exit_code: 0,
+                        new_cwd: Some(target_path.to_string_lossy().to_string()),
+                    });
+                }
+            } else {
+                return Ok(TerminalOutput {
+                    stdout: String::new(),
+                    stderr: format!("cd: no such file or directory: {}\n", target_str),
+                    exit_code: 1,
+                    new_cwd: None,
+                });
+            }
         }
-        Err(e) => Err(format!("Failed to execute command: {}", e)),
-    }
+
+        // 2. Handle generic interactive user shell execution
+        #[cfg(not(target_os = "windows"))]
+        let output_res = Command::new("sh")
+            .arg("-c")
+            .arg(trimmed)
+            .current_dir(&working_dir)
+            .output();
+
+        #[cfg(target_os = "windows")]
+        let output_res = Command::new("cmd")
+            .args(["/c", trimmed])
+            .current_dir(&working_dir)
+            .output();
+
+        match output_res {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
+                let exit_code = out.status.code().unwrap_or(-1);
+
+                Ok(TerminalOutput {
+                    stdout,
+                    stderr,
+                    exit_code,
+                    new_cwd: None,
+                })
+            }
+            Err(e) => Err(format!("Failed to execute command: {}", e)),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

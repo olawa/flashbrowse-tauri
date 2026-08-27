@@ -1,4 +1,4 @@
-use crate::fs_commands::{format_byte_size, get_permissions_string};
+use crate::fs_commands::{format_byte_size, get_permissions_string, resolve_path};
 use crate::models::PreviewContent;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -102,12 +102,7 @@ fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String>, Vec<Vec<
 
 #[tauri::command]
 pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
-    let resolved_path = if path.starts_with('~') {
-        let home = crate::fs_commands::dirs_home();
-        home.join(path.trim_start_matches("~/").trim_start_matches('~'))
-    } else {
-        std::path::PathBuf::from(path)
-    };
+    let resolved_path = resolve_path(path);
 
     if !resolved_path.exists() {
         return Err(format!("Path does not exist: {}", resolved_path.display()));

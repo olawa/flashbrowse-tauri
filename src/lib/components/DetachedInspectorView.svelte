@@ -24,32 +24,36 @@
   let isCalculatingDu = false;
   let copied = false;
   let unlistenSync: (() => void) | null = null;
+  let unlistenPathSync: (() => void) | null = null;
 
   $: ext = currentItem?.extension.toLowerCase() || '';
   $: isBam = !!currentItem && (ext === 'bam' || ext === 'cram' || ext === 'sam' || currentItem.name.endsWith('.bam') || currentItem.name.endsWith('.cram'));
   $: isArchive = !!currentItem && (ext === 'zip' || ext === 'tar' || ext === 'tgz' || currentItem.name.endsWith('.tar.gz') || currentItem.name.endsWith('.tar.bz2') || currentItem.name.endsWith('.tar.xz'));
+
+  function setItemFromPath(decodedPath: string) {
+    const name = decodedPath.split('/').filter(Boolean).pop() || decodedPath;
+    currentItem = {
+      name,
+      path: decodedPath,
+      is_dir: false,
+      is_symlink: false,
+      size_bytes: 0,
+      formatted_size: '--',
+      modified_timestamp: 0,
+      formatted_modified: '--',
+      extension: name.split('.').pop() || '',
+      is_hidden: false,
+      permissions: '---------',
+    };
+    loadPreview(decodedPath);
+  }
 
   onMount(async () => {
     // 1. Check if an initial path was provided in URL query
     const urlParams = new URLSearchParams(window.location.search);
     const p = urlParams.get('path');
     if (p) {
-      const decoded = decodeURIComponent(p);
-      const name = decoded.split('/').filter(Boolean).pop() || decoded;
-      currentItem = {
-        name,
-        path: decoded,
-        is_dir: false,
-        is_symlink: false,
-        size_bytes: 0,
-        formatted_size: '--',
-        modified_timestamp: 0,
-        formatted_modified: '--',
-        extension: name.split('.').pop() || '',
-        is_hidden: false,
-        permissions: '---------',
-      };
-      await loadPreview(decoded);
+      setItemFromPath(decodeURIComponent(p));
     }
 
     // 2. Listen to live sync events from the main window!
@@ -63,15 +67,20 @@
           await loadPreview(currentItem.path);
         }
       });
+
+      unlistenPathSync = await listen<string>('inspector-sync-path', async (event) => {
+        if (event.payload) {
+          setItemFromPath(event.payload);
+        }
+      });
     } catch (e) {
-      console.error('Failed to listen to inspector-sync:', e);
+      console.error('Failed to listen to inspector sync events:', e);
     }
   });
 
   onDestroy(() => {
-    if (unlistenSync) {
-      unlistenSync();
-    }
+    if (unlistenSync) unlistenSync();
+    if (unlistenPathSync) unlistenPathSync();
   });
 
   async function loadPreview(path: string) {
@@ -108,9 +117,13 @@
 
   async function copyPath() {
     if (!currentItem) return;
-    await navigator.clipboard.writeText(currentItem.path);
-    copied = true;
-    setTimeout(() => (copied = false), 2000);
+    try {
+      await navigator.clipboard.writeText(currentItem.path);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+    }
   }
 
   async function reattach() {

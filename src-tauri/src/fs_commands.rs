@@ -72,14 +72,21 @@ pub fn dirs_home() -> PathBuf {
     }
 }
 
-#[tauri::command]
-pub fn list_directory(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, String> {
-    let resolved_path = if path.starts_with('~') {
-        let home = dirs_home();
-        home.join(path.trim_start_matches("~/").trim_start_matches('~'))
+pub fn resolve_path(path: &str) -> PathBuf {
+    if path.is_empty() || path == "~" {
+        dirs_home()
+    } else if path.starts_with("~/") {
+        dirs_home().join(&path[2..])
+    } else if path.starts_with('~') {
+        dirs_home().join(&path[1..])
     } else {
         PathBuf::from(path)
-    };
+    }
+}
+
+#[tauri::command]
+pub fn list_directory(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, String> {
+    let resolved_path = resolve_path(path);
 
     if !resolved_path.exists() {
         return Err(format!("Path does not exist: {}", resolved_path.display()));
@@ -210,144 +217,196 @@ pub fn get_disk_info(path: &str) -> Result<DiskInfo, String> {
 }
 
 #[tauri::command]
-pub fn calculate_dir_size(path: &str) -> Result<DirectorySummary, String> {
-    let target = Path::new(path);
-    if !target.exists() {
-        return Err("Directory does not exist".to_string());
-    }
-
-    let mut total_size_bytes = 0u64;
-    let mut total_files = 0usize;
-    let mut total_dirs = 0usize;
-
-    for entry in walkdir::WalkDir::new(target).into_iter().filter_map(|e| e.ok()) {
-        if entry.file_type().is_file() {
-            total_files += 1;
-            if let Ok(meta) = entry.metadata() {
-                total_size_bytes += meta.len();
-            }
-        } else if entry.file_type().is_dir() && entry.path() != target {
-            total_dirs += 1;
+pub async fn calculate_dir_size(path: String) -> Result<DirectorySummary, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let target = resolve_path(&path);
+        if !target.exists() {
+            return Err("Directory does not exist".to_string());
         }
-    }
 
-    Ok(DirectorySummary {
-        path: path.to_string(),
-        total_items: total_files + total_dirs,
-        total_dirs,
-        total_files,
-        total_size_bytes,
-        formatted_total_size: format_byte_size(total_size_bytes),
+        let mut total_size_bytes = 0u64;
+        let mut total_files = 0usize;
+        let mut total_dirs = 0usize;
+
+        for entry in walkdir::WalkDir::new(&target)
+            .max_depth(256)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            if entry.file_type().is_file() {
+                total_files += 1;
+                if let Ok(meta) = entry.metadata() {
+                    total_size_bytes += meta.len();
+                }
+            } else if entry.file_type().is_dir() && entry.path() != target {
+                total_dirs += 1;
+            }
+        }
+
+        Ok(DirectorySummary {
+            path,
+            total_items: total_files + total_dirs,
+            total_dirs,
+            total_files,
+            total_size_bytes,
+            formatted_total_size: format_byte_size(total_size_bytes),
+        })
     })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn trash_items(paths: Vec<String>) -> Result<(), String> {
-    for p in paths {
-        let path = Path::new(&p);
-        if path.exists() {
-            trash::delete(path).map_err(|e| format!("Failed to trash {}: {}", p, e))?;
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
-pub fn copy_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
-    let dest = Path::new(&destination_dir);
-    if !dest.is_dir() {
-        return Err("Destination is not a directory".to_string());
-    }
-
-    for p in paths {
-        let src = Path::new(&p);
-        if let Some(file_name) = src.file_name() {
-            let target = dest.join(file_name);
-            if src.is_dir() {
-                copy_dir_recursive(src, &target).map_err(|e| e.to_string())?;
-            } else {
-                fs::copy(src, target).map_err(|e| format!("Failed to copy {}: {}", p, e))?;
+pub async fn trash_items(paths: Vec<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        for p in paths {
+            let path = resolve_path(&p);
+            if path.exists() {
+                trash::delete(&path).map_err(|e| format!("Failed to trash {}: {}", p, e))?;
             }
         }
-    }
-    Ok(())
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn copy_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dest = resolve_path(&destination_dir);
+        if !dest.is_dir() {
+            return Err("Destination is not a directory".to_string());
+        }
+
+        for p in paths {
+            let src = resolve_path(&p);
+            if let Some(file_name) = src.file_name() {
+                let target = dest.join(file_name);
+                if src.is_dir() {
+                    copy_dir_recursive(&src, &target).map_err(|e| e.to_string())?;
+                } else {
+                    fs::copy(&src, &target).map_err(|e| format!("Failed to copy {}: {}", p, e))?;
+                }
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if src.is_symlink() {
+        let target = fs::read_link(src)?;
+        #[cfg(unix)]
+        {
+            return std::os::unix::fs::symlink(&target, dst);
+        }
+        #[cfg(windows)]
+        {
+            if target.is_dir() {
+                return std::os::windows::fs::symlink_dir(&target, dst);
+            } else {
+                return std::os::windows::fs::symlink_file(&target, dst);
+            }
+        }
+    }
+
     fs::create_dir_all(dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        let ty = entry.file_type()?;
+        let entry_path = entry.path();
         let dest_child = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_recursive(&entry.path(), &dest_child)?;
+
+        if entry_path.is_symlink() {
+            let link_target = fs::read_link(&entry_path)?;
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(&link_target, &dest_child)?;
+            #[cfg(windows)]
+            {
+                if link_target.is_dir() {
+                    let _ = std::os::windows::fs::symlink_dir(&link_target, &dest_child);
+                } else {
+                    let _ = std::os::windows::fs::symlink_file(&link_target, &dest_child);
+                }
+            }
+        } else if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry_path, &dest_child)?;
         } else {
-            fs::copy(entry.path(), dest_child)?;
+            fs::copy(&entry_path, dest_child)?;
         }
     }
     Ok(())
 }
 
 #[tauri::command]
-pub fn move_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
-    let dest = Path::new(&destination_dir);
-    if !dest.is_dir() {
-        return Err("Destination is not a directory".to_string());
-    }
-
-    for p in paths {
-        let src = Path::new(&p);
-        if let Some(file_name) = src.file_name() {
-            let target = dest.join(file_name);
-            fs::rename(src, target).map_err(|e| format!("Failed to move {}: {}", p, e))?;
+pub async fn move_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let dest = resolve_path(&destination_dir);
+        if !dest.is_dir() {
+            return Err("Destination is not a directory".to_string());
         }
-    }
-    Ok(())
+
+        for p in paths {
+            let src = resolve_path(&p);
+            if let Some(file_name) = src.file_name() {
+                let target = dest.join(file_name);
+                fs::rename(&src, &target).map_err(|e| format!("Failed to move {}: {}", p, e))?;
+            }
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 pub fn create_directory(parent: &str, name: &str) -> Result<String, String> {
-    let new_path = Path::new(parent).join(name);
+    let new_path = resolve_path(parent).join(name);
     fs::create_dir_all(&new_path).map_err(|e| format!("Failed to create folder: {}", e))?;
     Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn create_file(parent: &str, name: &str) -> Result<String, String> {
-    let new_path = Path::new(parent).join(name);
+    let new_path = resolve_path(parent).join(name);
     fs::File::create(&new_path).map_err(|e| format!("Failed to create file: {}", e))?;
     Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn rename_item(path: &str, new_name: &str) -> Result<String, String> {
-    let old_path = Path::new(path);
+    let old_path = resolve_path(path);
     let parent = old_path.parent().ok_or("Invalid parent directory")?;
     let new_path = parent.join(new_name);
-    fs::rename(old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
+    fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
     Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn open_in_default(path: &str) -> Result<(), String> {
+    let resolved = resolve_path(path);
+    let path_str = resolved.to_string_lossy().to_string();
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(path)
+            .arg(&path_str)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
         std::process::Command::new("xdg-open")
-            .arg(path)
+            .arg(&path_str)
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(["/c", "start", "", path])
+            .args(["/c", "start", "", &path_str])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -356,16 +415,19 @@ pub fn open_in_default(path: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub fn reveal_in_os(path: &str) -> Result<(), String> {
+    let resolved = resolve_path(path);
+    let path_str = resolved.to_string_lossy().to_string();
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .args(["-R", path])
+            .args(["-R", &path_str])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
     #[cfg(target_os = "linux")]
     {
-        let parent = Path::new(path).parent().unwrap_or_else(|| Path::new("/"));
+        let parent = resolved.parent().unwrap_or_else(|| Path::new("/"));
         std::process::Command::new("xdg-open")
             .arg(parent)
             .spawn()
@@ -374,7 +436,7 @@ pub fn reveal_in_os(path: &str) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("explorer")
-            .args(["/select,", path])
+            .args(["/select,", &path_str])
             .spawn()
             .map_err(|e| e.to_string())?;
     }
@@ -383,36 +445,40 @@ pub fn reveal_in_os(path: &str) -> Result<(), String> {
 
 #[tauri::command]
 pub fn quick_look(path: &str) -> Result<(), String> {
+    let resolved = resolve_path(path);
+    let path_str = resolved.to_string_lossy().to_string();
+
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("qlmanage")
-            .args(["-p", path])
+            .args(["-p", &path_str])
             .spawn()
             .map_err(|e| format!("Failed to launch QuickLook: {}", e))?;
     }
     #[cfg(not(target_os = "macos"))]
     {
-        open_in_default(path)?;
+        open_in_default(&path_str)?;
     }
     Ok(())
 }
 
 #[tauri::command]
 pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
-    use tauri::Manager;
-    let target_url = if let Some(p) = path {
-        format!("index.html?window=inspector&path={}", urlencoding_encode(&p))
+    use tauri::{Emitter, Manager};
+    let target_url = if let Some(ref p) = path {
+        format!("index.html?window=inspector&path={}", urlencoding::encode(p))
     } else {
         "index.html?window=inspector".to_string()
     };
 
     if let Some(window) = app.get_webview_window("inspector") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
-            let _ = window.show();
-            let _ = window.set_focus();
+        if let Some(ref p) = path {
+            let _ = app.emit("inspector-sync-path", p);
         }
+        if !window.is_visible().unwrap_or(false) {
+            let _ = window.show();
+        }
+        let _ = window.set_focus();
     } else {
         let _win = tauri::WebviewWindowBuilder::new(
             &app,
@@ -426,11 +492,4 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         .map_err(|e| e.to_string())?;
     }
     Ok(())
-}
-
-fn urlencoding_encode(s: &str) -> String {
-    s.replace('%', "%25")
-        .replace(' ', "%20")
-        .replace('#', "%23")
-        .replace('&', "%26")
 }

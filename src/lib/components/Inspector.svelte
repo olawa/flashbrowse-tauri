@@ -88,9 +88,13 @@
 
   async function copyPath() {
     if (!item) return;
-    await navigator.clipboard.writeText(item.path);
-    copied = true;
-    setTimeout(() => (copied = false), 2000);
+    try {
+      await navigator.clipboard.writeText(item.path);
+      copied = true;
+      setTimeout(() => (copied = false), 2000);
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+    }
   }
 
   function truncateMiddle(str: string, maxLen = 35) {
@@ -120,14 +124,14 @@
         </button>
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
-          on:click={() => openInDefault(item.path)}
+          on:click={() => item && openInDefault(item.path)}
           title="Open in default app"
         >
           <ExternalLink size={12} />
         </button>
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
-          on:click={() => revealInOs(item.path)}
+          on:click={() => item && revealInOs(item.path)}
           title="Reveal in Finder / Explorer"
         >
           <FolderOpen size={12} />

@@ -40,7 +40,11 @@
   }
 
   async function handleCopyPath() {
-    await navigator.clipboard.writeText(item.path);
+    try {
+      await navigator.clipboard.writeText(item.path);
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+    }
     onClose();
   }
 

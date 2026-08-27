@@ -1,8 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { listArchiveContents } from '../invoke';
   import type { FileItem, ArchiveSummary, ArchiveEntry } from '../types';
-  import { Archive, RefreshCw, Search, FileText, Folder, HardDrive } from 'lucide-svelte';
+  import { Archive, RefreshCw, Search, FileText, Folder } from 'lucide-svelte';
 
   export let item: FileItem;
 
