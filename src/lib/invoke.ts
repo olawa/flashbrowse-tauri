@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import type {
+  ArchiveSummary,
+  BamHeaderData,
   DirectorySummary,
   DiskInfo,
   FileItem,
@@ -83,4 +85,37 @@ export async function quickLook(path: string): Promise<void> {
 export async function toggleDetachedInspector(path?: string): Promise<void> {
   await invoke('toggle_detached_inspector', { path });
 }
+
+export async function getBamHeader(path: string): Promise<BamHeaderData> {
+  return await invoke<BamHeaderData>('get_bam_header', { path });
+}
+
+export async function generateRsnapSnapshot(
+  bamPath: string,
+  region: string,
+  refPath?: string,
+): Promise<string> {
+  return await invoke<string>('generate_rsnap_snapshot', {
+    bamPath,
+    region,
+    refPath,
+  });
+}
+
+export async function launchRsnap(
+  paths: string[],
+  region?: string,
+  refPath?: string,
+): Promise<void> {
+  await invoke('launch_rsnap', { paths, region, refPath });
+}
+
+export async function runRsQc(bamPath: string): Promise<string> {
+  return await invoke<string>('run_rs_qc', { bamPath });
+}
+
+export async function listArchiveContents(path: string): Promise<ArchiveSummary> {
+  return await invoke<ArchiveSummary>('list_archive_contents', { path });
+}
+
 

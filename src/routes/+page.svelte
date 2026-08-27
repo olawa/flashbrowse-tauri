@@ -22,7 +22,9 @@
   import Inspector from '$lib/components/Inspector.svelte';
   import DetachedInspectorView from '$lib/components/DetachedInspectorView.svelte';
   import Terminal from '$lib/components/Terminal.svelte';
+  import StashShelf from '$lib/components/StashShelf.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
+  import { toggleStash } from '$lib/stores/stash';
   import type { FileItem } from '$lib/types';
   import { Lock, Unlock, PanelRightClose } from 'lucide-svelte';
 
@@ -84,6 +86,11 @@
     else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
       isDualInspector.update((v) => !v);
+    }
+    // Cmd+Option+S: Toggle Stash Shelf
+    else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      toggleStash();
     }
   }
 
@@ -182,6 +189,9 @@
           <Terminal />
         {/if}
       </div>
+
+      <!-- Stash Shelf Drawer (Staging) -->
+      <StashShelf />
 
       <!-- Horizontal Bottom Terminal Drawer -->
       {#if $isTerminalOpen && $terminalDockPosition === 'bottom'}

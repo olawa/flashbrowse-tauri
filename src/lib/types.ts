@@ -25,7 +25,7 @@ export interface DiskInfo {
 }
 
 export interface PreviewContent {
-  kind: 'code' | 'text' | 'image' | 'table' | 'hex' | 'too_large' | 'error';
+  kind: 'code' | 'text' | 'image' | 'table' | 'hex' | 'too_large' | 'error' | 'directory';
   text_content?: string;
   language?: string;
   line_count?: number;
@@ -60,6 +60,58 @@ export interface DirectorySummary {
   total_files: number;
   total_size_bytes: number;
   formatted_total_size: string;
+}
+
+export interface ContigInfo {
+  name: string;
+  length: number;
+  formatted_length: string;
+  assembly?: string;
+}
+
+export interface ReadGroupInfo {
+  id: string;
+  sample?: string;
+  platform?: string;
+  library?: string;
+  center?: string;
+}
+
+export interface ProgramInfo {
+  id: string;
+  name?: string;
+  version?: string;
+  command_line?: string;
+}
+
+export interface BamHeaderData {
+  detected_reference: string;
+  reference_matched_path?: string;
+  contigs: ContigInfo[];
+  total_contigs: number;
+  total_genome_length: number;
+  formatted_genome_length: string;
+  read_groups: ReadGroupInfo[];
+  programs: ProgramInfo[];
+  raw_header: string;
+  has_index: boolean;
+  index_type?: string;
+}
+
+export interface ArchiveEntry {
+  name: string;
+  size_bytes: number;
+  formatted_size: string;
+  is_dir: boolean;
+  modified_str: string;
+}
+
+export interface ArchiveSummary {
+  path: string;
+  entries: ArchiveEntry[];
+  total_files: number;
+  total_uncompressed_bytes: number;
+  formatted_uncompressed_size: string;
 }
 
 export type ThemeName = 'pro-dark' | 'cyberpunk' | 'retro-mac' | 'kids-mode';

@@ -12,6 +12,7 @@
   } from '../stores/navigation';
   import { currentTheme, setTheme, isKidsMode } from '../stores/theme';
   import DiskBar from './DiskBar.svelte';
+  import { stashItems, toggleStash } from '../stores/stash';
   import {
     Home,
     FolderGit2,
@@ -27,6 +28,7 @@
     Lock,
     MousePointerClick,
     Zap,
+    Layers,
   } from 'lucide-svelte';
   import type { ThemeName } from '../types';
 
@@ -118,6 +120,25 @@
         >
           <FolderGit2 size={14} class="text-purple-400" />
           <span>Projects</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Stash Shelf -->
+    <div>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Staging</span>
+      <div class="mt-1 space-y-0.5">
+        <button
+          class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left {$stashItems.length > 0 ? 'text-[var(--accent)] font-semibold' : 'text-[var(--text-secondary)]'}"
+          on:click={toggleStash}
+        >
+          <div class="flex items-center gap-2">
+            <Layers size={14} class={$stashItems.length > 0 ? 'text-[var(--accent)]' : ''} />
+            <span>Samlingsfack (Stash)</span>
+          </div>
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full {$stashItems.length > 0 ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--border)] text-slate-400 font-mono'}">
+            {$stashItems.length}
+          </span>
         </button>
       </div>
     </div>

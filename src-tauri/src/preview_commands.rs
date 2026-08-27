@@ -5,7 +5,6 @@ use base64::Engine;
 use chrono::{DateTime, Local};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
-use std::path::Path;
 
 fn detect_language(ext: &str) -> &'static str {
     match ext {

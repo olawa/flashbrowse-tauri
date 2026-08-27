@@ -3,6 +3,8 @@
   import { emit } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
   import { isInspectorDetached } from '../stores/navigation';
+  import BioInspector from './BioInspector.svelte';
+  import ArchiveInspector from './ArchiveInspector.svelte';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -26,8 +28,16 @@
   let isCalculatingDu = false;
   let copied = false;
 
+  $: ext = item?.extension.toLowerCase() || '';
+  $: isBam = !!item && (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
+  $: isArchive = !!item && (ext === 'zip' || ext === 'tar' || ext === 'tgz' || item.name.endsWith('.tar.gz') || item.name.endsWith('.tar.bz2') || item.name.endsWith('.tar.xz'));
+
   $: if (item) {
-    loadItemPreview(item);
+    if (!isBam && !isArchive) {
+      loadItemPreview(item);
+    } else {
+      preview = null;
+    }
     try {
       emit('inspector-sync', { item, titlePrefix });
     } catch {}
@@ -133,6 +143,10 @@
         <FileText size={32} class="opacity-20 mb-2" />
         <span>Select an item to view preview and metadata</span>
       </div>
+    {:else if isBam}
+      <BioInspector {item} />
+    {:else if isArchive}
+      <ArchiveInspector {item} />
     {:else if isLoading}
       <div class="flex-1 flex items-center justify-center text-[var(--text-muted)]">
         Loading preview...

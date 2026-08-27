@@ -1,9 +1,11 @@
+pub mod bio_commands;
 pub mod fs_commands;
 pub mod models;
 pub mod preview_commands;
 pub mod ssh_commands;
 pub mod terminal_commands;
 
+use bio_commands::*;
 use fs_commands::*;
 use preview_commands::*;
 use ssh_commands::*;
@@ -32,7 +34,12 @@ pub fn run() {
             ssh_list_directory,
             ssh_run_command,
             quick_look,
-            toggle_detached_inspector
+            toggle_detached_inspector,
+            get_bam_header,
+            generate_rsnap_snapshot,
+            launch_rsnap,
+            run_rs_qc,
+            list_archive_contents
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

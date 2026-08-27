@@ -2,6 +2,8 @@
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
+  import BioInspector from './BioInspector.svelte';
+  import ArchiveInspector from './ArchiveInspector.svelte';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -22,6 +24,10 @@
   let isCalculatingDu = false;
   let copied = false;
   let unlistenSync: (() => void) | null = null;
+
+  $: ext = currentItem?.extension.toLowerCase() || '';
+  $: isBam = !!currentItem && (ext === 'bam' || ext === 'cram' || ext === 'sam' || currentItem.name.endsWith('.bam') || currentItem.name.endsWith('.cram'));
+  $: isArchive = !!currentItem && (ext === 'zip' || ext === 'tar' || ext === 'tgz' || currentItem.name.endsWith('.tar.gz') || currentItem.name.endsWith('.tar.bz2') || currentItem.name.endsWith('.tar.xz'));
 
   onMount(async () => {
     // 1. Check if an initial path was provided in URL query
@@ -172,6 +178,10 @@
         <FileText size={40} class="opacity-20 mb-3" />
         <span>Väntar på filmarkering i Flashbrowse...</span>
       </div>
+    {:else if isBam}
+      <BioInspector item={currentItem} />
+    {:else if isArchive}
+      <ArchiveInspector item={currentItem} />
     {:else if isLoading}
       <div class="h-full flex items-center justify-center text-slate-500">
         Läser in filinnehåll...
