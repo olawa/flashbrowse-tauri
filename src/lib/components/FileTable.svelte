@@ -26,6 +26,7 @@
     ArrowUp,
     ArrowDown,
     Search,
+    X,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
@@ -54,10 +55,37 @@
   let pinchDeltaAccumulator = 0;
   let lastPinchTriggerTime = 0;
 
-  $: filteredItems = pane.items.filter((item) => {
-    if (!filterText) return true;
-    return item.name.toLowerCase().includes(filterText.toLowerCase());
-  });
+  function globToRegex(glob: string): RegExp {
+    const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const regexStr = '^' + escaped.replace(/\*/g, '.*').replace(/\?/g, '.') + '$';
+    return new RegExp(regexStr, 'i');
+  }
+
+  function matchFilter(name: string, query: string): boolean {
+    const q = query.trim();
+    if (!q) return true;
+
+    // Support multiple wildcard / search patterns separated by space or comma: e.g. "*.png, *.jpg" or "*.rs *.toml"
+    const tokens = q.split(/[\s,]+/).filter(Boolean);
+    if (tokens.length > 1) {
+      return tokens.some((token) => matchSinglePattern(name, token));
+    }
+    return matchSinglePattern(name, q);
+  }
+
+  function matchSinglePattern(name: string, pattern: string): boolean {
+    if (pattern.includes('*') || pattern.includes('?')) {
+      try {
+        const rx = globToRegex(pattern);
+        return rx.test(name);
+      } catch {
+        return name.toLowerCase().includes(pattern.toLowerCase());
+      }
+    }
+    return name.toLowerCase().includes(pattern.toLowerCase());
+  }
+
+  $: filteredItems = pane.items.filter((item) => matchFilter(item.name, filterText));
 
   function getFileIcon(item: FileItem) {
     if (item.is_dir) return Folder;
@@ -284,16 +312,31 @@
 >
   <!-- Top Filter bar inside panel -->
   <div class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)]">
-    <div class="relative flex-1">
-      <Search size={12} class="absolute left-2 top-2 text-[var(--text-muted)]" />
+    <div class="relative flex-1 flex items-center">
+      <Search size={12} class="absolute left-2 text-[var(--text-muted)] pointer-events-none" />
       <input
         type="text"
         bind:value={filterText}
-        placeholder="Filter {pane.items.length} items..."
-        class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded pl-6 pr-2 py-1 border border-[var(--border)] focus:outline-none focus:border-[var(--accent)]"
+        placeholder="Filter (*.png, test*, *.rs *.toml)..."
+        class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded pl-6 pr-6 py-1 border border-[var(--border)] focus:outline-none focus:border-[var(--accent)]"
+        on:keydown={(e) => {
+          if (e.key === 'Escape') {
+            filterText = '';
+            e.stopPropagation();
+          }
+        }}
       />
+      {#if filterText}
+        <button
+          class="absolute right-1.5 p-0.5 rounded-full hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          on:click={() => (filterText = '')}
+          title="Rensa filter (Esc)"
+        >
+          <X size={12} />
+        </button>
+      {/if}
     </div>
-    <span class="text-[11px] text-[var(--text-muted)] font-mono">
+    <span class="text-[11px] text-[var(--text-muted)] font-mono whitespace-nowrap">
       {filteredItems.length} / {pane.items.length}
     </span>
   </div>
