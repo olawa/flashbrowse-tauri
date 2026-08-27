@@ -31,6 +31,16 @@ export function toggleTerminalDock() {
   terminalDockPosition.update((pos) => (pos === 'bottom' ? 'side' : 'bottom'));
 }
 
+export function openTerminalAt(path: string) {
+  isTerminalOpen.set(true);
+  const activeId = get(activePaneId);
+  navigatePane(activeId, path);
+  terminalLines.update((lines) => [
+    ...lines,
+    { id: nextLineId++, text: `$ cd "${path}"`, isPrompt: true },
+  ]);
+}
+
 export async function executeTerminalCommand(input: string) {
   const trimmed = input.trim();
   if (!trimmed) return;

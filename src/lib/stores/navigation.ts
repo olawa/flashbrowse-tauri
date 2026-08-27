@@ -44,6 +44,7 @@ export const isInspectorDetached = writable<boolean>(false);
 export const showHiddenFiles = writable<boolean>(false);
 export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
 export const smartHoverPreview = writable<boolean>(true);
+export const activeHoveredItem = writable<FileItem | null>(null);
 
 export async function initNavigation() {
   const home = await getHomeDirectory();

@@ -8,6 +8,7 @@
     isDualInspector,
     isInspectorDetached,
     activePaneId,
+    activeHoveredItem,
   } from '$lib/stores/navigation';
   import {
     isTerminalOpen,
@@ -26,7 +27,17 @@
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { toggleStash } from '$lib/stores/stash';
   import type { FileItem } from '$lib/types';
-  import { Lock, Unlock, PanelRightClose } from 'lucide-svelte';
+  import {
+    Lock,
+    Unlock,
+    PanelRightClose,
+    Folder,
+    FileText,
+    Dna,
+    Table,
+    Copy,
+    Check,
+  } from 'lucide-svelte';
 
   let leftPreviewItem: FileItem | null = null;
   let rightPreviewItem: FileItem | null = null;
@@ -148,6 +159,62 @@
           </button>
         </div>
       {/if}
+      <!-- Global Top Active / Hover Path & Filename Bar -->
+      <div class="px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between gap-3 text-xs select-text overflow-hidden shrink-0">
+        {#if $activeHoveredItem || ($activePaneId === 'left' ? leftPreviewItem : rightPreviewItem)}
+          {@const active = $activeHoveredItem || ($activePaneId === 'left' ? leftPreviewItem : rightPreviewItem)}
+          {#if active}
+            <div class="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+              <div class="w-5 h-5 rounded flex items-center justify-center shrink-0 {active.is_dir ? 'bg-amber-500/20 text-amber-400' : 'bg-blue-500/20 text-blue-400'}">
+                {#if active.is_dir}
+                  <Folder size={12} />
+                {:else if ['bam', 'cram', 'sam'].includes(active.extension.toLowerCase()) || active.name.endsWith('.bam')}
+                  <Dna size={12} class="text-emerald-400" />
+                {:else if ['vcf', 'bcf'].includes(active.extension.toLowerCase()) || active.name.endsWith('.vcf.gz')}
+                  <Dna size={12} class="text-purple-400" />
+                {:else if ['tsv', 'csv', 'tab', 'xlsx'].includes(active.extension.toLowerCase())}
+                  <Table size={12} class="text-blue-400" />
+                {:else}
+                  <FileText size={12} />
+                {/if}
+              </div>
+
+              <!-- Full filename in bold -->
+              <span class="font-bold text-xs text-white select-text font-mono truncate hover:overflow-visible hover:whitespace-normal" title={active.name}>
+                {active.name}
+              </span>
+
+              <!-- Type / Extension badge -->
+              <span class="px-1.5 py-0.2 rounded bg-[#191d26] text-slate-300 text-[10px] font-mono border border-[#262d3d] shrink-0">
+                {active.is_dir ? 'MAPP' : active.extension.toUpperCase() || 'FIL'}
+              </span>
+
+              <!-- Size & Modified -->
+              <span class="text-[11px] text-slate-400 font-mono shrink-0">
+                {active.is_dir ? '' : active.formatted_size} • {active.formatted_modified}
+              </span>
+
+              <!-- Full path in subtle font with copy button -->
+              <span class="text-[10.5px] text-slate-500 font-mono truncate hidden md:inline select-text" title={active.path}>
+                {active.path}
+              </span>
+            </div>
+
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-[10.5px] text-slate-300 hover:text-white shrink-0 font-mono transition-colors"
+              on:click={() => navigator.clipboard.writeText(active.path)}
+              title="Kopiera fullständig sökväg"
+            >
+              <Copy size={10} />
+              <span>Kopiera sökväg</span>
+            </button>
+          {/if}
+        {:else}
+          <div class="text-[11px] text-slate-500 font-mono">
+            Hovra eller markera en fil för att visa fullständigt namn och sökväg
+          </div>
+        {/if}
+      </div>
 
       <!-- Workstation Columns Container -->
       <div class="flex-1 flex min-h-0 overflow-hidden">

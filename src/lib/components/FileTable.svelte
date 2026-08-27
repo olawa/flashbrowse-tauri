@@ -10,6 +10,7 @@
     clickMode,
     smartHoverPreview,
     refreshPane,
+    activeHoveredItem,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem } from '../invoke';
@@ -36,6 +37,9 @@
   $: isActive = $activePaneId === paneId;
 
   let filterText = '';
+  $: if (pane.filterQuery !== undefined && filterText !== pane.filterQuery) {
+    filterText = pane.filterQuery;
+  }
   let contextMenuItem: FileItem | null = null;
   let contextMenuPos = { x: 0, y: 0 };
   let tableContainerEl: HTMLDivElement;
@@ -173,6 +177,7 @@
   // MARK: - Smart Hover Live Preview
   function handleRowMouseEnter(item: FileItem) {
     hoveredPath = item.path;
+    activeHoveredItem.set(item);
     if ($smartHoverPreview) {
       clearTimeout(hoverTimer);
       hoverTimer = setTimeout(() => {
@@ -319,9 +324,15 @@
         bind:value={filterText}
         placeholder="Filter (*.png, test*, *.rs *.toml)..."
         class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded pl-6 pr-6 py-1 border border-[var(--border)] focus:outline-none focus:border-[var(--accent)]"
+        on:input={() => {
+          const store = paneId === 'left' ? leftPane : rightPane;
+          store.update((s) => ({ ...s, filterQuery: filterText }));
+        }}
         on:keydown={(e) => {
           if (e.key === 'Escape') {
             filterText = '';
+            const store = paneId === 'left' ? leftPane : rightPane;
+            store.update((s) => ({ ...s, filterQuery: '' }));
             e.stopPropagation();
           }
         }}
@@ -329,7 +340,11 @@
       {#if filterText}
         <button
           class="absolute right-1.5 p-0.5 rounded-full hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-          on:click={() => (filterText = '')}
+          on:click={() => {
+            filterText = '';
+            const store = paneId === 'left' ? leftPane : rightPane;
+            store.update((s) => ({ ...s, filterQuery: '' }));
+          }}
           title="Rensa filter (Esc)"
         >
           <X size={12} />

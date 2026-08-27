@@ -111,15 +111,15 @@
       <div class="w-6 h-6 rounded bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
         <Dna size={14} />
       </div>
-      <div class="truncate">
-        <div class="flex items-center gap-1.5">
-          <span class="font-bold text-xs text-white truncate">{item.name}</span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="font-bold text-xs text-white break-all leading-snug select-text" title={item.path}>{item.name}</span>
           {#if bamHeader?.has_index}
-            <span class="px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 text-[10px] font-mono font-bold border border-emerald-800">
+            <span class="px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 text-[10px] font-mono font-bold border border-emerald-800 shrink-0">
               {bamHeader.index_type || 'INDEXED'}
             </span>
           {:else}
-            <span class="px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800">
+            <span class="px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800 shrink-0">
               NO INDEX
             </span>
           {/if}

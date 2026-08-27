@@ -40,10 +40,10 @@
       <div class="w-6 h-6 rounded bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
         <Archive size={14} />
       </div>
-      <div class="truncate">
-        <div class="flex items-center gap-1.5">
-          <span class="font-bold text-xs text-white truncate">{item.name}</span>
-          <span class="px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800">
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="font-bold text-xs text-white break-all leading-snug select-text" title={item.path}>{item.name}</span>
+          <span class="px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800 shrink-0">
             ARKIV
           </span>
         </div>

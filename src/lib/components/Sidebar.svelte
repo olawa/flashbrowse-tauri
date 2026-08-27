@@ -27,8 +27,10 @@
     Baby,
     Lock,
     MousePointerClick,
-    Zap,
-    Layers,
+    Dna,
+    Table,
+    Code,
+    Bookmark,
   } from 'lucide-svelte';
   import type { ThemeName } from '../types';
 
@@ -53,6 +55,27 @@
     }
     navigatePane(paneId, path);
   }
+
+  function applyIndexFilter(filterQuery: string) {
+    const paneId = $activePaneId;
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => {
+      if (s.filterQuery === filterQuery) {
+        return { ...s, filterQuery: '' };
+      }
+      return { ...s, filterQuery };
+    });
+  }
+
+  const indexCategories = [
+    { label: 'BAM & CRAM', filter: '*.bam, *.cram, *.sam', badge: 'BAM', icon: Dna, color: 'text-emerald-400' },
+    { label: 'VCF & BCF', filter: '*.vcf, *.vcf.gz, *.bcf', badge: 'VCF', icon: Dna, color: 'text-purple-400' },
+    { label: 'FASTQ Reads', filter: '*.fastq, *.fq, *.fastq.gz, *.fq.gz', badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },
+    { label: 'Tabeller & Sheets', filter: '*.csv, *.tsv, *.tab, *.xlsx', badge: 'TABLE', icon: Table, color: 'text-blue-400' },
+    { label: 'Annotationer', filter: '*.bed, *.gtf, *.gff, *.bigwig', badge: 'BED', icon: Bookmark, color: 'text-pink-400' },
+    { label: 'Källkod & Skript', filter: '*.rs, *.py, *.ts, *.js, *.sh, *.c, *.swift', badge: 'CODE', icon: Code, color: 'text-yellow-400' },
+    { label: 'Dokument & Text', filter: '*.md, *.pdf, *.txt, *.doc', badge: 'DOC', icon: FileText, color: 'text-slate-300' },
+  ];
 
   const themes: Array<{ id: ThemeName; label: string; icon: any }> = [
     { id: 'pro-dark', label: 'Pro Dark (Default)', icon: Sparkles },
@@ -121,6 +144,29 @@
           <FolderGit2 size={14} class="text-purple-400" />
           <span>Projects</span>
         </button>
+      </div>
+    </div>
+
+    <!-- Index Hub (Filtypsindexering) -->
+    <div>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Filtypsindex (Hub)</span>
+      <div class="mt-1 space-y-0.5">
+        {#each indexCategories as cat}
+          {@const isActive = ($activePaneId === 'left' ? $leftPane.filterQuery : $rightPane.filterQuery) === cat.filter}
+          <button
+            class="w-full flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors group {isActive ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold border border-[var(--accent)]/40' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+            on:click={() => applyIndexFilter(cat.filter)}
+            title="Filtrera mappen på {cat.label} ({cat.filter})"
+          >
+            <div class="flex items-center gap-2 truncate">
+              <svelte:component this={cat.icon} size={14} class="{cat.color} shrink-0" />
+              <span class="truncate {isActive ? 'text-[var(--accent)]' : 'group-hover:text-white'}">{cat.label}</span>
+            </div>
+            <span class="text-[9.5px] font-mono px-1 py-0.2 rounded {isActive ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[#191d26] text-slate-400 group-hover:text-slate-200 border border-[#262d3d]'}">
+              {cat.badge}
+            </span>
+          </button>
+        {/each}
       </div>
     </div>
 

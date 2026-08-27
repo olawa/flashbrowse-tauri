@@ -107,11 +107,16 @@
 
 <div class="w-80 h-full flex flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none">
   <!-- Inspector Header -->
-  <div class="flex items-center justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)]">
-    <div class="flex items-center gap-1.5 truncate">
-      <span class="text-[10px] font-bold tracking-wider text-[var(--accent)] uppercase">{titlePrefix}</span>
-      <span class="text-[var(--text-muted)]">•</span>
-      <span class="font-semibold text-[var(--text-primary)] truncate">{item ? item.name : 'No selection'}</span>
+  <div class="flex items-start justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2">
+    <div class="flex flex-col min-w-0 flex-1">
+      <div class="flex items-center gap-1.5">
+        <span class="text-[10px] font-bold tracking-wider text-[var(--accent)] uppercase">{titlePrefix}</span>
+        <span class="text-[var(--text-muted)]">•</span>
+        <span class="text-[10px] text-[var(--text-secondary)] font-mono">{item?.extension ? item.extension.toUpperCase() : item?.is_dir ? 'MAPP' : ''}</span>
+      </div>
+      <span class="font-bold text-xs text-[var(--text-primary)] break-all leading-snug select-text mt-0.5" title={item?.path}>
+        {item ? item.name : 'No selection'}
+      </span>
     </div>
 
     {#if item}
