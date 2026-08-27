@@ -40,6 +40,7 @@ export const rightPane = writable<PaneState>(createDefaultPaneState());
 export const activePaneId = writable<'left' | 'right'>('left');
 export const isDualPane = writable<boolean>(true);
 export const isDualInspector = writable<boolean>(true);
+export const isInspectorDetached = writable<boolean>(false);
 export const showHiddenFiles = writable<boolean>(false);
 export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
 export const smartHoverPreview = writable<boolean>(true);

@@ -103,12 +103,18 @@ fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String>, Vec<Vec<
 
 #[tauri::command]
 pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
-    let file_path = Path::new(path);
-    if !file_path.exists() {
-        return Err("File does not exist".to_string());
+    let resolved_path = if path.starts_with('~') {
+        let home = crate::fs_commands::dirs_home();
+        home.join(path.trim_start_matches("~/").trim_start_matches('~'))
+    } else {
+        std::path::PathBuf::from(path)
+    };
+
+    if !resolved_path.exists() {
+        return Err(format!("Path does not exist: {}", resolved_path.display()));
     }
 
-    let metadata = fs::metadata(file_path).map_err(|e| e.to_string())?;
+    let metadata = fs::metadata(&resolved_path).map_err(|e| e.to_string())?;
     let file_size_bytes = metadata.len();
     let formatted_size = format_byte_size(file_size_bytes);
 
@@ -119,10 +125,31 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
     let modified_str = dt.format("%Y-%m-%d %H:%M:%S").to_string();
     let permissions_str = get_permissions_string(&metadata);
 
-    let ext = file_path
+    if resolved_path.is_dir() {
+        return Ok(PreviewContent {
+            kind: "directory".to_string(),
+            text_content: None,
+            language: None,
+            line_count: None,
+            image_base64: None,
+            image_mime: None,
+            table_headers: None,
+            table_rows: None,
+            hex_lines: None,
+            file_size_bytes,
+            formatted_size: "--".to_string(),
+            modified_str,
+            permissions_str,
+            error_message: None,
+        });
+    }
+
+    let ext = resolved_path
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
+
+    let file_path = resolved_path.as_path();
 
     // 1. Image Preview
     if let Some(mime) = is_image_ext(&ext) {

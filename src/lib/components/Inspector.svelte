@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { emit } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
+  import { isInspectorDetached } from '../stores/navigation';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -26,9 +28,17 @@
 
   $: if (item) {
     loadItemPreview(item);
+    try {
+      emit('inspector-sync', { item, titlePrefix });
+    } catch {}
   } else {
     preview = null;
     dirSummary = null;
+  }
+
+  async function handleDetach() {
+    isInspectorDetached.set(true);
+    await toggleDetachedInspector(item?.path);
   }
 
   async function loadItemPreview(target: FileItem) {
@@ -93,7 +103,7 @@
       <div class="flex items-center gap-1">
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--accent)]"
-          on:click={() => toggleDetachedInspector(item.path)}
+          on:click={handleDetach}
           title="Koppla loss inspektor till eget fönster (Detach Window)"
         >
           <SquareArrowOutUpRight size={12} />

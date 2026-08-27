@@ -401,9 +401,9 @@ pub fn quick_look(path: &str) -> Result<(), String> {
 pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
     use tauri::Manager;
     let target_url = if let Some(p) = path {
-        format!("/inspector?path={}", urlencoding_encode(&p))
+        format!("index.html?window=inspector&path={}", urlencoding_encode(&p))
     } else {
-        "/inspector".to_string()
+        "index.html?window=inspector".to_string()
     };
 
     if let Some(window) = app.get_webview_window("inspector") {

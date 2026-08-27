@@ -6,6 +6,7 @@
     rightPane,
     isDualPane,
     isDualInspector,
+    isInspectorDetached,
     activePaneId,
   } from '$lib/stores/navigation';
   import {
@@ -19,14 +20,16 @@
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import FileTable from '$lib/components/FileTable.svelte';
   import Inspector from '$lib/components/Inspector.svelte';
+  import DetachedInspectorView from '$lib/components/DetachedInspectorView.svelte';
   import Terminal from '$lib/components/Terminal.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import type { FileItem } from '$lib/types';
-  import { Lock, Unlock } from 'lucide-svelte';
+  import { Lock, Unlock, PanelRightClose } from 'lucide-svelte';
 
   let leftPreviewItem: FileItem | null = null;
   let rightPreviewItem: FileItem | null = null;
   let isPaletteOpen = false;
+  let isDetachedWindowMode = false;
 
   // Kids Mode Pin Lock
   let isPinModalOpen = false;
@@ -34,6 +37,14 @@
   let pinError = '';
 
   onMount(async () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('window') === 'inspector') {
+        isDetachedWindowMode = true;
+        return;
+      }
+    }
+
     await initNavigation();
     setTheme('pro-dark');
 
@@ -90,75 +101,95 @@
 
 <svelte:window on:keydown={handleGlobalKeyDown} />
 
-<div class="flex h-screen w-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
-  <!-- 1. Left Sidebar -->
-  <Sidebar />
+{#if isDetachedWindowMode}
+  <!-- Standalone Detached Inspector Window View -->
+  <DetachedInspectorView />
+{:else}
+  <!-- Main Workstation Window -->
+  <div class="flex h-screen w-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
+    <!-- 1. Left Sidebar -->
+    <Sidebar />
 
-  <!-- 2. Main Workstation Area -->
-  <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-    <!-- Top Bar for Kids Mode or Info -->
-    {#if $isKidsMode}
-      <div class="flex items-center justify-between px-4 py-2 bg-pink-100 border-b border-pink-200 text-pink-900 text-xs font-semibold">
-        <div class="flex items-center gap-2">
-          <span>🎈 Barn-läge Aktivt (Skrivskyddat & Sandlåda)</span>
+    <!-- 2. Main Workstation Area -->
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <!-- Top Bar for Kids Mode or Detached status -->
+      {#if $isKidsMode}
+        <div class="flex items-center justify-between px-4 py-2 bg-pink-100 border-b border-pink-200 text-pink-900 text-xs font-semibold">
+          <div class="flex items-center gap-2">
+            <span>🎈 Barn-läge Aktivt (Skrivskyddat & Sandlåda)</span>
+          </div>
+          <button
+            class="flex items-center gap-1 px-3 py-1 rounded-full bg-pink-600 hover:bg-pink-700 text-white shadow-sm transition-transform active:scale-95"
+            on:click={() => (isPinModalOpen = true)}
+          >
+            <Lock size={12} />
+            <span>Lås upp föräldraläge</span>
+          </button>
         </div>
-        <button
-          class="flex items-center gap-1 px-3 py-1 rounded-full bg-pink-600 hover:bg-pink-700 text-white shadow-sm transition-transform active:scale-95"
-          on:click={() => (isPinModalOpen = true)}
-        >
-          <Lock size={12} />
-          <span>Lås upp föräldraläge</span>
-        </button>
-      </div>
-    {/if}
+      {:else if $isInspectorDetached}
+        <div class="flex items-center justify-between px-4 py-1.5 bg-[#14171d] border-b border-[#262d3d] text-xs text-slate-300">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Inspektor är löskopplad till eget fönster</span>
+          </div>
+          <button
+            class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#e85422]/20 hover:bg-[#e85422] text-[#e85422] hover:text-white border border-[#e85422]/40 text-[11px] font-medium transition-colors"
+            on:click={() => isInspectorDetached.set(false)}
+          >
+            <PanelRightClose size={11} />
+            <span>Fäst tillbaka i huvudfönstret</span>
+          </button>
+        </div>
+      {/if}
 
-    <!-- Workstation Columns Container -->
-    <div class="flex-1 flex min-h-0 overflow-hidden">
-      <!-- LEFT WORKSTATION (Pane + Inspector) -->
-      <div class="flex-1 flex min-w-0 h-full">
-        <!-- Left File Browser -->
-        <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
-          <Breadcrumb paneId="left" />
-          <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+      <!-- Workstation Columns Container -->
+      <div class="flex-1 flex min-h-0 overflow-hidden">
+        <!-- LEFT WORKSTATION (Pane + Inspector) -->
+        <div class="flex-1 flex min-w-0 h-full">
+          <!-- Left File Browser -->
+          <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
+            <Breadcrumb paneId="left" />
+            <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+          </div>
+
+          <!-- Left Inspector (Hidden when detached) -->
+          {#if !$isInspectorDetached && ($isDualInspector || !$isDualPane)}
+            <Inspector item={leftPreviewItem} titlePrefix="Local" />
+          {/if}
         </div>
 
-        <!-- Left Inspector -->
-        {#if $isDualInspector || !$isDualPane}
-          <Inspector item={leftPreviewItem} titlePrefix="Local" />
+        <!-- RIGHT WORKSTATION (Pane + Inspector) -->
+        {#if $isDualPane}
+          <div class="flex-1 flex min-w-0 h-full border-l border-[var(--border)]">
+            <!-- Right File Browser -->
+            <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
+              <Breadcrumb paneId="right" />
+              <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
+            </div>
+
+            <!-- Right Inspector (Hidden when detached) -->
+            {#if !$isInspectorDetached && $isDualInspector}
+              <Inspector
+                item={rightPreviewItem}
+                titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Right'}
+              />
+            {/if}
+          </div>
+        {/if}
+
+        <!-- Vertical Full-Height Side Terminal Column -->
+        {#if $isTerminalOpen && $terminalDockPosition === 'side'}
+          <Terminal />
         {/if}
       </div>
 
-      <!-- RIGHT WORKSTATION (Pane + Inspector) -->
-      {#if $isDualPane}
-        <div class="flex-1 flex min-w-0 h-full border-l border-[var(--border)]">
-          <!-- Right File Browser -->
-          <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
-            <Breadcrumb paneId="right" />
-            <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
-          </div>
-
-          <!-- Right Inspector -->
-          {#if $isDualInspector}
-            <Inspector
-              item={rightPreviewItem}
-              titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Right'}
-            />
-          {/if}
-        </div>
-      {/if}
-
-      <!-- Vertical Full-Height Side Terminal Column -->
-      {#if $isTerminalOpen && $terminalDockPosition === 'side'}
+      <!-- Horizontal Bottom Terminal Drawer -->
+      {#if $isTerminalOpen && $terminalDockPosition === 'bottom'}
         <Terminal />
       {/if}
     </div>
-
-    <!-- Horizontal Bottom Terminal Drawer -->
-    {#if $isTerminalOpen && $terminalDockPosition === 'bottom'}
-      <Terminal />
-    {/if}
   </div>
-</div>
+{/if}
 
 <!-- Command Palette Modal (Cmd+K) -->
 <CommandPalette isOpen={isPaletteOpen} onClose={() => (isPaletteOpen = false)} />
