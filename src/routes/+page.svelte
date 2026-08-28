@@ -6,9 +6,11 @@
     rightPane,
     isDualPane,
     isDualInspector,
+    inspectorPreset,
     isInspectorDetached,
     activePaneId,
     activeHoveredItem,
+    type InspectorPreset,
   } from '$lib/stores/navigation';
   import {
     isTerminalOpen,
@@ -37,6 +39,10 @@
     Table,
     Copy,
     Check,
+    LayoutTemplate,
+    Columns2,
+    Columns3,
+    EyeOff,
   } from 'lucide-svelte';
 
   let leftPreviewItem: FileItem | null = null;
@@ -77,6 +83,15 @@
     rightPreviewItem = $rightPane.items[0];
   }
 
+  // Active Shared Preview Item for Center and Right layouts
+  $: activeSharedItem =
+    $activeHoveredItem ||
+    ($activePaneId === 'right' ? (rightPreviewItem || leftPreviewItem) : (leftPreviewItem || rightPreviewItem));
+
+  $: activeSharedTitle = $activeHoveredItem
+    ? ($activePaneId === 'right' ? 'Höger (hovrad)' : 'Vänster (hovrad)')
+    : ($activePaneId === 'right' ? 'Höger' : 'Vänster');
+
   function handleGlobalKeyDown(e: KeyboardEvent) {
     // Cmd+K / Ctrl+K: Command Palette
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -93,10 +108,17 @@
         toggleTerminal();
       }
     }
+    // Cmd+Option+I: Cycle Inspector Layout Presets
+    else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      const presets: InspectorPreset[] = ['center', 'right', 'dual', 'none'];
+      const nextIdx = (presets.indexOf($inspectorPreset) + 1) % presets.length;
+      inspectorPreset.set(presets[nextIdx]);
+    }
     // Cmd+Option+D: Toggle Dual Inspector
     else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
-      isDualInspector.update((v) => !v);
+      inspectorPreset.update((cur) => (cur === 'dual' ? 'center' : 'dual'));
     }
     // Cmd+Option+S: Toggle Stash Shelf
     else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 's') {
@@ -199,56 +221,161 @@
                 {active.path}
               </span>
             </div>
-
-            <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-[10.5px] text-slate-300 hover:text-white shrink-0 font-mono transition-colors"
-              on:click={() => navigator.clipboard.writeText(active.path)}
-              title="Kopiera fullständig sökväg"
-            >
-              <Copy size={10} />
-              <span>Kopiera sökväg</span>
-            </button>
           {/if}
         {:else}
           <div class="text-[11px] text-slate-500 font-mono">
             Hovra eller markera en fil för att visa fullständigt namn och sökväg
           </div>
         {/if}
+
+        <div class="flex items-center gap-2 shrink-0">
+          {#if $activeHoveredItem || ($activePaneId === 'left' ? leftPreviewItem : rightPreviewItem)}
+            {@const active = $activeHoveredItem || ($activePaneId === 'left' ? leftPreviewItem : rightPreviewItem)}
+            {#if active}
+              <button
+                class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-[10.5px] text-slate-300 hover:text-white shrink-0 font-mono transition-colors"
+                on:click={() => navigator.clipboard.writeText(active.path)}
+                title="Kopiera fullständig sökväg"
+              >
+                <Copy size={10} />
+                <span class="hidden sm:inline">Kopiera sökväg</span>
+              </button>
+            {/if}
+          {/if}
+
+          <!-- Inspector Layout Preset Switcher -->
+          <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'center' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => inspectorPreset.set('center')}
+              title="Inspektör i mitten (Gemensam standard)"
+            >
+              <Columns3 size={11} />
+              <span class="hidden md:inline">Center</span>
+            </button>
+
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'right' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => inspectorPreset.set('right')}
+              title="Inspektör till höger"
+            >
+              <LayoutTemplate size={11} />
+              <span class="hidden md:inline">Höger</span>
+            </button>
+
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'dual' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => inspectorPreset.set('dual')}
+              title="Dubbla inspektörer (Vänster + Höger)"
+            >
+              <Columns2 size={11} />
+              <span class="hidden md:inline">Dubbel</span>
+            </button>
+
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'none' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => inspectorPreset.set('none')}
+              title="Dölj inspektör i huvudfönstret"
+            >
+              <EyeOff size={11} />
+              <span class="hidden md:inline">Dold</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Workstation Columns Container -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
-        <!-- LEFT WORKSTATION (Pane + Inspector) -->
-        <div class="flex-1 flex min-w-0 h-full">
-          <!-- Left File Browser -->
-          <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
-            <Breadcrumb paneId="left" />
-            <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
-          </div>
-
-          <!-- Left Inspector -->
-          {#if $isDualInspector || !$isDualPane}
-            <Inspector item={leftPreviewItem} titlePrefix="Local" />
-          {/if}
-        </div>
-
-        <!-- RIGHT WORKSTATION (Pane + Inspector) -->
         {#if $isDualPane}
-          <div class="flex-1 flex min-w-0 h-full border-l border-[var(--border)]">
-            <!-- Right File Browser -->
-            <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
+          <!-- 1. CENTER SHARED INSPECTOR (DEFAULT) -->
+          {#if $inspectorPreset === 'center'}
+            <!-- Left Browser -->
+            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
+              <Breadcrumb paneId="left" />
+              <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+            </div>
+
+            <!-- Central Shared Inspector -->
+            <div class="w-[380px] lg:w-[460px] xl:w-[500px] h-full shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
+              <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
+            </div>
+
+            <!-- Right Browser -->
+            <div class="flex-1 flex flex-col min-w-[260px] h-full">
+              <Breadcrumb paneId="right" />
+              <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
+            </div>
+
+          <!-- 2. RIGHT-ALIGNED INSPECTOR -->
+          {:else if $inspectorPreset === 'right'}
+            <!-- Left Browser -->
+            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
+              <Breadcrumb paneId="left" />
+              <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+            </div>
+
+            <!-- Right Browser -->
+            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
               <Breadcrumb paneId="right" />
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
 
             <!-- Right Inspector -->
-            {#if $isDualInspector}
-              <Inspector
-                item={rightPreviewItem}
-                titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Right'}
-              />
-            {/if}
+            <div class="w-[380px] lg:w-[460px] h-full shrink-0 flex flex-col bg-[var(--bg-surface)]">
+              <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
+            </div>
+
+          <!-- 3. DUAL SEPARATE INSPECTORS -->
+          {:else if $inspectorPreset === 'dual'}
+            <!-- Left Workstation -->
+            <div class="flex-1 flex min-w-0 h-full border-r border-[var(--border)]">
+              <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+                <Breadcrumb paneId="left" />
+                <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+              </div>
+              <div class="w-[300px] xl:w-[340px] h-full shrink-0">
+                <Inspector item={leftPreviewItem} titlePrefix="Vänster" />
+              </div>
+            </div>
+
+            <!-- Right Workstation -->
+            <div class="flex-1 flex min-w-0 h-full">
+              <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+                <Breadcrumb paneId="right" />
+                <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
+              </div>
+              <div class="w-[300px] xl:w-[340px] h-full shrink-0">
+                <Inspector
+                  item={rightPreviewItem}
+                  titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Höger'}
+                />
+              </div>
+            </div>
+
+          <!-- 4. NO INSPECTOR (PURE DUAL BROWSERS) -->
+          {:else if $inspectorPreset === 'none'}
+            <div class="flex-1 flex flex-col min-w-[280px] h-full border-r border-[var(--border)]">
+              <Breadcrumb paneId="left" />
+              <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+            </div>
+            <div class="flex-1 flex flex-col min-w-[280px] h-full">
+              <Breadcrumb paneId="right" />
+              <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
+            </div>
+          {/if}
+
+        <!-- SINGLE PANE MODE -->
+        {:else}
+          <div class="flex-1 flex flex-col min-w-[320px] h-full { $inspectorPreset !== 'none' ? 'border-r border-[var(--border)]' : '' }">
+            <Breadcrumb paneId="left" />
+            <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
           </div>
+
+          {#if $inspectorPreset !== 'none'}
+            <div class="w-[420px] lg:w-[500px] h-full shrink-0 bg-[var(--bg-surface)]">
+              <Inspector item={leftPreviewItem} titlePrefix="Lokal" />
+            </div>
+          {/if}
         {/if}
 
         <!-- Vertical Full-Height Side Terminal Column -->

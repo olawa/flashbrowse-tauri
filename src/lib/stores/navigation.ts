@@ -37,9 +37,12 @@ function createDefaultPaneState(): PaneState {
 
 export const leftPane = writable<PaneState>(createDefaultPaneState());
 export const rightPane = writable<PaneState>(createDefaultPaneState());
+export type InspectorPreset = 'center' | 'right' | 'dual' | 'none';
+
 export const activePaneId = writable<'left' | 'right'>('left');
 export const isDualPane = writable<boolean>(true);
-export const isDualInspector = writable<boolean>(true);
+export const isDualInspector = writable<boolean>(false);
+export const inspectorPreset = writable<InspectorPreset>('center');
 export const isInspectorDetached = writable<boolean>(false);
 export const isSecondaryInspectorOpen = writable<boolean>(false);
 export const lastCastedItem = writable<FileItem | null>(null);
@@ -47,6 +50,13 @@ export const showHiddenFiles = writable<boolean>(false);
 export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
 export const smartHoverPreview = writable<boolean>(true);
 export const activeHoveredItem = writable<FileItem | null>(null);
+
+// Remote Inspector Scroll Channel
+export const inspectorScroll = writable<{ deltaY: number; pulse: number }>({ deltaY: 0, pulse: 0 });
+
+export function triggerInspectorScroll(deltaY: number) {
+  inspectorScroll.update((s) => ({ deltaY, pulse: s.pulse + 1 }));
+}
 
 export async function castToSecondaryInspector(item: FileItem) {
   lastCastedItem.set(item);

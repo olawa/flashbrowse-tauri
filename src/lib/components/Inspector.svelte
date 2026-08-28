@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
-  import { isInspectorDetached, castToSecondaryInspector } from '../stores/navigation';
+  import { isInspectorDetached, castToSecondaryInspector, inspectorScroll } from '../stores/navigation';
   import { renderMarkdown } from '../markdown';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
@@ -39,12 +39,48 @@
   let isCalculatingDu = false;
   let copied = false;
   let castedAnimation = false;
+  let inspectorBodyEl: HTMLElement;
+  let htmlIframeEl: HTMLIFrameElement;
+  let pdfIframeEl: HTMLIFrameElement;
+  let lastScrollPulse = 0;
 
   // View Mode Toggles
   let htmlViewMode: 'rendered' | 'source' = 'rendered';
   let pdfViewMode: 'pdf' | 'hex' = 'pdf';
   let mdViewMode: 'rendered' | 'source' = 'rendered';
   let svgViewMode: 'rendered' | 'source' = 'rendered';
+
+  // Remote Two-Finger Scroll listener
+  $: if ($inspectorScroll.pulse && $inspectorScroll.pulse !== lastScrollPulse) {
+    lastScrollPulse = $inspectorScroll.pulse;
+    handleRemoteScroll($inspectorScroll.deltaY);
+  }
+
+  function handleRemoteScroll(deltaY: number) {
+    // 1. If HTML or PDF iframe is visible, scroll it
+    if (htmlViewMode === 'rendered' && htmlIframeEl?.contentWindow) {
+      try {
+        htmlIframeEl.contentWindow.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+      } catch {}
+    }
+    if (pdfViewMode === 'pdf' && pdfIframeEl?.contentWindow) {
+      try {
+        pdfIframeEl.contentWindow.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+      } catch {}
+    }
+
+    // 2. Scroll any active scrollable container inside the inspector body
+    if (inspectorBodyEl) {
+      const scrollables = inspectorBodyEl.querySelectorAll('.overflow-auto, .overflow-y-auto, .overflow-x-auto');
+      if (scrollables.length > 0) {
+        scrollables.forEach((el) => {
+          el.scrollBy({ top: deltaY, behavior: 'auto' });
+        });
+      } else {
+        inspectorBodyEl.scrollBy({ top: deltaY, behavior: 'auto' });
+      }
+    }
+  }
 
   $: ext = item?.extension.toLowerCase() || '';
   $: isBam = !!item && (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
@@ -182,7 +218,7 @@
   </div>
 
   <!-- Inspector Body -->
-  <div class="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-[var(--bg-base)]">
+  <div bind:this={inspectorBodyEl} class="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-[var(--bg-base)]">
     {#if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">
         <FileText size={32} class="opacity-20 mb-2" />
@@ -230,6 +266,7 @@
           {#if htmlViewMode === 'rendered'}
             <div class="flex-1 bg-white min-h-[300px]">
               <iframe
+                bind:this={htmlIframeEl}
                 srcdoc={preview.html_content}
                 title={item.name}
                 class="w-full h-full border-0 bg-white"
@@ -274,6 +311,7 @@
           {#if pdfViewMode === 'pdf'}
             <div class="flex-1 bg-slate-900 min-h-[350px]">
               <iframe
+                bind:this={pdfIframeEl}
                 src="data:application/pdf;base64,{preview.pdf_base64}#toolbar=1"
                 title={item.name}
                 class="w-full h-full border-0 min-h-[350px]"

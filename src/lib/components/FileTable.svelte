@@ -12,6 +12,7 @@
     refreshPane,
     activeHoveredItem,
     castToSecondaryInspector,
+    triggerInspectorScroll,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem } from '../invoke';
@@ -224,7 +225,7 @@
     renamingPath = null;
   }
 
-  // Cast fling gesture state (Two-finger swipe UP)
+  // Remote Inspector Scroll & Cast Gesture
   let castingRowPath: string | null = null;
   let lastCastTriggerTime = 0;
 
@@ -242,13 +243,16 @@
   function handleRowWheel(item: FileItem, e: WheelEvent) {
     if (e.ctrlKey) return; // Keep ctrl+wheel for pinch in/out
 
-    // Two-finger swipe UP detection: brisk negative deltaY
-    if (e.deltaY < -35 && Math.abs(e.deltaY) > Math.abs(e.deltaX) * 2.0) {
-      const now = Date.now();
-      if (now - lastCastTriggerTime > 600) {
-        e.preventDefault();
-        handleCastItem(item);
-      }
+    // 1. If Alt is held with swipe UP, trigger cast
+    if (e.altKey && e.deltaY < -20) {
+      e.preventDefault();
+      handleCastItem(item);
+      return;
+    }
+
+    // 2. Two-finger scroll UP/DOWN on row drives remote inspector scrolling!
+    if (Math.abs(e.deltaY) > 0) {
+      triggerInspectorScroll(e.deltaY);
     }
   }
 
