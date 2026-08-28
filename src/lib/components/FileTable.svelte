@@ -11,6 +11,7 @@
     smartHoverPreview,
     refreshPane,
     activeHoveredItem,
+    isInspectorLocked,
     castToSecondaryInspector,
     triggerInspectorScroll,
   } from '../stores/navigation';
@@ -177,17 +178,23 @@
     }
   }
 
-  // MARK: - Smart Hover Live Preview
-  function handleRowMouseEnter(item: FileItem) {
+  // MARK: - Smart Hover Live Preview with Lock and Cmd Support
+  function handleRowMouseEnter(item: FileItem, e?: MouseEvent) {
     hoveredPath = item.path;
-    activeHoveredItem.set(item);
+    clearTimeout(hoverTimer);
+
+    // If Inspector is locked or user is holding Cmd / Ctrl, do NOT change preview!
+    if ($isInspectorLocked || e?.metaKey || e?.ctrlKey) {
+      return;
+    }
+
     if ($smartHoverPreview) {
-      clearTimeout(hoverTimer);
       hoverTimer = setTimeout(() => {
-        if (hoveredPath === item.path) {
+        if (hoveredPath === item.path && !$isInspectorLocked) {
+          activeHoveredItem.set(item);
           onSelectPreview(item);
         }
-      }, 70);
+      }, 150);
     }
   }
 
@@ -432,7 +439,7 @@
       <!-- Table Header -->
       <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] font-sans font-semibold text-[11px] sticky top-0 z-10">
         <button
-          class="col-span-6 flex items-center gap-1 text-left hover:text-[var(--text-primary)]"
+          class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)]"
           on:click={() => sortPaneItems(paneId, 'name')}
         >
           <span>Name</span>
@@ -452,7 +459,7 @@
         </button>
 
         <button
-          class="col-span-2 flex items-center gap-1 hover:text-[var(--text-primary)] pl-2"
+          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] pr-1"
           on:click={() => sortPaneItems(paneId, 'modified')}
         >
           <span>Modified</span>
@@ -460,10 +467,6 @@
             {#if pane.sortAsc}<ArrowUp size={11} />{:else}<ArrowDown size={11} />{/if}
           {/if}
         </button>
-
-        <div class="col-span-2 text-right">
-          <span>Mode</span>
-        </div>
       </div>
 
       <!-- Table Rows -->
@@ -480,7 +483,7 @@
             class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
             on:click={(e) => handleRowClick(item, e)}
             on:dblclick={() => handleDoubleClick(item)}
-            on:mouseenter={() => handleRowMouseEnter(item)}
+            on:mouseenter={(e) => handleRowMouseEnter(item, e)}
             on:mouseleave={handleRowMouseLeave}
             on:wheel={(e) => handleRowWheel(item, e)}
             on:contextmenu={(e) => handleContextMenu(item, e)}
@@ -488,7 +491,7 @@
             tabindex="-1"
           >
             <!-- Name Column -->
-            <div class="col-span-6 flex items-center gap-2 min-w-0">
+            <div class="col-span-8 flex items-center gap-2 min-w-0">
               <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
               
               {#if isRenaming}
@@ -525,13 +528,8 @@
             </div>
 
             <!-- Modified Column -->
-            <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate pl-2 font-mono">
+            <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate text-right pr-1 font-mono">
               {item.formatted_modified}
-            </div>
-
-            <!-- Permissions Column -->
-            <div class="col-span-2 text-right text-[var(--text-muted)] text-[10px] font-mono">
-              {item.permissions}
             </div>
           </div>
         {/each}

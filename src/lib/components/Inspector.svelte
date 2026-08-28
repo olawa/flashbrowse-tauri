@@ -2,7 +2,13 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
-  import { isInspectorDetached, castToSecondaryInspector, inspectorScroll } from '../stores/navigation';
+  import {
+    isInspectorDetached,
+    castToSecondaryInspector,
+    inspectorScroll,
+    isInspectorLocked,
+    toggleInspectorLock,
+  } from '../stores/navigation';
   import { renderMarkdown } from '../markdown';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
@@ -28,6 +34,8 @@
     Volume2,
     Video,
     Sparkles,
+    Lock,
+    Unlock,
   } from 'lucide-svelte';
 
   export let item: FileItem | null = null;
@@ -42,6 +50,7 @@
   let inspectorBodyEl: HTMLElement;
   let htmlIframeEl: HTMLIFrameElement;
   let pdfIframeEl: HTMLIFrameElement;
+  let codeViewerRef: any;
   let lastScrollPulse = 0;
 
   // View Mode Toggles
@@ -61,24 +70,28 @@
     if (htmlViewMode === 'rendered' && htmlIframeEl?.contentWindow) {
       try {
         htmlIframeEl.contentWindow.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+        return;
       } catch {}
     }
     if (pdfViewMode === 'pdf' && pdfIframeEl?.contentWindow) {
       try {
         pdfIframeEl.contentWindow.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+        return;
       } catch {}
     }
 
-    // 2. Scroll any active scrollable container inside the inspector body
+    // 2. If CodeViewer is active, scroll its inner container
+    if (codeViewerRef?.scrollByDelta) {
+      codeViewerRef.scrollByDelta(deltaY);
+      return;
+    }
+
+    // 3. Otherwise scroll the innermost scrollable container inside the inspector body
     if (inspectorBodyEl) {
-      const scrollables = inspectorBodyEl.querySelectorAll('.overflow-auto, .overflow-y-auto, .overflow-x-auto');
-      if (scrollables.length > 0) {
-        scrollables.forEach((el) => {
-          el.scrollBy({ top: deltaY, behavior: 'auto' });
-        });
-      } else {
-        inspectorBodyEl.scrollBy({ top: deltaY, behavior: 'auto' });
-      }
+      const scrollable =
+        inspectorBodyEl.querySelector('.overflow-y-auto, .overflow-auto') ||
+        inspectorBodyEl;
+      scrollable.scrollBy({ top: deltaY, behavior: 'auto' });
     }
   }
 
@@ -165,22 +178,40 @@
   }
 </script>
 
-<div class="w-80 h-full flex flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none relative">
+<div class="w-full h-full flex flex-col bg-[var(--bg-surface)] text-xs select-none relative overflow-hidden">
   <!-- Inspector Header -->
-  <div class="flex items-start justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2">
+  <div class="flex items-start justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2 shrink-0">
     <div class="flex flex-col min-w-0 flex-1">
       <div class="flex items-center gap-1.5">
         <span class="text-[10px] font-bold tracking-wider text-[var(--accent)] uppercase">{titlePrefix}</span>
+        {#if $isInspectorLocked}
+          <span class="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-mono text-[9px] font-bold tracking-wide flex items-center gap-1">
+            <Lock size={9} /> LÅST
+          </span>
+        {/if}
         <span class="text-[var(--text-muted)]">•</span>
         <span class="text-[10px] text-[var(--text-secondary)] font-mono">{item?.extension ? item.extension.toUpperCase() : item?.is_dir ? 'MAPP' : ''}</span>
       </div>
       <span class="font-bold text-xs text-[var(--text-primary)] break-all leading-snug select-text mt-0.5" title={item?.path}>
-        {item ? item.name : 'No selection'}
+        {item ? item.name : 'Ingen markering'}
       </span>
     </div>
 
     {#if item}
-      <div class="flex items-center gap-1">
+      <div class="flex items-center gap-1 shrink-0">
+        <!-- Lock Preview button -->
+        <button
+          class="p-1 rounded transition-colors {$isInspectorLocked ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50' : 'hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]'}"
+          on:click={toggleInspectorLock}
+          title={$isInspectorLocked ? 'Inspektör låst på denna fil (Klicka eller tryck Cmd+L för att låsa upp)' : 'Lås inspektör på denna fil så den inte byts vid hovring (Cmd+L)'}
+        >
+          {#if $isInspectorLocked}
+            <Lock size={12} class="text-amber-400" />
+          {:else}
+            <Unlock size={12} />
+          {/if}
+        </button>
+
         <!-- Cast to secondary window button -->
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-amber-400 hover:text-amber-300 transition-transform {castedAnimation ? 'scale-125 text-emerald-400' : ''}"
@@ -218,7 +249,7 @@
   </div>
 
   <!-- Inspector Body -->
-  <div bind:this={inspectorBodyEl} class="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-[var(--bg-base)]">
+  <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">
     {#if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">
         <FileText size={32} class="opacity-20 mb-2" />
@@ -450,6 +481,7 @@
       <!-- 10. TEXT & CODE PREVIEW (with Syntax Highlighting) -->
       {:else if preview.kind === 'code' || preview.kind === 'text'}
         <CodeViewer
+          bind:this={codeViewerRef}
           code={preview.text_content || ''}
           filename={item.name}
           language={preview.language || 'plaintext'}

@@ -50,6 +50,11 @@ export const showHiddenFiles = writable<boolean>(false);
 export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
 export const smartHoverPreview = writable<boolean>(true);
 export const activeHoveredItem = writable<FileItem | null>(null);
+export const isInspectorLocked = writable<boolean>(false);
+
+export function toggleInspectorLock() {
+  isInspectorLocked.update((v) => !v);
+}
 
 // Remote Inspector Scroll Channel
 export const inspectorScroll = writable<{ deltaY: number; pulse: number }>({ deltaY: 0, pulse: 0 });

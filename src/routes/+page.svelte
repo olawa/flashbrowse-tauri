@@ -10,6 +10,8 @@
     isInspectorDetached,
     activePaneId,
     activeHoveredItem,
+    isInspectorLocked,
+    toggleInspectorLock,
     type InspectorPreset,
   } from '$lib/stores/navigation';
   import {
@@ -97,6 +99,11 @@
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       isPaletteOpen = !isPaletteOpen;
+    }
+    // Cmd+L / Ctrl+L: Toggle Inspector Lock
+    else if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      toggleInspectorLock();
     }
     // Cmd+J / Ctrl+J: Toggle Terminal
     else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') {
@@ -290,18 +297,18 @@
           <!-- 1. CENTER SHARED INSPECTOR (DEFAULT) -->
           {#if $inspectorPreset === 'center'}
             <!-- Left Browser -->
-            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
               <Breadcrumb paneId="left" />
               <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
             </div>
 
             <!-- Central Shared Inspector -->
-            <div class="w-[380px] lg:w-[460px] xl:w-[500px] h-full shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
+            <div class="w-[460px] lg:w-[560px] xl:w-[660px] 2xl:w-[760px] h-full shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
               <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
             </div>
 
             <!-- Right Browser -->
-            <div class="flex-1 flex flex-col min-w-[260px] h-full">
+            <div class="flex-1 flex flex-col min-w-[240px] h-full">
               <Breadcrumb paneId="right" />
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
@@ -309,19 +316,19 @@
           <!-- 2. RIGHT-ALIGNED INSPECTOR -->
           {:else if $inspectorPreset === 'right'}
             <!-- Left Browser -->
-            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
               <Breadcrumb paneId="left" />
               <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
             </div>
 
             <!-- Right Browser -->
-            <div class="flex-1 flex flex-col min-w-[260px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
               <Breadcrumb paneId="right" />
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
 
             <!-- Right Inspector -->
-            <div class="w-[380px] lg:w-[460px] h-full shrink-0 flex flex-col bg-[var(--bg-surface)]">
+            <div class="w-[460px] lg:w-[560px] xl:w-[660px] h-full shrink-0 flex flex-col bg-[var(--bg-surface)]">
               <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
             </div>
 
@@ -329,22 +336,22 @@
           {:else if $inspectorPreset === 'dual'}
             <!-- Left Workstation -->
             <div class="flex-1 flex min-w-0 h-full border-r border-[var(--border)]">
-              <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+              <div class="flex-1 flex flex-col min-w-[220px] h-full border-r border-[var(--border)]">
                 <Breadcrumb paneId="left" />
                 <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
               </div>
-              <div class="w-[300px] xl:w-[340px] h-full shrink-0">
+              <div class="w-[320px] xl:w-[380px] h-full shrink-0">
                 <Inspector item={leftPreviewItem} titlePrefix="Vänster" />
               </div>
             </div>
 
             <!-- Right Workstation -->
             <div class="flex-1 flex min-w-0 h-full">
-              <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+              <div class="flex-1 flex flex-col min-w-[220px] h-full border-r border-[var(--border)]">
                 <Breadcrumb paneId="right" />
                 <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
               </div>
-              <div class="w-[300px] xl:w-[340px] h-full shrink-0">
+              <div class="w-[320px] xl:w-[380px] h-full shrink-0">
                 <Inspector
                   item={rightPreviewItem}
                   titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Höger'}
@@ -372,7 +379,7 @@
           </div>
 
           {#if $inspectorPreset !== 'none'}
-            <div class="w-[420px] lg:w-[500px] h-full shrink-0 bg-[var(--bg-surface)]">
+            <div class="w-[480px] lg:w-[600px] xl:w-[720px] h-full shrink-0 bg-[var(--bg-surface)]">
               <Inspector item={leftPreviewItem} titlePrefix="Lokal" />
             </div>
           {/if}

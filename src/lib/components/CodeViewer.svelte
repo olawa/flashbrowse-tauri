@@ -7,8 +7,7 @@
     X,
     Code,
     FileText,
-    ChevronUp,
-    ChevronDown,
+    Hash,
   } from 'lucide-svelte';
 
   export let code: string = '';
@@ -19,10 +18,16 @@
   export let formattedSize: string = '--';
 
   let wrapLines = false;
+  let showLineNumbers = true;
   let copied = false;
   let isSearchOpen = false;
   let searchQuery = '';
   let searchInputEl: HTMLInputElement;
+  let scrollContainerEl: HTMLElement;
+
+  export function scrollByDelta(deltaY: number) {
+    scrollContainerEl?.scrollBy({ top: deltaY, behavior: 'auto' });
+  }
 
   $: lines = code ? code.split('\n') : [];
   $: lineCount = lines.length;
@@ -125,7 +130,7 @@
   }
 </script>
 
-<div class="flex flex-col h-full bg-[#12151c] text-slate-200 select-text overflow-hidden font-mono">
+<div class="flex flex-col h-full min-h-0 bg-[#12151c] text-slate-200 select-text overflow-hidden font-mono">
   <!-- Code Header Toolbar -->
   <div class="flex items-center justify-between px-3 py-1.5 bg-[#171b24] border-b border-[#252d3d] shrink-0 select-none text-[11px]">
     <div class="flex items-center gap-2 min-w-0">
@@ -136,31 +141,41 @@
       </span>
 
       <!-- Stats Pill -->
-      <span class="text-[10px] text-slate-400">
+      <span class="text-[10px] text-slate-400 truncate">
         {lineCount} {lineCount === 1 ? 'rad' : 'rader'} • {formattedSize}
       </span>
     </div>
 
     <!-- Actions -->
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-1 shrink-0">
+      <!-- Line Numbers Toggle -->
+      <button
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {showLineNumbers ? 'bg-[#202634] text-slate-300 border border-[#2c3547]' : 'text-slate-500 hover:text-slate-300'}"
+        on:click={() => (showLineNumbers = !showLineNumbers)}
+        title="Växla radnummer"
+      >
+        <Hash size={11} />
+        <span class="hidden sm:inline">Radnr</span>
+      </button>
+
       <!-- Search Button -->
       <button
-        class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {isSearchOpen ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {isSearchOpen ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
         on:click={toggleSearch}
         title="Sök i kod"
       >
         <Search size={11} />
-        <span>Sök</span>
+        <span class="hidden sm:inline">Sök</span>
       </button>
 
       <!-- Wrap Lines Toggle -->
       <button
-        class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
         on:click={() => (wrapLines = !wrapLines)}
         title="Växla radbrytning (Wrap lines)"
       >
         <WrapText size={11} />
-        <span>{wrapLines ? 'Radbryt: På' : 'Radbryt: Av'}</span>
+        <span class="hidden sm:inline">{wrapLines ? 'Wrap' : 'No Wrap'}</span>
       </button>
 
       <!-- Copy Button -->
@@ -202,26 +217,24 @@
     </div>
   {/if}
 
-  <!-- Code Body with Gutter -->
-  <div class="flex-1 overflow-auto flex text-[11.5px] leading-5 font-mono select-text bg-[#0d1017]">
-    <!-- Line Number Gutter -->
-    <div class="select-none py-2 px-2 text-right text-slate-600 bg-[#12151c] border-r border-[#202533] shrink-0 min-w-[40px]">
-      {#each lines as _, idx}
-        {@const lineNum = idx + 1}
-        {@const isMatch = matchedLines.includes(lineNum)}
-        <div class="{isMatch ? 'text-amber-400 font-bold bg-amber-400/10' : ''}">{lineNum}</div>
-      {/each}
-    </div>
-
-    <!-- Code Content -->
-    <div class="flex-1 py-2 px-3 overflow-x-auto min-w-0 {wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'}">
-      {#each lines as line, idx}
-        {@const lineNum = idx + 1}
-        {@const isMatch = matchedLines.includes(lineNum)}
-        <div class="hover:bg-white/[0.03] transition-colors {isMatch ? 'bg-amber-400/10' : ''}">
+  <!-- Unified Code Body with Inline Row Numbers (Single Scroll Container) -->
+  <div
+    bind:this={scrollContainerEl}
+    class="flex-1 overflow-auto py-2 px-2 text-[11.5px] leading-5 font-mono select-text bg-[#0d1017] min-h-0"
+  >
+    {#each lines as line, idx}
+      {@const lineNum = idx + 1}
+      {@const isMatch = matchedLines.includes(lineNum)}
+      <div class="flex items-start hover:bg-white/[0.04] transition-colors {isMatch ? 'bg-amber-400/10' : ''}">
+        {#if showLineNumbers}
+          <span class="select-none text-right text-slate-600 w-11 pr-2 shrink-0 border-r border-[#202533] mr-2.5 font-mono text-[11px]">
+            {lineNum}
+          </span>
+        {/if}
+        <div class="flex-1 min-w-0 {wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'}">
           {@html highlightLine(line, language)}
         </div>
-      {/each}
-    </div>
+      </div>
+    {/each}
   </div>
 </div>
