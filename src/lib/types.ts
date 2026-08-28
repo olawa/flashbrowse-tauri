@@ -25,18 +25,21 @@ export interface DiskInfo {
 }
 
 export interface PreviewContent {
-  kind: 'code' | 'text' | 'html' | 'pdf' | 'markdown' | 'image' | 'svg' | 'video' | 'audio' | 'table' | 'hex' | 'too_large' | 'error' | 'directory';
+  kind: 'code' | 'text' | 'html' | 'pdf' | 'markdown' | 'image' | 'svg' | 'video' | 'audio' | 'table' | 'notebook' | 'hex' | 'too_large' | 'error' | 'directory';
   text_content?: string;
   html_content?: string;
   pdf_base64?: string;
   media_base64?: string;
   media_mime?: string;
   language?: string;
+  language_name?: string;
+  language_emoji?: string;
   line_count?: number;
   image_base64?: string;
   image_mime?: string;
   table_headers?: string[];
   table_rows?: string[][];
+  sheet_names?: string[];
   hex_lines?: string[];
   file_size_bytes: number;
   formatted_size: string;

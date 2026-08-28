@@ -29,4 +29,5 @@ base64 = "0.22"
 sysinfo = "0.33"
 urlencoding = "2.1"
 tempfile = "3"
+calamine = "0.26"
 

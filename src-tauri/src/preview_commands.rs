@@ -5,33 +5,175 @@ use base64::Engine;
 use chrono::{DateTime, Local};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
+use std::path::Path;
 
-fn detect_language(ext: &str) -> &'static str {
-    match ext {
-        "rs" => "rust",
-        "py" | "pyw" => "python",
-        "js" | "mjs" | "cjs" => "javascript",
-        "ts" | "mts" | "cts" => "typescript",
-        "svelte" => "svelte",
-        "html" | "htm" => "html",
-        "css" | "scss" | "sass" | "less" => "css",
-        "json" | "jsonc" => "json",
-        "md" | "markdown" => "markdown",
-        "sh" | "bash" | "zsh" => "shell",
-        "toml" => "toml",
-        "yaml" | "yml" => "yaml",
-        "c" | "h" => "c",
-        "cpp" | "cxx" | "cc" | "hpp" => "cpp",
-        "swift" => "swift",
-        "go" => "go",
-        "java" => "java",
-        "kt" | "kts" => "kotlin",
-        "r" | "rmd" => "r",
-        "sql" => "sql",
-        "xml" | "plist" => "xml",
-        "dockerfile" => "dockerfile",
-        "vcf" | "bed" | "sam" | "gtf" | "gff" => "shell",
-        _ => "plaintext",
+fn detect_language_meta(filename: &str, code: &str) -> (&'static str, &'static str, &'static str) {
+    let lower = filename.to_lowercase();
+    let ext = Path::new(filename)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    // Exact filename matching
+    if lower == "makefile" || lower.starts_with("makefile.") {
+        return ("makefile", "Makefile", "🔨");
+    }
+    if lower == "dockerfile" || lower.starts_with("dockerfile.") {
+        return ("dockerfile", "Dockerfile", "🐳");
+    }
+    if lower == "snakefile" || lower.ends_with(".smk") {
+        return ("python", "Snakemake", "🐍");
+    }
+    if lower == "gemfile" || lower == "rakefile" {
+        return ("ruby", "Ruby", "💎");
+    }
+    if lower.starts_with(".bash") || lower.starts_with(".zsh") || lower == ".profile" {
+        return ("shell", "Shell Script", "🐚");
+    }
+    if lower == ".env" || lower.starts_with(".env.") {
+        return ("ini", "Environment Config", "⚙️");
+    }
+    if lower == ".gitignore" || lower == ".dockerignore" {
+        return ("plaintext", "Ignore Config", "🚫");
+    }
+
+    match ext.as_str() {
+        "py" | "pyw" => ("python", "Python", "🐍"),
+        "sh" | "bash" | "zsh" | "fish" | "command" => ("shell", "Shell Script", "🐚"),
+        "r" | "rmd" => ("r", "R Script", "📊"),
+        "swift" => ("swift", "Swift", "⚡"),
+        "rs" => ("rust", "Rust", "🦀"),
+        "c" | "h" => ("c", "C Code", "🇨"),
+        "cpp" | "hpp" | "cc" | "cxx" | "c++" | "h++" => ("cpp", "C++ Code", "⚙️"),
+        "go" => ("go", "Go", "🐹"),
+        "js" | "mjs" | "cjs" => ("javascript", "JavaScript", "🟨"),
+        "jsx" => ("javascript", "React JSX", "⚛️"),
+        "ts" | "mts" | "cts" => ("typescript", "TypeScript", "🟦"),
+        "tsx" => ("typescript", "React TSX", "⚛️"),
+        "svelte" => ("svelte", "Svelte Component", "🔥"),
+        "json" | "jsonl" | "geojson" => ("json", "JSON Data", "📦"),
+        "yaml" | "yml" => ("yaml", "YAML Config", "📄"),
+        "toml" => ("toml", "TOML Config", "⚙️"),
+        "ini" | "cfg" | "conf" | "config" => ("ini", "Config File", "⚙️"),
+        "sql" => ("sql", "SQL Query", "🗄️"),
+        "html" | "htm" | "xhtml" => ("html", "HTML Document", "🌐"),
+        "xml" | "plist" | "kml" => ("xml", "XML Data", "📑"),
+        "svg" => ("xml", "SVG Vector", "🎨"),
+        "css" => ("css", "CSS Stylesheet", "🎨"),
+        "scss" | "sass" | "less" => ("scss", "SCSS Stylesheet", "🎨"),
+        "md" | "markdown" => ("markdown", "Markdown", "📝"),
+        "java" => ("java", "Java", "☕"),
+        "kt" | "kts" => ("kotlin", "Kotlin", "🟣"),
+        "lua" => ("lua", "Lua", "🌙"),
+        "pl" | "pm" => ("perl", "Perl", "🐪"),
+        "rb" => ("ruby", "Ruby", "💎"),
+        "php" => ("php", "PHP", "🐘"),
+        "fasta" | "fa" | "fna" | "faa" => ("plaintext", "FASTA Sequence", "🧬"),
+        "bed" => ("plaintext", "BED Genomic Regions", "🧬"),
+        "gtf" | "gff" | "gff3" => ("plaintext", "GTF/GFF Annotation", "🧬"),
+        "vcf" => ("plaintext", "VCF Variants", "🧬"),
+        "sam" => ("plaintext", "SAM Alignment", "🧬"),
+        "log" => ("plaintext", "Log File", "📋"),
+        "txt" | "text" => ("plaintext", "Plain Text", "📄"),
+        _ => {
+            if code.starts_with("#!") {
+                let first_line = code.lines().next().unwrap_or("").to_lowercase();
+                if first_line.contains("python") {
+                    return ("python", "Python", "🐍");
+                }
+                if first_line.contains("bash") || first_line.contains("sh") || first_line.contains("zsh") {
+                    return ("shell", "Shell Script", "🐚");
+                }
+                if first_line.contains("rscript") {
+                    return ("r", "R Script", "📊");
+                }
+                if first_line.contains("node") {
+                    return ("javascript", "JavaScript", "🟨");
+                }
+            }
+            ("plaintext", "Plain Text", "📄")
+        }
+    }
+}
+
+fn parse_excel_preview(file_path: &Path) -> Result<(Vec<String>, Vec<Vec<String>>, Vec<String>), String> {
+    use calamine::{open_workbook_auto, Reader, Data};
+
+    let mut workbook = open_workbook_auto(file_path).map_err(|e| e.to_string())?;
+    let sheet_names = workbook.sheet_names().to_vec();
+
+    if let Some(first_sheet_name) = sheet_names.first().cloned() {
+        if let Ok(range) = workbook.worksheet_range(&first_sheet_name) {
+            let mut headers = Vec::new();
+            let mut rows = Vec::new();
+
+            for (row_idx, row) in range.rows().enumerate() {
+                if row_idx > 300 { break; } // Up to 300 rows for preview
+                
+                let string_cells: Vec<String> = row.iter().map(|cell| {
+                    match cell {
+                        Data::Empty => String::new(),
+                        Data::String(s) => s.clone(),
+                        Data::Float(f) => {
+                            if f.fract() == 0.0 && *f >= -1e15 && *f <= 1e15 {
+                                format!("{:.0}", f)
+                            } else {
+                                format!("{:.4}", f).trim_end_matches('0').trim_end_matches('.').to_string()
+                            }
+                        },
+                        Data::Int(i) => i.to_string(),
+                        Data::Bool(b) => b.to_string(),
+                        Data::DateTime(d) => format!("{:.2}", d),
+                        Data::Error(e) => format!("{:?}", e),
+                        Data::DateTimeIso(s) => s.clone(),
+                        Data::DurationIso(s) => s.clone(),
+                    }
+                }).collect();
+
+                if row_idx == 0 {
+                    headers = string_cells;
+                } else if string_cells.iter().any(|c| !c.is_empty()) {
+                    rows.push(string_cells);
+                }
+            }
+
+            return Ok((headers, rows, sheet_names));
+        }
+    }
+
+    Err("No sheet found in workbook".to_string())
+}
+
+fn parse_document_html(file_path: &Path) -> Result<String, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let output = std::process::Command::new("/usr/bin/textutil")
+            .args(["-convert", "html", "-stdout", &file_path.to_string_lossy()])
+            .output()
+            .map_err(|e| e.to_string())?;
+
+        if output.status.success() {
+            let html = String::from_utf8_lossy(&output.stdout).to_string();
+            // Wrap in pleasant container styling
+            let styled_html = format!(
+                r#"<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+                body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 24px; color: #1e293b; background: #ffffff; line-height: 1.6; max-width: 800px; margin: 0 auto; }}
+                h1, h2, h3, h4 {{ color: #0f172a; margin-top: 1.2em; margin-bottom: 0.5em; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 16px 0; }}
+                td, th {{ border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; }}
+                p {{ margin: 0.8em 0; }}
+                </style></head><body>{}</body></html>"#,
+                html
+            );
+            return Ok(styled_html);
+        } else {
+            let err = String::from_utf8_lossy(&output.stderr).to_string();
+            return Err(err);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err("Document HTML preview requires macOS textutil".to_string())
     }
 }
 
@@ -149,11 +291,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
             media_base64: None,
             media_mime: None,
             language: None,
+            language_name: None,
+            language_emoji: None,
             line_count: None,
             image_base64: None,
             image_mime: None,
             table_headers: None,
             table_rows: None,
+            sheet_names: None,
             hex_lines: None,
             file_size_bytes,
             formatted_size: "--".to_string(),
@@ -167,10 +312,108 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
         .unwrap_or_default();
+    let filename = resolved_path
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_default();
 
     let file_path = resolved_path.as_path();
 
-    // 1. HTML / MultiQC / FastQC Report Preview
+    // 1. Excel / OpenDocument Spreadsheets (.xlsx, .xls, .ods, .xlsb)
+    if ext == "xlsx" || ext == "xls" || ext == "ods" || ext == "xlsb" {
+        if let Ok((headers, rows, sheet_names)) = parse_excel_preview(file_path) {
+            return Ok(PreviewContent {
+                kind: "table".to_string(),
+                text_content: None,
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("excel".to_string()),
+                language_name: Some("Excel Spreadsheet".to_string()),
+                language_emoji: Some("📊".to_string()),
+                line_count: Some(rows.len() + 1),
+                image_base64: None,
+                image_mime: None,
+                table_headers: Some(headers),
+                table_rows: Some(rows),
+                sheet_names: Some(sheet_names),
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 2. Word & Rich Office Documents (.docx, .doc, .rtf, .rtfd, .odt)
+    if ext == "docx" || ext == "doc" || ext == "rtf" || ext == "rtfd" || ext == "odt" || ext == "webarchive" {
+        if let Ok(html) = parse_document_html(file_path) {
+            return Ok(PreviewContent {
+                kind: "html".to_string(),
+                text_content: None,
+                html_content: Some(html),
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("document".to_string()),
+                language_name: Some(if ext == "doc" || ext == "docx" { "Word Document".to_string() } else { "Rich Document".to_string() }),
+                language_emoji: Some("📄".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                sheet_names: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 3. Jupyter Notebooks (.ipynb)
+    if ext == "ipynb" {
+        let max_nb = 5 * 1024 * 1024;
+        let mut file = File::open(file_path).map_err(|e| e.to_string())?;
+        let to_read = (file_size_bytes as usize).min(max_nb);
+        let mut buffer = vec![0u8; to_read];
+        let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        buffer.truncate(bytes_read);
+
+        if let Ok(text) = String::from_utf8(buffer) {
+            return Ok(PreviewContent {
+                kind: "notebook".to_string(),
+                text_content: Some(text),
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("python".to_string()),
+                language_name: Some("Jupyter Notebook".to_string()),
+                language_emoji: Some("🪐".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                sheet_names: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 4. HTML / MultiQC / FastQC Report Preview
     if ext == "html" || ext == "htm" {
         let max_html = 10 * 1024 * 1024; // 10 MB
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
@@ -188,11 +431,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: None,
                 media_mime: None,
                 language: Some("html".to_string()),
+                language_name: Some("HTML Document".to_string()),
+                language_emoji: Some("🌐".to_string()),
                 line_count: None,
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -203,7 +449,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 2. PDF Document Preview
+    // 5. PDF Document Preview
     if ext == "pdf" {
         if file_size_bytes > 50 * 1024 * 1024 {
             return Ok(PreviewContent {
@@ -214,11 +460,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: None,
                 media_mime: None,
                 language: Some("pdf".to_string()),
+                language_name: Some("PDF Document".to_string()),
+                language_emoji: Some("📄".to_string()),
                 line_count: None,
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -243,11 +492,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
             media_base64: None,
             media_mime: Some("application/pdf".to_string()),
             language: Some("pdf".to_string()),
+            language_name: Some("PDF Document".to_string()),
+            language_emoji: Some("📄".to_string()),
             line_count: None,
             image_base64: None,
             image_mime: None,
             table_headers: None,
             table_rows: None,
+            sheet_names: None,
             hex_lines: Some(hex_lines),
             file_size_bytes,
             formatted_size,
@@ -257,7 +509,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         });
     }
 
-    // 3. Markdown Preview
+    // 6. Markdown Preview
     if ext == "md" || ext == "markdown" {
         let max_md = 4 * 1024 * 1024;
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
@@ -276,11 +528,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: None,
                 media_mime: None,
                 language: Some("markdown".to_string()),
+                language_name: Some("Markdown".to_string()),
+                language_emoji: Some("📝".to_string()),
                 line_count: Some(line_count),
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -291,7 +546,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 4. Video Preview
+    // 7. Video Preview
     if let Some(mime) = is_video_ext(&ext) {
         if file_size_bytes <= 60 * 1024 * 1024 {
             let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
@@ -304,11 +559,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: Some(b64),
                 media_mime: Some(mime.to_string()),
                 language: Some("video".to_string()),
+                language_name: Some("Video File".to_string()),
+                language_emoji: Some("🎬".to_string()),
                 line_count: None,
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -319,7 +577,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 5. Audio Preview
+    // 8. Audio Preview
     if let Some(mime) = is_audio_ext(&ext) {
         if file_size_bytes <= 40 * 1024 * 1024 {
             let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
@@ -332,11 +590,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: Some(b64),
                 media_mime: Some(mime.to_string()),
                 language: Some("audio".to_string()),
+                language_name: Some("Audio File".to_string()),
+                language_emoji: Some("🎵".to_string()),
                 line_count: None,
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -347,7 +608,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 6. Image Preview (including SVG)
+    // 9. Image Preview (including SVG)
     if let Some(mime) = is_image_ext(&ext) {
         if file_size_bytes > 20 * 1024 * 1024 {
             return Ok(PreviewContent {
@@ -358,11 +619,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 media_base64: None,
                 media_mime: None,
                 language: None,
+                language_name: None,
+                language_emoji: None,
                 line_count: None,
                 image_base64: None,
                 image_mime: Some(mime.to_string()),
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -388,11 +652,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
             media_base64: None,
             media_mime: None,
             language: if ext == "svg" { Some("svg".to_string()) } else { None },
+            language_name: if ext == "svg" { Some("SVG Vector".to_string()) } else { Some("Image".to_string()) },
+            language_emoji: if ext == "svg" { Some("🎨".to_string()) } else { Some("🖼️".to_string()) },
             line_count: None,
             image_base64: Some(base64_str),
             image_mime: Some(mime.to_string()),
             table_headers: None,
             table_rows: None,
+            sheet_names: None,
             hex_lines: None,
             file_size_bytes,
             formatted_size,
@@ -402,7 +669,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         });
     }
 
-    // 7. CSV / TSV Table Preview
+    // 10. CSV / TSV Table Preview
     if ext == "csv" || ext == "tsv" || ext == "tab" {
         let max_read = 512 * 1024; // 512 KB
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
@@ -422,11 +689,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                     media_base64: None,
                     media_mime: None,
                     language: Some("table".to_string()),
+                    language_name: Some(if ext == "csv" { "CSV Table".to_string() } else { "TSV Table".to_string() }),
+                    language_emoji: Some("📊".to_string()),
                     line_count: Some(rows.len() + 1),
                     image_base64: None,
                     image_mime: None,
                     table_headers: Some(headers),
                     table_rows: Some(rows),
+                    sheet_names: None,
                     hex_lines: None,
                     file_size_bytes,
                     formatted_size,
@@ -438,7 +708,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 8. Text / Code Preview
+    // 11. Text / Code Preview (with 100+ language detection!)
     let max_read_limit = max_bytes.unwrap_or(512 * 1024); // 512 KB
     let mut file = File::open(file_path).map_err(|e| e.to_string())?;
     let to_read = (file_size_bytes as usize).min(max_read_limit);
@@ -452,7 +722,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
     if !is_binary {
         if let Ok(text) = String::from_utf8(buffer) {
             let line_count = text.lines().count();
-            let lang = detect_language(&ext);
+            let (lang_id, lang_name, lang_emoji) = detect_language_meta(&filename, &text);
             return Ok(PreviewContent {
                 kind: "code".to_string(),
                 text_content: Some(text),
@@ -460,12 +730,15 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 pdf_base64: None,
                 media_base64: None,
                 media_mime: None,
-                language: Some(lang.to_string()),
+                language: Some(lang_id.to_string()),
+                language_name: Some(lang_name.to_string()),
+                language_emoji: Some(lang_emoji.to_string()),
                 line_count: Some(line_count),
                 image_base64: None,
                 image_mime: None,
                 table_headers: None,
                 table_rows: None,
+                sheet_names: None,
                 hex_lines: None,
                 file_size_bytes,
                 formatted_size,
@@ -476,7 +749,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 9. Binary Hex Preview fallback
+    // 12. Binary Hex Preview fallback
     let hex_sample_size = (file_size_bytes as usize).min(512);
     let mut hex_buf = vec![0u8; hex_sample_size];
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
@@ -493,11 +766,14 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         media_base64: None,
         media_mime: None,
         language: Some("hex".to_string()),
+        language_name: Some("Binary Hex Dump".to_string()),
+        language_emoji: Some("🔢".to_string()),
         line_count: Some(hex_lines.len()),
         image_base64: None,
         image_mime: None,
         table_headers: None,
         table_rows: None,
+        sheet_names: None,
         hex_lines: Some(hex_lines),
         file_size_bytes,
         formatted_size,

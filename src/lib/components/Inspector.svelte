@@ -7,6 +7,9 @@
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
   import FolderInspector from './FolderInspector.svelte';
+  import CodeViewer from './CodeViewer.svelte';
+  import SpreadsheetViewer from './SpreadsheetViewer.svelte';
+  import NotebookViewer from './NotebookViewer.svelte';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -388,34 +391,34 @@
           />
         </div>
 
-      <!-- 8. CSV / TSV TABLE PREVIEW -->
-      {:else if preview.kind === 'table' && preview.table_headers && preview.table_rows}
-        <div class="overflow-x-auto p-2">
-          <table class="w-full text-left border-collapse text-[10px] font-mono">
-            <thead>
-              <tr class="border-b border-[var(--border)] bg-[var(--bg-panel)]">
-                {#each preview.table_headers as header}
-                  <th class="p-1 font-semibold text-[var(--accent)] truncate max-w-[100px]">{header}</th>
-                {/each}
-              </tr>
-            </thead>
-            <tbody>
-              {#each preview.table_rows as row}
-                <tr class="border-b border-[var(--border)]/40 hover:bg-[var(--bg-hover)]">
-                  {#each row as cell}
-                    <td class="p-1 truncate max-w-[120px]">{cell}</td>
-                  {/each}
-                </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+      <!-- 8. JUPYTER NOTEBOOK PREVIEW -->
+      {:else if preview.kind === 'notebook'}
+        <NotebookViewer
+          jsonContent={preview.text_content || ''}
+          filename={item.name}
+          formattedSize={preview.formatted_size}
+        />
 
-      <!-- 9. TEXT & CODE PREVIEW -->
+      <!-- 9. SPREADSHEET & DATA TABLE PREVIEW (Excel / CSV / TSV / ODS) -->
+      {:else if preview.kind === 'table' && preview.table_headers && preview.table_rows}
+        <SpreadsheetViewer
+          headers={preview.table_headers}
+          rows={preview.table_rows}
+          sheetNames={preview.sheet_names || []}
+          filename={item.name}
+          formattedSize={preview.formatted_size}
+        />
+
+      <!-- 10. TEXT & CODE PREVIEW (with Syntax Highlighting) -->
       {:else if preview.kind === 'code' || preview.kind === 'text'}
-        <div class="p-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] overflow-x-auto select-text">
-          <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
-        </div>
+        <CodeViewer
+          code={preview.text_content || ''}
+          filename={item.name}
+          language={preview.language || 'plaintext'}
+          languageName={preview.language_name || 'Plain Text'}
+          languageEmoji={preview.language_emoji || '📄'}
+          formattedSize={preview.formatted_size}
+        />
 
       <!-- 10. BINARY HEX PREVIEW -->
       {:else if preview.kind === 'hex' && preview.hex_lines}
