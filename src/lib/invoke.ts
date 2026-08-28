@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type {
   ArchiveSummary,
   BamHeaderData,
+  DirectoryIndexGroup,
   DirectorySummary,
   DiskInfo,
   FileItem,
@@ -116,6 +117,18 @@ export async function runRsQc(bamPath: string): Promise<string> {
 
 export async function listArchiveContents(path: string): Promise<ArchiveSummary> {
   return await invoke<ArchiveSummary>('list_archive_contents', { path });
+}
+
+export async function scanDirectoryIndex(
+  rootPath: string,
+  extensions: string[],
+  maxDepth = 8,
+): Promise<DirectoryIndexGroup[]> {
+  return await invoke<DirectoryIndexGroup[]>('scan_directory_index', {
+    rootPath,
+    extensions,
+    maxDepth,
+  });
 }
 
 

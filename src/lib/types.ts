@@ -121,4 +121,21 @@ export interface ArchiveSummary {
   formatted_uncompressed_size: string;
 }
 
+export interface DirectoryIndexGroup {
+  directory_path: string;
+  directory_name: string;
+  relative_path: string;
+  items: FileItem[];
+}
+
+export interface FileTypeIndexMeta {
+  id: string;
+  name: string;
+  extensions: string[];
+  badge: string;
+  iconName: string;
+  colorClass: string;
+}
+
 export type ThemeName = 'pro-dark' | 'cyberpunk' | 'retro-mac' | 'kids-mode';
+

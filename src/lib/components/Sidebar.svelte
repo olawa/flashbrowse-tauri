@@ -37,7 +37,12 @@
     Layers,
     Zap,
   } from 'lucide-svelte';
-  import type { ThemeName } from '../types';
+  import {
+    activeIndexMeta,
+    openIndexScan,
+    closeIndexView,
+  } from '../stores/indexStore';
+  import type { FileTypeIndexMeta, ThemeName } from '../types';
 
   let homeDir = '';
   let devProjectsDir = '';
@@ -50,6 +55,7 @@
   });
 
   function jumpTo(path: string, isSSH = false, host = '') {
+    closeIndexView();
     const paneId = $activePaneId;
     if (isSSH) {
       const store = paneId === 'left' ? leftPane : rightPane;
@@ -61,25 +67,30 @@
     navigatePane(paneId, path);
   }
 
-  function applyIndexFilter(filterQuery: string) {
-    const paneId = $activePaneId;
-    const store = paneId === 'left' ? leftPane : rightPane;
-    store.update((s) => {
-      if (s.filterQuery === filterQuery) {
-        return { ...s, filterQuery: '' };
-      }
-      return { ...s, filterQuery };
-    });
+  function handleCategoryClick(cat: typeof indexCategories[number]) {
+    if ($activeIndexMeta?.id === cat.id) {
+      closeIndexView();
+    } else {
+      const meta: FileTypeIndexMeta = {
+        id: cat.id,
+        name: cat.label,
+        extensions: cat.extensions,
+        badge: cat.badge,
+        iconName: cat.badge,
+        colorClass: cat.color,
+      };
+      openIndexScan(meta, homeDir);
+    }
   }
 
   const indexCategories = [
-    { label: 'BAM & CRAM', filter: '*.bam, *.cram, *.sam', badge: 'BAM', icon: Dna, color: 'text-emerald-400' },
-    { label: 'VCF & BCF', filter: '*.vcf, *.vcf.gz, *.bcf', badge: 'VCF', icon: Dna, color: 'text-purple-400' },
-    { label: 'FASTQ Reads', filter: '*.fastq, *.fq, *.fastq.gz, *.fq.gz', badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },
-    { label: 'Tabeller & Sheets', filter: '*.csv, *.tsv, *.tab, *.xlsx', badge: 'TABLE', icon: Table, color: 'text-blue-400' },
-    { label: 'Annotationer', filter: '*.bed, *.gtf, *.gff, *.bigwig', badge: 'BED', icon: Bookmark, color: 'text-pink-400' },
-    { label: 'Källkod & Skript', filter: '*.rs, *.py, *.ts, *.js, *.sh, *.c, *.swift', badge: 'CODE', icon: Code, color: 'text-yellow-400' },
-    { label: 'Dokument & Text', filter: '*.md, *.pdf, *.txt, *.doc', badge: 'DOC', icon: FileText, color: 'text-slate-300' },
+    { id: 'bam', label: 'BAM & CRAM', extensions: ['bam', 'cram', 'sam'], badge: 'BAM', icon: Dna, color: 'text-emerald-400' },
+    { id: 'vcf', label: 'VCF & BCF', extensions: ['vcf', 'vcf.gz', 'bcf'], badge: 'VCF', icon: Dna, color: 'text-purple-400' },
+    { id: 'fastq', label: 'FASTQ Reads', extensions: ['fastq', 'fq', 'fastq.gz', 'fq.gz'], badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },
+    { id: 'table', label: 'Tabeller & Sheets', extensions: ['csv', 'tsv', 'tab', 'xlsx', 'xls', 'ods'], badge: 'TABLE', icon: Table, color: 'text-blue-400' },
+    { id: 'bed', label: 'Annotationer', extensions: ['bed', 'gtf', 'gff', 'gff3', 'bigwig', 'bw'], badge: 'BED', icon: Bookmark, color: 'text-pink-400' },
+    { id: 'code', label: 'Källkod & Skript', extensions: ['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'makefile'], badge: 'CODE', icon: Code, color: 'text-yellow-400' },
+    { id: 'doc', label: 'Dokument & Text', extensions: ['md', 'pdf', 'txt', 'doc', 'docx', 'rtf', 'ipynb'], badge: 'DOC', icon: FileText, color: 'text-slate-300' },
   ];
 
   const themes: Array<{ id: ThemeName; label: string; icon: any }> = [
@@ -157,11 +168,11 @@
       <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Filtypsindex (Hub)</span>
       <div class="mt-1 space-y-0.5">
         {#each indexCategories as cat}
-          {@const isActive = ($activePaneId === 'left' ? $leftPane.filterQuery : $rightPane.filterQuery) === cat.filter}
+          {@const isActive = $activeIndexMeta?.id === cat.id}
           <button
             class="w-full flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors group {isActive ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold border border-[var(--accent)]/40' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
-            on:click={() => applyIndexFilter(cat.filter)}
-            title="Filtrera mappen på {cat.label} ({cat.filter})"
+            on:click={() => handleCategoryClick(cat)}
+            title="Öppna rekursivt filtypsindex för {cat.label}"
           >
             <div class="flex items-center gap-2 truncate">
               <svelte:component this={cat.icon} size={14} class="{cat.color} shrink-0" />

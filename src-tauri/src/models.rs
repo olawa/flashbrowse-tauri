@@ -134,3 +134,12 @@ pub struct ArchiveSummary {
     pub total_uncompressed_bytes: u64,
     pub formatted_uncompressed_size: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryIndexGroup {
+    pub directory_path: String,
+    pub directory_name: String,
+    pub relative_path: String,
+    pub items: Vec<FileItem>,
+}
+

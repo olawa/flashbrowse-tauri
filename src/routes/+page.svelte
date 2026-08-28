@@ -26,10 +26,12 @@
   import FileTable from '$lib/components/FileTable.svelte';
   import Inspector from '$lib/components/Inspector.svelte';
   import DetachedInspectorView from '$lib/components/DetachedInspectorView.svelte';
+  import IndexBrowserView from '$lib/components/IndexBrowserView.svelte';
   import Terminal from '$lib/components/Terminal.svelte';
   import StashShelf from '$lib/components/StashShelf.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { toggleStash } from '$lib/stores/stash';
+  import { activeIndexMeta, closeIndexView } from '$lib/stores/indexStore';
   import type { FileItem } from '$lib/types';
   import {
     Lock,
@@ -95,6 +97,13 @@
     : ($activePaneId === 'right' ? 'Höger' : 'Vänster');
 
   function handleGlobalKeyDown(e: KeyboardEvent) {
+    // Esc: Close Index View if open
+    if (e.key === 'Escape' && $activeIndexMeta) {
+      e.preventDefault();
+      closeIndexView();
+      return;
+    }
+
     // Cmd+K / Ctrl+K: Command Palette
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
@@ -293,7 +302,20 @@
 
       <!-- Workstation Columns Container -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
-        {#if $isDualPane}
+        {#if $activeIndexMeta}
+          <!-- RECURSIVE HUB INDEX VIEW -->
+          <div class="flex-1 flex min-w-0 h-full">
+            <IndexBrowserView onSelectPreview={(item) => { leftPreviewItem = item; rightPreviewItem = item; }} />
+          </div>
+
+          <!-- Inspector alongside Index Hub -->
+          {#if $inspectorPreset !== 'none'}
+            <div class="w-[460px] lg:w-[560px] xl:w-[660px] 2xl:w-[760px] h-full shrink-0 border-l border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
+              <Inspector item={activeSharedItem} titlePrefix="Index Hub" />
+            </div>
+          {/if}
+
+        {:else if $isDualPane}
           <!-- 1. CENTER SHARED INSPECTOR (DEFAULT) -->
           {#if $inspectorPreset === 'center'}
             <!-- Left Browser -->

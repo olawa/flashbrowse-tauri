@@ -1,4 +1,4 @@
-use crate::models::{DirectorySummary, DiskInfo, FileItem};
+use crate::models::{DirectoryIndexGroup, DirectorySummary, DiskInfo, FileItem};
 use chrono::{DateTime, Local};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -493,4 +493,143 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         .map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn scan_directory_index(
+    root_path: String,
+    extensions: Vec<String>,
+    max_depth: Option<usize>,
+) -> Result<Vec<DirectoryIndexGroup>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let base_root = resolve_path(&root_path);
+        if !base_root.exists() {
+            return Err(format!("Sökvägen finns inte: {}", base_root.display()));
+        }
+
+        let depth = max_depth.unwrap_or(8);
+        let normalized_exts: Vec<String> = extensions
+            .iter()
+            .map(|e| e.to_lowercase().trim_start_matches('.').to_string())
+            .collect();
+
+        use std::collections::BTreeMap;
+        let mut grouped_items: BTreeMap<PathBuf, Vec<FileItem>> = BTreeMap::new();
+
+        let walker = walkdir::WalkDir::new(&base_root)
+            .max_depth(depth)
+            .follow_links(false)
+            .into_iter();
+
+        for entry in walker.filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            if e.file_type().is_dir() {
+                // Skip hidden folders (.git, .Trash, etc.) and heavy build caches
+                if name.starts_with('.') && name != "." {
+                    return false;
+                }
+                if name == "node_modules" || name == "target" || name == ".Trash" || name == "Caches" {
+                    return false;
+                }
+            }
+            true
+        }).filter_map(|e| e.ok()) {
+            if !entry.file_type().is_file() {
+                continue;
+            }
+
+            let entry_path = entry.path();
+            let file_name = entry_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            let lower_name = file_name.to_lowercase();
+
+            // Match exact extension, dot extension or compound extensions (e.g. .vcf.gz, .fastq.gz, .tar.gz)
+            let is_match = normalized_exts.iter().any(|ext| {
+                if lower_name.ends_with(&format!(".{}", ext)) || lower_name == *ext {
+                    true
+                } else if let Some(file_ext) = entry_path.extension().and_then(|e| e.to_str()) {
+                    file_ext.eq_ignore_ascii_case(ext)
+                } else {
+                    false
+                }
+            });
+
+            if is_match {
+                if let Some(parent_dir) = entry_path.parent() {
+                    let metadata = entry.metadata().ok();
+                    let is_symlink = entry.path_is_symlink();
+                    let is_dir = false;
+                    let size_bytes = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let formatted_size = format_byte_size(size_bytes);
+
+                    let modified_time = metadata
+                        .as_ref()
+                        .and_then(|m| m.modified().ok())
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+
+                    let dt: DateTime<Local> = modified_time.into();
+                    let modified_timestamp = dt.timestamp();
+                    let formatted_modified = dt.format("%Y-%m-%d %H:%M").to_string();
+
+                    let extension = entry_path
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+
+                    let permissions = metadata
+                        .as_ref()
+                        .map(get_permissions_string)
+                        .unwrap_or_else(|| "---------".to_string());
+
+                    let file_item = FileItem {
+                        name: file_name,
+                        path: entry_path.to_string_lossy().to_string(),
+                        is_dir,
+                        is_symlink,
+                        size_bytes,
+                        formatted_size,
+                        modified_timestamp,
+                        formatted_modified,
+                        extension,
+                        is_hidden: false,
+                        permissions,
+                        item_count: None,
+                    };
+
+                    grouped_items.entry(parent_dir.to_path_buf()).or_default().push(file_item);
+                }
+            }
+        }
+
+        let base_root_str = base_root.to_string_lossy().to_string();
+        let mut result_groups = Vec::new();
+
+        for (dir_path, mut items) in grouped_items {
+            items.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+            let dir_str = dir_path.to_string_lossy().to_string();
+            let dir_name = dir_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "/".to_string());
+
+            let relative_path = if dir_str.starts_with(&base_root_str) {
+                let rel = dir_str[base_root_str.len()..].trim_start_matches('/');
+                if rel.is_empty() {
+                    "./".to_string()
+                } else {
+                    format!("./{}", rel)
+                }
+            } else {
+                dir_str.clone()
+            };
+
+            result_groups.push(DirectoryIndexGroup {
+                directory_path: dir_str,
+                directory_name: if dir_name.is_empty() { "/".to_string() } else { dir_name },
+                relative_path,
+                items,
+            });
+        }
+
+        // Sort groups alphabetically by relative path
+        result_groups.sort_by(|a, b| a.relative_path.to_lowercase().cmp(&b.relative_path.to_lowercase()));
+
+        Ok(result_groups)
+    }).await.map_err(|e| e.to_string())?
 }
