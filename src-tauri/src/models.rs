@@ -30,8 +30,12 @@ pub struct DiskInfo {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PreviewContent {
-    pub kind: String, // "code", "text", "image", "table", "hex", "too_large", "error"
+    pub kind: String, // "code", "text", "html", "pdf", "markdown", "image", "svg", "video", "audio", "table", "hex", "too_large", "error"
     pub text_content: Option<String>,
+    pub html_content: Option<String>,
+    pub pdf_base64: Option<String>,
+    pub media_base64: Option<String>,
+    pub media_mime: Option<String>,
     pub language: Option<String>,
     pub line_count: Option<usize>,
     pub image_base64: Option<String>,

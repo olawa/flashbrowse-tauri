@@ -474,6 +474,7 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
     if let Some(window) = app.get_webview_window("inspector") {
         if let Some(ref p) = path {
             let _ = app.emit("inspector-sync-path", p);
+            let _ = app.emit("inspector-cast-path", p);
         }
         if !window.is_visible().unwrap_or(false) {
             let _ = window.show();

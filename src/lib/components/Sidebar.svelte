@@ -31,6 +31,11 @@
     Table,
     Code,
     Bookmark,
+    FileSpreadsheet,
+    FileCode,
+    Filter,
+    Layers,
+    Zap,
   } from 'lucide-svelte';
   import type { ThemeName } from '../types';
 

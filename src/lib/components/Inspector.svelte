@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
   import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
-  import { isInspectorDetached } from '../stores/navigation';
+  import { isInspectorDetached, castToSecondaryInspector } from '../stores/navigation';
+  import { renderMarkdown } from '../markdown';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
   import FolderInspector from './FolderInspector.svelte';
@@ -18,6 +19,12 @@
     PieChart,
     Check,
     SquareArrowOutUpRight,
+    Rocket,
+    Globe,
+    FileSpreadsheet,
+    Volume2,
+    Video,
+    Sparkles,
   } from 'lucide-svelte';
 
   export let item: FileItem | null = null;
@@ -28,6 +35,13 @@
   let isLoading = false;
   let isCalculatingDu = false;
   let copied = false;
+  let castedAnimation = false;
+
+  // View Mode Toggles
+  let htmlViewMode: 'rendered' | 'source' = 'rendered';
+  let pdfViewMode: 'pdf' | 'hex' = 'pdf';
+  let mdViewMode: 'rendered' | 'source' = 'rendered';
+  let svgViewMode: 'rendered' | 'source' = 'rendered';
 
   $: ext = item?.extension.toLowerCase() || '';
   $: isBam = !!item && (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
@@ -50,6 +64,13 @@
   async function handleDetach() {
     isInspectorDetached.set(true);
     await toggleDetachedInspector(item?.path);
+  }
+
+  async function handleCastToLarge() {
+    if (!item) return;
+    castedAnimation = true;
+    setTimeout(() => (castedAnimation = false), 1500);
+    await castToSecondaryInspector(item);
   }
 
   async function loadItemPreview(target: FileItem) {
@@ -98,14 +119,14 @@
     }
   }
 
-  function truncateMiddle(str: string, maxLen = 35) {
-    if (str.length <= maxLen) return str;
+  function truncateMiddle(str: string, maxLen = 32): string {
+    if (!str || str.length <= maxLen) return str;
     const half = Math.floor((maxLen - 3) / 2);
-    return str.substring(0, half) + '...' + str.substring(str.length - half);
+    return str.slice(0, half) + '...' + str.slice(str.length - half);
   }
 </script>
 
-<div class="w-80 h-full flex flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none">
+<div class="w-80 h-full flex flex-col border-l border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none relative">
   <!-- Inspector Header -->
   <div class="flex items-start justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2">
     <div class="flex flex-col min-w-0 flex-1">
@@ -121,24 +142,35 @@
 
     {#if item}
       <div class="flex items-center gap-1">
+        <!-- Cast to secondary window button -->
+        <button
+          class="p-1 rounded hover:bg-[var(--bg-hover)] text-amber-400 hover:text-amber-300 transition-transform {castedAnimation ? 'scale-125 text-emerald-400' : ''}"
+          on:click={handleCastToLarge}
+          title="Kasta uppåt till Stora Inspektörsfönstret (eller svep uppåt med 2 fingrar)"
+        >
+          <Rocket size={12} class={castedAnimation ? 'animate-bounce' : ''} />
+        </button>
+
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--accent)]"
           on:click={handleDetach}
-          title="Koppla loss inspektor till eget fönster (Detach Window)"
+          title="Öppna/fokusera separat inspektörsfönster"
         >
           <SquareArrowOutUpRight size={12} />
         </button>
+
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
           on:click={() => item && openInDefault(item.path)}
-          title="Open in default app"
+          title="Öppna i standardprogram"
         >
           <ExternalLink size={12} />
         </button>
+
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]"
           on:click={() => item && revealInOs(item.path)}
-          title="Reveal in Finder / Explorer"
+          title="Visa i Finder"
         >
           <FolderOpen size={12} />
         </button>
@@ -151,7 +183,7 @@
     {#if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">
         <FileText size={32} class="opacity-20 mb-2" />
-        <span>Select an item to view preview and metadata</span>
+        <span>Välj en fil för att visa förhandsgranskning och metadata</span>
       </div>
     {:else if isBam}
       <BioInspector {item} />
@@ -159,13 +191,195 @@
       <ArchiveInspector {item} />
     {:else if isLoading}
       <div class="flex-1 flex items-center justify-center text-[var(--text-muted)]">
-        Loading preview...
+        Läser in förhandsgranskning...
       </div>
     {:else if item.is_dir}
       <FolderInspector {item} />
     {:else if preview}
-      <!-- File Preview Types -->
-      {#if preview.kind === 'image' && preview.image_base64}
+      <!-- 1. HTML REPORT PREVIEW (MultiQC, FastQC, Rmarkdown) -->
+      {#if preview.kind === 'html' && preview.html_content}
+        <div class="flex-1 flex flex-col h-full overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1 bg-[#161a24] border-b border-[#252d3d] text-[10.5px]">
+            <div class="flex items-center gap-1">
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (htmlViewMode = 'rendered')}
+              >
+                🌐 Renderad
+              </button>
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (htmlViewMode = 'source')}
+              >
+                📄 Källkod
+              </button>
+            </div>
+            <button
+              class="text-slate-400 hover:text-white flex items-center gap-1 text-[10px]"
+              on:click={() => item && openInDefault(item.path)}
+              title="Öppna i webbläsare"
+            >
+              <ExternalLink size={10} />
+              <span>Webbläsare</span>
+            </button>
+          </div>
+
+          {#if htmlViewMode === 'rendered'}
+            <div class="flex-1 bg-white min-h-[300px]">
+              <iframe
+                srcdoc={preview.html_content}
+                title={item.name}
+                class="w-full h-full border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin allow-popups"
+              ></iframe>
+            </div>
+          {:else}
+            <div class="p-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] overflow-x-auto select-text">
+              <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
+            </div>
+          {/if}
+        </div>
+
+      <!-- 2. PDF DOCUMENT PREVIEW -->
+      {:else if preview.kind === 'pdf' && preview.pdf_base64}
+        <div class="flex-1 flex flex-col h-full overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1 bg-[#161a24] border-b border-[#252d3d] text-[10.5px]">
+            <div class="flex items-center gap-1">
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'pdf' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (pdfViewMode = 'pdf')}
+              >
+                📄 PDF-visning
+              </button>
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'hex' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (pdfViewMode = 'hex')}
+              >
+                🔢 Hex-dump
+              </button>
+            </div>
+            <button
+              class="text-slate-400 hover:text-white flex items-center gap-1 text-[10px]"
+              on:click={() => item && openInDefault(item.path)}
+              title="Öppna i Förhandsvisning"
+            >
+              <ExternalLink size={10} />
+              <span>Preview.app</span>
+            </button>
+          </div>
+
+          {#if pdfViewMode === 'pdf'}
+            <div class="flex-1 bg-slate-900 min-h-[350px]">
+              <iframe
+                src="data:application/pdf;base64,{preview.pdf_base64}#toolbar=1"
+                title={item.name}
+                class="w-full h-full border-0 min-h-[350px]"
+              ></iframe>
+            </div>
+          {:else if preview.hex_lines}
+            <div class="p-2 font-mono text-[10px] text-purple-300 leading-tight select-text overflow-x-auto">
+              {#each preview.hex_lines as line}
+                <div>{line}</div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+      <!-- 3. MARKDOWN PREVIEW -->
+      {:else if preview.kind === 'markdown' && preview.text_content}
+        <div class="flex-1 flex flex-col h-full overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1 bg-[#161a24] border-b border-[#252d3d] text-[10.5px]">
+            <div class="flex items-center gap-1">
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (mdViewMode = 'rendered')}
+              >
+                📖 Formaterad
+              </button>
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (mdViewMode = 'source')}
+              >
+                📝 Råtext
+              </button>
+            </div>
+          </div>
+
+          {#if mdViewMode === 'rendered'}
+            <div class="p-3 text-xs select-text overflow-auto space-y-2 leading-relaxed">
+              {@html renderMarkdown(preview.text_content)}
+            </div>
+          {:else}
+            <div class="p-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] overflow-x-auto select-text">
+              <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
+            </div>
+          {/if}
+        </div>
+
+      <!-- 4. VIDEO PREVIEW -->
+      {:else if preview.kind === 'video' && preview.media_base64}
+        <div class="p-3 flex flex-col items-center justify-center bg-black/50 min-h-[220px] gap-2">
+          <video
+            src="data:{preview.media_mime || 'video/mp4'};base64,{preview.media_base64}"
+            controls
+            class="max-h-72 w-full rounded shadow-md border border-[#252d3d]"
+          >
+            <track kind="captions" />
+          </video>
+          <span class="text-[10px] text-slate-400 font-mono">{item.name} ({preview.formatted_size})</span>
+        </div>
+
+      <!-- 5. AUDIO PREVIEW -->
+      {:else if preview.kind === 'audio' && preview.media_base64}
+        <div class="p-4 flex flex-col items-center justify-center bg-[#151922] min-h-[140px] gap-3 rounded-lg m-3 border border-[#252d3d]">
+          <div class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <Volume2 size={20} />
+          </div>
+          <audio
+            src="data:{preview.media_mime || 'audio/mpeg'};base64,{preview.media_base64}"
+            controls
+            class="w-full"
+          ></audio>
+          <span class="text-[10px] text-slate-400 font-mono">{item.name} ({preview.formatted_size})</span>
+        </div>
+
+      <!-- 6. SVG PREVIEW -->
+      {:else if preview.kind === 'svg'}
+        <div class="flex-1 flex flex-col h-full overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1 bg-[#161a24] border-b border-[#252d3d] text-[10.5px]">
+            <div class="flex items-center gap-1">
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (svgViewMode = 'rendered')}
+              >
+                🎨 Vektorbild
+              </button>
+              <button
+                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                on:click={() => (svgViewMode = 'source')}
+              >
+                📄 XML-kod
+              </button>
+            </div>
+          </div>
+
+          {#if svgViewMode === 'rendered' && preview.image_base64}
+            <div class="p-4 flex items-center justify-center bg-black/40 min-h-[200px]">
+              <img
+                src="data:image/svg+xml;base64,{preview.image_base64}"
+                alt={item.name}
+                class="max-h-72 object-contain rounded shadow"
+              />
+            </div>
+          {:else if preview.text_content}
+            <div class="p-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] overflow-x-auto select-text">
+              <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
+            </div>
+          {/if}
+        </div>
+
+      <!-- 7. IMAGE PREVIEW -->
+      {:else if preview.kind === 'image' && preview.image_base64}
         <div class="p-3 flex items-center justify-center bg-black/40 min-h-[180px]">
           <img
             src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
@@ -173,6 +387,8 @@
             class="max-h-64 object-contain rounded shadow"
           />
         </div>
+
+      <!-- 8. CSV / TSV TABLE PREVIEW -->
       {:else if preview.kind === 'table' && preview.table_headers && preview.table_rows}
         <div class="overflow-x-auto p-2">
           <table class="w-full text-left border-collapse text-[10px] font-mono">
@@ -194,19 +410,25 @@
             </tbody>
           </table>
         </div>
+
+      <!-- 9. TEXT & CODE PREVIEW -->
       {:else if preview.kind === 'code' || preview.kind === 'text'}
         <div class="p-2 font-mono text-[11px] leading-relaxed text-[var(--text-primary)] overflow-x-auto select-text">
           <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
         </div>
+
+      <!-- 10. BINARY HEX PREVIEW -->
       {:else if preview.kind === 'hex' && preview.hex_lines}
         <div class="p-2 font-mono text-[10px] text-purple-300 leading-tight select-text overflow-x-auto">
           {#each preview.hex_lines as line}
             <div>{line}</div>
           {/each}
         </div>
-      {:else if preview.kind === 'error'}
-        <div class="p-4 text-red-400 text-center">
-          {preview.error_message || 'Could not load preview'}
+
+      <!-- ERROR / TOO LARGE -->
+      {:else if preview.kind === 'error' || preview.kind === 'too_large'}
+        <div class="p-4 text-amber-400 text-center">
+          {preview.error_message || 'Kunde inte läsa förhandsgranskning'}
         </div>
       {/if}
     {/if}
@@ -223,23 +445,23 @@
         <button
           class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[var(--border)] hover:bg-[var(--accent)] hover:text-white text-[var(--text-primary)] transition-colors"
           on:click={copyPath}
-          title="Copy full path"
+          title="Kopiera fullständig sökväg"
         >
           {#if copied}
             <Check size={10} class="text-green-400" />
-            <span class="text-[9px]">Copied</span>
+            <span class="text-[9px]">Kopierad</span>
           {:else}
             <Copy size={10} />
-            <span class="text-[9px]">Copy</span>
+            <span class="text-[9px]">Kopiera</span>
           {/if}
         </button>
       </div>
 
       <!-- Kompakt filinfo -->
       <div class="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[var(--text-muted)] font-mono">
-        <div>Size: <span class="text-[var(--text-primary)] font-semibold">{item.formatted_size}</span></div>
-        <div>Type: <span class="text-[var(--text-primary)]">{item.extension.toUpperCase() || 'FILE'}</span></div>
-        <div class="col-span-2 truncate">Date: <span class="text-[var(--text-secondary)]">{item.formatted_modified}</span></div>
+        <div>Storlek: <span class="text-[var(--text-primary)] font-semibold">{item.formatted_size}</span></div>
+        <div>Typ: <span class="text-[var(--text-primary)]">{item.extension.toUpperCase() || 'FIL'}</span></div>
+        <div class="col-span-2 truncate">Ändrad: <span class="text-[var(--text-secondary)]">{item.formatted_modified}</span></div>
       </div>
     </div>
   {/if}

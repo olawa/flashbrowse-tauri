@@ -11,6 +11,7 @@
     smartHoverPreview,
     refreshPane,
     activeHoveredItem,
+    castToSecondaryInspector,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem } from '../invoke';
@@ -27,6 +28,7 @@
     ArrowUp,
     ArrowDown,
     Search,
+    Rocket,
     X,
   } from 'lucide-svelte';
 
@@ -222,6 +224,34 @@
     renamingPath = null;
   }
 
+  // Cast fling gesture state (Two-finger swipe UP)
+  let castingRowPath: string | null = null;
+  let lastCastTriggerTime = 0;
+
+  async function handleCastItem(item: FileItem) {
+    const now = Date.now();
+    if (now - lastCastTriggerTime < 400) return;
+    lastCastTriggerTime = now;
+    castingRowPath = item.path;
+    setTimeout(() => {
+      if (castingRowPath === item.path) castingRowPath = null;
+    }, 1200);
+    await castToSecondaryInspector(item);
+  }
+
+  function handleRowWheel(item: FileItem, e: WheelEvent) {
+    if (e.ctrlKey) return; // Keep ctrl+wheel for pinch in/out
+
+    // Two-finger swipe UP detection: brisk negative deltaY
+    if (e.deltaY < -35 && Math.abs(e.deltaY) > Math.abs(e.deltaX) * 2.0) {
+      const now = Date.now();
+      if (now - lastCastTriggerTime > 600) {
+        e.preventDefault();
+        handleCastItem(item);
+      }
+    }
+  }
+
   // MARK: - Trackpad Pinch to Open / Up
   function handleWheel(e: WheelEvent) {
     if (e.ctrlKey) {
@@ -249,9 +279,20 @@
     }
   }
 
-  // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter)
+  // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter, Cmd+Shift+Up for Cast)
   function handleKeyDown(e: KeyboardEvent) {
     if (renamingPath) return;
+
+    // Shortcut for Cast: Cmd+Shift+Up or Cmd+Alt+Up
+    if ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey) && e.key === 'ArrowUp') {
+      e.preventDefault();
+      const firstSelected = Array.from(pane.selectedPaths)[0];
+      const item = pane.items.find((i) => i.path === firstSelected);
+      if (item) {
+        handleCastItem(item);
+        return;
+      }
+    }
 
     if (e.key === ' ' && pane.selectedPaths.size > 0) {
       e.preventDefault();
@@ -427,15 +468,17 @@
           {@const isSelected = pane.selectedPaths.has(item.path)}
           {@const isHovered = hoveredPath === item.path}
           {@const isRenaming = renamingPath === item.path}
+          {@const isCasting = castingRowPath === item.path}
           {@const isLargeFile = !item.is_dir && item.size_bytes >= 50_000_000}
           {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
 
           <div
-            class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-colors {isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
+            class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
             on:click={(e) => handleRowClick(item, e)}
             on:dblclick={() => handleDoubleClick(item)}
             on:mouseenter={() => handleRowMouseEnter(item)}
             on:mouseleave={handleRowMouseLeave}
+            on:wheel={(e) => handleRowWheel(item, e)}
             on:contextmenu={(e) => handleContextMenu(item, e)}
             role="row"
             tabindex="-1"
@@ -458,6 +501,11 @@
                 />
               {:else}
                 <span class="truncate font-sans {item.is_dir ? 'font-semibold' : ''}">{item.name}</span>
+                {#if isCasting}
+                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-black text-[9px] font-bold tracking-wide flex items-center gap-1 animate-bounce shrink-0 ml-1">
+                    <Rocket size={10} /> Kastad!
+                  </span>
+                {/if}
               {/if}
             </div>
 

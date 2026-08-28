@@ -3,6 +3,7 @@
   import { executeTerminalCommand } from '../stores/terminal';
   import { refreshPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
+  import { castToSecondaryInspector } from '../stores/navigation';
   import type { FileItem } from '../types';
   import {
     ExternalLink,
@@ -14,6 +15,7 @@
     Dna,
     Activity,
     Layers,
+    Rocket,
     X,
   } from 'lucide-svelte';
 
@@ -28,6 +30,11 @@
   const ext = item.extension.toLowerCase();
   const isBamOrCram = ext === 'bam' || ext === 'cram' || item.name.endsWith('.bam') || item.name.endsWith('.cram');
   const isGenomics = isBamOrCram || ['vcf', 'bcf', 'bed', 'bw', 'bigwig'].includes(ext) || item.name.endsWith('.vcf.gz');
+
+  async function handleCast() {
+    await castToSecondaryInspector(item);
+    onClose();
+  }
 
   async function handleOpen() {
     await openInDefault(item.path);
@@ -119,6 +126,14 @@
     </button>
     <div class="h-px my-1 bg-[var(--border)]"></div>
   {/if}
+
+  <button
+    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-amber-600 hover:text-white text-left text-amber-400 font-medium transition-colors"
+    on:click={handleCast}
+  >
+    <Rocket size={13} />
+    <span>Kasta till Stort Fönster (Swipe ↑)</span>
+  </button>
 
   <button
     class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"

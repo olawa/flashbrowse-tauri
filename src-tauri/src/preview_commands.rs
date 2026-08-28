@@ -48,6 +48,27 @@ fn is_image_ext(ext: &str) -> Option<&'static str> {
     }
 }
 
+fn is_video_ext(ext: &str) -> Option<&'static str> {
+    match ext {
+        "mp4" | "m4v" => Some("video/mp4"),
+        "webm" => Some("video/webm"),
+        "mov" => Some("video/quicktime"),
+        "ogv" => Some("video/ogg"),
+        _ => None,
+    }
+}
+
+fn is_audio_ext(ext: &str) -> Option<&'static str> {
+    match ext {
+        "mp3" => Some("audio/mpeg"),
+        "wav" => Some("audio/wav"),
+        "ogg" => Some("audio/ogg"),
+        "flac" => Some("audio/flac"),
+        "m4a" | "aac" => Some("audio/mp4"),
+        _ => None,
+    }
+}
+
 fn format_hex_dump(bytes: &[u8]) -> Vec<String> {
     let mut lines = Vec::new();
     for (i, chunk) in bytes.chunks(16).enumerate() {
@@ -123,6 +144,10 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         return Ok(PreviewContent {
             kind: "directory".to_string(),
             text_content: None,
+            html_content: None,
+            pdf_base64: None,
+            media_base64: None,
+            media_mime: None,
             language: None,
             line_count: None,
             image_base64: None,
@@ -145,12 +170,193 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
 
     let file_path = resolved_path.as_path();
 
-    // 1. Image Preview
+    // 1. HTML / MultiQC / FastQC Report Preview
+    if ext == "html" || ext == "htm" {
+        let max_html = 10 * 1024 * 1024; // 10 MB
+        let mut file = File::open(file_path).map_err(|e| e.to_string())?;
+        let to_read = (file_size_bytes as usize).min(max_html);
+        let mut buffer = vec![0u8; to_read];
+        let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        buffer.truncate(bytes_read);
+
+        if let Ok(text) = String::from_utf8(buffer) {
+            return Ok(PreviewContent {
+                kind: "html".to_string(),
+                text_content: Some(text.clone()),
+                html_content: Some(text),
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("html".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 2. PDF Document Preview
+    if ext == "pdf" {
+        if file_size_bytes > 50 * 1024 * 1024 {
+            return Ok(PreviewContent {
+                kind: "too_large".to_string(),
+                text_content: None,
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("pdf".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: Some("PDF file is too large (>50 MB) for instant preview".to_string()),
+            });
+        }
+
+        let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
+        let pdf_base64 = BASE64.encode(&bytes);
+
+        // Generate small hex sample for raw view toggle
+        let hex_sample = &bytes[..bytes.len().min(512)];
+        let hex_lines = format_hex_dump(hex_sample);
+
+        return Ok(PreviewContent {
+            kind: "pdf".to_string(),
+            text_content: None,
+            html_content: None,
+            pdf_base64: Some(pdf_base64),
+            media_base64: None,
+            media_mime: Some("application/pdf".to_string()),
+            language: Some("pdf".to_string()),
+            line_count: None,
+            image_base64: None,
+            image_mime: None,
+            table_headers: None,
+            table_rows: None,
+            hex_lines: Some(hex_lines),
+            file_size_bytes,
+            formatted_size,
+            modified_str,
+            permissions_str,
+            error_message: None,
+        });
+    }
+
+    // 3. Markdown Preview
+    if ext == "md" || ext == "markdown" {
+        let max_md = 4 * 1024 * 1024;
+        let mut file = File::open(file_path).map_err(|e| e.to_string())?;
+        let to_read = (file_size_bytes as usize).min(max_md);
+        let mut buffer = vec![0u8; to_read];
+        let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
+        buffer.truncate(bytes_read);
+
+        if let Ok(text) = String::from_utf8(buffer) {
+            let line_count = text.lines().count();
+            return Ok(PreviewContent {
+                kind: "markdown".to_string(),
+                text_content: Some(text),
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
+                language: Some("markdown".to_string()),
+                line_count: Some(line_count),
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 4. Video Preview
+    if let Some(mime) = is_video_ext(&ext) {
+        if file_size_bytes <= 60 * 1024 * 1024 {
+            let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
+            let b64 = BASE64.encode(&bytes);
+            return Ok(PreviewContent {
+                kind: "video".to_string(),
+                text_content: None,
+                html_content: None,
+                pdf_base64: None,
+                media_base64: Some(b64),
+                media_mime: Some(mime.to_string()),
+                language: Some("video".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 5. Audio Preview
+    if let Some(mime) = is_audio_ext(&ext) {
+        if file_size_bytes <= 40 * 1024 * 1024 {
+            let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
+            let b64 = BASE64.encode(&bytes);
+            return Ok(PreviewContent {
+                kind: "audio".to_string(),
+                text_content: None,
+                html_content: None,
+                pdf_base64: None,
+                media_base64: Some(b64),
+                media_mime: Some(mime.to_string()),
+                language: Some("audio".to_string()),
+                line_count: None,
+                image_base64: None,
+                image_mime: None,
+                table_headers: None,
+                table_rows: None,
+                hex_lines: None,
+                file_size_bytes,
+                formatted_size,
+                modified_str,
+                permissions_str,
+                error_message: None,
+            });
+        }
+    }
+
+    // 6. Image Preview (including SVG)
     if let Some(mime) = is_image_ext(&ext) {
         if file_size_bytes > 20 * 1024 * 1024 {
             return Ok(PreviewContent {
                 kind: "too_large".to_string(),
                 text_content: None,
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
                 language: None,
                 line_count: None,
                 image_base64: None,
@@ -168,11 +374,20 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
 
         let bytes = fs::read(file_path).map_err(|e| e.to_string())?;
         let base64_str = BASE64.encode(&bytes);
+        let text_content = if ext == "svg" {
+            String::from_utf8(bytes.clone()).ok()
+        } else {
+            None
+        };
 
         return Ok(PreviewContent {
-            kind: "image".to_string(),
-            text_content: None,
-            language: None,
+            kind: if ext == "svg" { "svg".to_string() } else { "image".to_string() },
+            text_content,
+            html_content: None,
+            pdf_base64: None,
+            media_base64: None,
+            media_mime: None,
+            language: if ext == "svg" { Some("svg".to_string()) } else { None },
             line_count: None,
             image_base64: Some(base64_str),
             image_mime: Some(mime.to_string()),
@@ -187,9 +402,9 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         });
     }
 
-    // 2. CSV / TSV Table Preview
+    // 7. CSV / TSV Table Preview
     if ext == "csv" || ext == "tsv" || ext == "tab" {
-        let max_read = 256 * 1024; // 256 KB
+        let max_read = 512 * 1024; // 512 KB
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
         let mut buffer = vec![0u8; max_read.min(file_size_bytes as usize)];
         let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
@@ -202,6 +417,10 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
                 return Ok(PreviewContent {
                     kind: "table".to_string(),
                     text_content: Some(text),
+                    html_content: None,
+                    pdf_base64: None,
+                    media_base64: None,
+                    media_mime: None,
                     language: Some("table".to_string()),
                     line_count: Some(rows.len() + 1),
                     image_base64: None,
@@ -219,7 +438,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 3. Text / Code Preview
+    // 8. Text / Code Preview
     let max_read_limit = max_bytes.unwrap_or(512 * 1024); // 512 KB
     let mut file = File::open(file_path).map_err(|e| e.to_string())?;
     let to_read = (file_size_bytes as usize).min(max_read_limit);
@@ -237,6 +456,10 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
             return Ok(PreviewContent {
                 kind: "code".to_string(),
                 text_content: Some(text),
+                html_content: None,
+                pdf_base64: None,
+                media_base64: None,
+                media_mime: None,
                 language: Some(lang.to_string()),
                 line_count: Some(line_count),
                 image_base64: None,
@@ -253,7 +476,7 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 4. Binary Hex Preview fallback
+    // 9. Binary Hex Preview fallback
     let hex_sample_size = (file_size_bytes as usize).min(512);
     let mut hex_buf = vec![0u8; hex_sample_size];
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
@@ -265,6 +488,10 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
     Ok(PreviewContent {
         kind: "hex".to_string(),
         text_content: None,
+        html_content: None,
+        pdf_base64: None,
+        media_base64: None,
+        media_mime: None,
         language: Some("hex".to_string()),
         line_count: Some(hex_lines.len()),
         image_base64: None,

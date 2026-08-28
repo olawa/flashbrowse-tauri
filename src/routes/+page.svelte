@@ -226,8 +226,8 @@
             <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
           </div>
 
-          <!-- Left Inspector (Hidden when detached) -->
-          {#if !$isInspectorDetached && ($isDualInspector || !$isDualPane)}
+          <!-- Left Inspector -->
+          {#if $isDualInspector || !$isDualPane}
             <Inspector item={leftPreviewItem} titlePrefix="Local" />
           {/if}
         </div>
@@ -241,8 +241,8 @@
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
 
-            <!-- Right Inspector (Hidden when detached) -->
-            {#if !$isInspectorDetached && $isDualInspector}
+            <!-- Right Inspector -->
+            {#if $isDualInspector}
               <Inspector
                 item={rightPreviewItem}
                 titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Right'}

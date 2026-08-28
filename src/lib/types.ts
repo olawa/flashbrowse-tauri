@@ -25,8 +25,12 @@ export interface DiskInfo {
 }
 
 export interface PreviewContent {
-  kind: 'code' | 'text' | 'image' | 'table' | 'hex' | 'too_large' | 'error' | 'directory';
+  kind: 'code' | 'text' | 'html' | 'pdf' | 'markdown' | 'image' | 'svg' | 'video' | 'audio' | 'table' | 'hex' | 'too_large' | 'error' | 'directory';
   text_content?: string;
+  html_content?: string;
+  pdf_base64?: string;
+  media_base64?: string;
+  media_mime?: string;
   language?: string;
   line_count?: number;
   image_base64?: string;

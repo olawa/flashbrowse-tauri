@@ -41,10 +41,23 @@ export const activePaneId = writable<'left' | 'right'>('left');
 export const isDualPane = writable<boolean>(true);
 export const isDualInspector = writable<boolean>(true);
 export const isInspectorDetached = writable<boolean>(false);
+export const isSecondaryInspectorOpen = writable<boolean>(false);
+export const lastCastedItem = writable<FileItem | null>(null);
 export const showHiddenFiles = writable<boolean>(false);
 export const clickMode = writable<'folders-only' | 'always' | 'double-click'>('folders-only');
 export const smartHoverPreview = writable<boolean>(true);
 export const activeHoveredItem = writable<FileItem | null>(null);
+
+export async function castToSecondaryInspector(item: FileItem) {
+  lastCastedItem.set(item);
+  isSecondaryInspectorOpen.set(true);
+  try {
+    const { toggleDetachedInspector } = await import('../invoke');
+    await toggleDetachedInspector(item.path);
+  } catch (err) {
+    console.error('Failed to cast to secondary inspector:', err);
+  }
+}
 
 export async function initNavigation() {
   const home = await getHomeDirectory();
