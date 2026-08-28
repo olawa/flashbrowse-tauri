@@ -12,6 +12,7 @@
     activeHoveredItem,
     isInspectorLocked,
     toggleInspectorLock,
+    reloadPane,
     type InspectorPreset,
   } from '$lib/stores/navigation';
   import {
@@ -31,7 +32,7 @@
   import StashShelf from '$lib/components/StashShelf.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { toggleStash } from '$lib/stores/stash';
-  import { activeIndexMeta, closeIndexView } from '$lib/stores/indexStore';
+  import { activeIndexMeta, closeIndexView, refreshCurrentIndex } from '$lib/stores/indexStore';
   import type { FileItem } from '$lib/types';
   import {
     Lock,
@@ -101,6 +102,18 @@
     if (e.key === 'Escape' && $activeIndexMeta) {
       e.preventDefault();
       closeIndexView();
+      return;
+    }
+
+    // Cmd+R / F5: Refresh Index or Panes
+    if (((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'r') || e.key === 'F5') {
+      e.preventDefault();
+      if ($activeIndexMeta) {
+        refreshCurrentIndex();
+      } else {
+        reloadPane('left');
+        if ($isDualPane) reloadPane('right');
+      }
       return;
     }
 

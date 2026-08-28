@@ -56,6 +56,14 @@ export async function openIndexScan(meta: FileTypeIndexMeta, root?: string) {
   }
 }
 
+export async function refreshCurrentIndex() {
+  const meta = get(activeIndexMeta);
+  const root = get(indexRootPath);
+  if (meta && root) {
+    await openIndexScan(meta, root);
+  }
+}
+
 export function closeIndexView() {
   activeIndexMeta.set(null);
   indexedGroups.set([]);

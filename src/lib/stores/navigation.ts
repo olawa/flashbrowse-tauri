@@ -80,6 +80,14 @@ export async function initNavigation() {
   await navigatePane('right', home);
 }
 
+export async function reloadPane(paneId: 'left' | 'right') {
+  const store = paneId === 'left' ? leftPane : rightPane;
+  const cur = get(store);
+  if (cur.currentPath) {
+    await navigatePane(paneId, cur.currentPath, false);
+  }
+}
+
 export async function navigatePane(
   paneId: 'left' | 'right',
   path: string,

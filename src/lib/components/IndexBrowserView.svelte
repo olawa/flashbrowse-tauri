@@ -14,6 +14,7 @@
     selectAllIndexDirs,
     deselectAllIndexDirs,
     toggleIndexDir,
+    refreshCurrentIndex,
   } from '../stores/indexStore';
   import {
     leftPane,
@@ -45,6 +46,7 @@
     Loader2,
     Sparkles,
     Rocket,
+    RefreshCw,
   } from 'lucide-svelte';
 
   export let onSelectPreview: (item: FileItem) => void = () => {};
@@ -203,6 +205,17 @@
             <span class="hidden sm:inline">rsnap</span>
           </button>
         {/if}
+
+        <!-- Refresh Index Button -->
+        <button
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors"
+          on:click={refreshCurrentIndex}
+          disabled={$isIndexScanning}
+          title="Läs om och uppdatera indexet från disk"
+        >
+          <RefreshCw size={11} class={$isIndexScanning ? 'animate-spin text-amber-400' : ''} />
+          <span class="hidden sm:inline">Uppdatera</span>
+        </button>
 
         <!-- Close Index Button -->
         <button
