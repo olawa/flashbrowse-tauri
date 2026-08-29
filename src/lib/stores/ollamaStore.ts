@@ -95,14 +95,20 @@ export async function checkOllamaConnection(): Promise<boolean> {
 
     await checkRunningModels();
 
-    // Pick a smart default model if none is selected
+    // Pick a smart lightweight default model if none is selected
+    const saved = localStorage.getItem('flashbrowse_selected_model');
     const current = get(selectedModel);
-    if (!current || !models.some((m) => m.name === current)) {
+    if (saved && models.some((m) => m.name === saved)) {
+      selectedModel.set(saved);
+    } else if (!current || !models.some((m) => m.name === current)) {
+      // Sort models by size to pick the fastest small model (e.g. 3B - 8B)
+      const sortedBySize = [...models].sort((a, b) => a.size - b.size);
       const preferred =
-        models.find((m) => m.name.includes('gemma4:latest') || m.name.includes('8b') || m.name.includes('7b')) ||
-        models.find((m) => m.name.includes('qwen3.6:35B')) ||
-        models.find((m) => m.name.includes('coder')) ||
-        models[0];
+        sortedBySize.find((m) => m.name.includes('llama3.2:3b') || m.name.includes('llama3.2:1b')) ||
+        sortedBySize.find((m) => m.name.includes('qwen2.5-coder:7b') || m.name.includes('qwen2.5:3b') || m.name.includes('qwen2.5:7b')) ||
+        sortedBySize.find((m) => m.name === 'gemma4:latest' || m.name.includes('gemma4:latest') || m.name.includes(':8b')) ||
+        sortedBySize.find((m) => m.name.includes('phi')) ||
+        sortedBySize[0];
       if (preferred) {
         selectedModel.set(preferred.name);
       }
@@ -147,6 +153,9 @@ export async function selectModelWithAutoEvict(newModel: string): Promise<void> 
     await unloadOllamaModel(oldModel);
   }
   selectedModel.set(newModel);
+  try {
+    localStorage.setItem('flashbrowse_selected_model', newModel);
+  } catch {}
 }
 
 export async function askOllamaStream(
