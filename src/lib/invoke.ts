@@ -7,6 +7,7 @@ import type {
   DiskInfo,
   FileItem,
   PreviewContent,
+  SamViewResult,
   TabCompletionResult,
   TerminalOutput,
 } from './types';
@@ -130,5 +131,20 @@ export async function scanDirectoryIndex(
     maxDepth,
   });
 }
+
+export async function getBamAlignments(
+  path: string,
+  region?: string,
+  limit = 50,
+  offset = 0,
+): Promise<SamViewResult> {
+  return await invoke<SamViewResult>('get_bam_alignments', {
+    path,
+    region,
+    limit,
+    offset,
+  });
+}
+
 
 

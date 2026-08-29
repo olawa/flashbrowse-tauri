@@ -137,5 +137,33 @@ export interface FileTypeIndexMeta {
   colorClass: string;
 }
 
+export interface SamRecord {
+  qname: string;
+  flag: number;
+  flag_desc: string[];
+  rname: string;
+  pos: number;
+  mapq: number;
+  cigar: string;
+  rnext: string;
+  pnext: number;
+  tlen: number;
+  seq: string;
+  qual: string;
+  tags: string[];
+  raw_line: string;
+}
+
+export interface SamViewResult {
+  records: SamRecord[];
+  region?: string;
+  total_fetched: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+  raw_output: string;
+}
+
 export type ThemeName = 'pro-dark' | 'cyberpunk' | 'retro-mac' | 'kids-mode';
+
 

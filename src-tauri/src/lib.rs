@@ -40,7 +40,8 @@ pub fn run() {
             launch_rsnap,
             run_rs_qc,
             list_archive_contents,
-            scan_directory_index
+            scan_directory_index,
+            get_bam_alignments
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

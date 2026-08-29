@@ -1,5 +1,8 @@
 use crate::fs_commands::{format_byte_size, resolve_path};
-use crate::models::{ArchiveEntry, ArchiveSummary, BamHeaderData, ContigInfo, ProgramInfo, ReadGroupInfo};
+use crate::models::{
+    ArchiveEntry, ArchiveSummary, BamHeaderData, ContigInfo, ProgramInfo, ReadGroupInfo,
+    SamRecord, SamViewResult,
+};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs::{self, File};
 use std::io::Read;
@@ -509,3 +512,130 @@ pub async fn list_archive_contents(path: String) -> Result<ArchiveSummary, Strin
     .await
     .map_err(|e| e.to_string())?
 }
+
+/// Parse SAM bitwise flag into descriptive strings
+pub fn parse_sam_flags(flag: u16) -> Vec<String> {
+    let mut descs = Vec::new();
+    if flag & 0x1 != 0 { descs.push("PAIRED".to_string()); }
+    if flag & 0x2 != 0 { descs.push("PROPER_PAIR".to_string()); }
+    if flag & 0x4 != 0 { descs.push("UNMAP".to_string()); }
+    if flag & 0x8 != 0 { descs.push("MUNMAP".to_string()); }
+    if flag & 0x10 != 0 { descs.push("REVERSE".to_string()); }
+    if flag & 0x20 != 0 { descs.push("MREVERSE".to_string()); }
+    if flag & 0x40 != 0 { descs.push("READ1".to_string()); }
+    if flag & 0x80 != 0 { descs.push("READ2".to_string()); }
+    if flag & 0x100 != 0 { descs.push("SECONDARY".to_string()); }
+    if flag & 0x200 != 0 { descs.push("QCFAIL".to_string()); }
+    if flag & 0x400 != 0 { descs.push("DUP".to_string()); }
+    if flag & 0x800 != 0 { descs.push("SUPPLEMENTARY".to_string()); }
+    descs
+}
+
+/// Fetch paginated SAM alignment records using `samtools view` (with optional genomic locus/region)
+#[tauri::command]
+pub async fn get_bam_alignments(
+    path: String,
+    region: Option<String>,
+    limit: Option<usize>,
+    offset: Option<usize>,
+) -> Result<SamViewResult, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let resolved_path = resolve_path(&path);
+        if !resolved_path.exists() {
+            return Err(format!("File does not exist: {}", resolved_path.display()));
+        }
+
+        let samtools = find_tool_executable("samtools")
+            .ok_or_else(|| "samtools hittades inte i PATH".to_string())?;
+
+        let rec_limit = limit.unwrap_or(50);
+        let rec_offset = offset.unwrap_or(0);
+
+        let mut cmd = Command::new(&samtools);
+        cmd.arg("view");
+        cmd.arg(&resolved_path);
+
+        if let Some(ref reg) = region {
+            let trimmed = reg.trim();
+            if !trimmed.is_empty() {
+                cmd.arg(trimmed);
+            }
+        }
+
+        let output = cmd.output().map_err(|e| format!("Kunde inte köra samtools view: {}", e))?;
+
+        if !output.status.success() {
+            let err_msg = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("samtools view fel: {}", err_msg));
+        }
+
+        let stdout_str = String::from_utf8_lossy(&output.stdout);
+        let all_lines: Vec<&str> = stdout_str.lines().collect();
+
+        let total_available = all_lines.len();
+        let slice_end = (rec_offset + rec_limit).min(total_available);
+        let slice = if rec_offset < total_available {
+            &all_lines[rec_offset..slice_end]
+        } else {
+            &[]
+        };
+
+        let has_more = slice_end < total_available;
+        let mut records = Vec::new();
+        let mut raw_lines = Vec::new();
+
+        for line in slice {
+            raw_lines.push(line.to_string());
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 11 {
+                let qname = parts[0].to_string();
+                let flag: u16 = parts[1].parse().unwrap_or(0);
+                let flag_desc = parse_sam_flags(flag);
+                let rname = parts[2].to_string();
+                let pos: i64 = parts[3].parse().unwrap_or(0);
+                let mapq: u8 = parts[4].parse().unwrap_or(0);
+                let cigar = parts[5].to_string();
+                let rnext = parts[6].to_string();
+                let pnext: i64 = parts[7].parse().unwrap_or(0);
+                let tlen: i64 = parts[8].parse().unwrap_or(0);
+                let seq = parts[9].to_string();
+                let qual = parts[10].to_string();
+                let tags = if parts.len() > 11 {
+                    parts[11..].iter().map(|s| s.to_string()).collect()
+                } else {
+                    Vec::new()
+                };
+
+                records.push(SamRecord {
+                    qname,
+                    flag,
+                    flag_desc,
+                    rname,
+                    pos,
+                    mapq,
+                    cigar,
+                    rnext,
+                    pnext,
+                    tlen,
+                    seq,
+                    qual,
+                    tags,
+                    raw_line: line.to_string(),
+                });
+            }
+        }
+
+        Ok(SamViewResult {
+            records,
+            region,
+            total_fetched: slice.len(),
+            offset: rec_offset,
+            limit: rec_limit,
+            has_more,
+            raw_output: raw_lines.join("\n"),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+

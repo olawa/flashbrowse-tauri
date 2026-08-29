@@ -143,3 +143,33 @@ pub struct DirectoryIndexGroup {
     pub items: Vec<FileItem>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamRecord {
+    pub qname: String,
+    pub flag: u16,
+    pub flag_desc: Vec<String>,
+    pub rname: String,
+    pub pos: i64,
+    pub mapq: u8,
+    pub cigar: String,
+    pub rnext: String,
+    pub pnext: i64,
+    pub tlen: i64,
+    pub seq: String,
+    pub qual: String,
+    pub tags: Vec<String>,
+    pub raw_line: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SamViewResult {
+    pub records: Vec<SamRecord>,
+    pub region: Option<String>,
+    pub total_fetched: usize,
+    pub offset: usize,
+    pub limit: usize,
+    pub has_more: bool,
+    pub raw_output: String,
+}
+
+
