@@ -550,6 +550,7 @@ pub async fn get_bam_alignments(
 
         let rec_limit = limit.unwrap_or(50);
         let rec_offset = offset.unwrap_or(0);
+        let total_needed = rec_offset + rec_limit;
 
         let mut cmd = Command::new(&samtools);
         cmd.arg("view");
@@ -562,73 +563,80 @@ pub async fn get_bam_alignments(
             }
         }
 
-        let output = cmd.output().map_err(|e| format!("Kunde inte köra samtools view: {}", e))?;
+        cmd.stdout(std::process::Stdio::piped());
+        cmd.stderr(std::process::Stdio::piped());
 
-        if !output.status.success() {
-            let err_msg = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("samtools view fel: {}", err_msg));
-        }
+        let mut child = cmd.spawn().map_err(|e| format!("Kunde inte starta samtools view: {}", e))?;
 
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let all_lines: Vec<&str> = stdout_str.lines().collect();
+        let stdout = child.stdout.take().ok_or_else(|| "Kunde inte öppna samtools stdout".to_string())?;
+        use std::io::{BufRead, BufReader};
+        let reader = BufReader::new(stdout);
 
-        let total_available = all_lines.len();
-        let slice_end = (rec_offset + rec_limit).min(total_available);
-        let slice = if rec_offset < total_available {
-            &all_lines[rec_offset..slice_end]
-        } else {
-            &[]
-        };
-
-        let has_more = slice_end < total_available;
         let mut records = Vec::new();
         let mut raw_lines = Vec::new();
+        let mut current_idx = 0;
+        let mut has_more = false;
 
-        for line in slice {
-            raw_lines.push(line.to_string());
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() >= 11 {
-                let qname = parts[0].to_string();
-                let flag: u16 = parts[1].parse().unwrap_or(0);
-                let flag_desc = parse_sam_flags(flag);
-                let rname = parts[2].to_string();
-                let pos: i64 = parts[3].parse().unwrap_or(0);
-                let mapq: u8 = parts[4].parse().unwrap_or(0);
-                let cigar = parts[5].to_string();
-                let rnext = parts[6].to_string();
-                let pnext: i64 = parts[7].parse().unwrap_or(0);
-                let tlen: i64 = parts[8].parse().unwrap_or(0);
-                let seq = parts[9].to_string();
-                let qual = parts[10].to_string();
-                let tags = if parts.len() > 11 {
-                    parts[11..].iter().map(|s| s.to_string()).collect()
-                } else {
-                    Vec::new()
-                };
+        for line_res in reader.lines() {
+            let line = match line_res {
+                Ok(l) => l,
+                Err(_) => break,
+            };
 
-                records.push(SamRecord {
-                    qname,
-                    flag,
-                    flag_desc,
-                    rname,
-                    pos,
-                    mapq,
-                    cigar,
-                    rnext,
-                    pnext,
-                    tlen,
-                    seq,
-                    qual,
-                    tags,
-                    raw_line: line.to_string(),
-                });
+            if current_idx >= rec_offset && current_idx < total_needed {
+                raw_lines.push(line.clone());
+                let parts: Vec<&str> = line.split('\t').collect();
+                if parts.len() >= 11 {
+                    let qname = parts[0].to_string();
+                    let flag: u16 = parts[1].parse().unwrap_or(0);
+                    let flag_desc = parse_sam_flags(flag);
+                    let rname = parts[2].to_string();
+                    let pos: i64 = parts[3].parse().unwrap_or(0);
+                    let mapq: u8 = parts[4].parse().unwrap_or(0);
+                    let cigar = parts[5].to_string();
+                    let rnext = parts[6].to_string();
+                    let pnext: i64 = parts[7].parse().unwrap_or(0);
+                    let tlen: i64 = parts[8].parse().unwrap_or(0);
+                    let seq = parts[9].to_string();
+                    let qual = parts[10].to_string();
+                    let tags = if parts.len() > 11 {
+                        parts[11..].iter().map(|s| s.to_string()).collect()
+                    } else {
+                        Vec::new()
+                    };
+
+                    records.push(SamRecord {
+                        qname,
+                        flag,
+                        flag_desc,
+                        rname,
+                        pos,
+                        mapq,
+                        cigar,
+                        rnext,
+                        pnext,
+                        tlen,
+                        seq,
+                        qual,
+                        tags,
+                        raw_line: line,
+                    });
+                }
+            } else if current_idx >= total_needed {
+                has_more = true;
+                break;
             }
+            current_idx += 1;
         }
+
+        // Cleanly terminate samtools process as soon as we have our slice of lines
+        let _ = child.kill();
+        let _ = child.wait();
 
         Ok(SamViewResult {
             records,
             region,
-            total_fetched: slice.len(),
+            total_fetched: current_idx.saturating_sub(rec_offset).min(rec_limit),
             offset: rec_offset,
             limit: rec_limit,
             has_more,
