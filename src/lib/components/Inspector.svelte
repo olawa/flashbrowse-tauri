@@ -64,6 +64,7 @@
   let pdfViewMode: 'pdf' | 'hex' = 'pdf';
   let mdViewMode: 'rendered' | 'source' = 'rendered';
   let svgViewMode: 'rendered' | 'source' = 'rendered';
+  let showHexDump = false;
   let currentTab: 'preview' | 'notes' | 'ai' = 'preview';
 
   $: activePaneState = $activePaneId === 'left' ? $leftPane : $rightPane;
@@ -558,12 +559,55 @@
           formattedSize={preview.formatted_size}
         />
 
-      <!-- 10. BINARY HEX PREVIEW -->
-      {:else if preview.kind === 'hex' && preview.hex_lines}
-        <div class="p-2 font-mono text-[10px] text-purple-300 leading-tight select-text overflow-x-auto">
-          {#each preview.hex_lines as line}
-            <div>{line}</div>
-          {/each}
+      <!-- 10. BINARY FILE PREVIEW -->
+      {:else if preview.kind === 'binary' || preview.kind === 'hex'}
+        <div class="flex-1 flex flex-col items-center justify-center p-6 text-center select-none overflow-y-auto">
+          <div class="w-14 h-14 rounded-2xl bg-[#151922] border border-[#262f40] flex items-center justify-center mb-3 text-purple-400 shadow-sm">
+            <Binary size={26} />
+          </div>
+          <div class="font-semibold text-sm text-slate-200">{item.name}</div>
+          <div class="text-[11px] text-slate-400 font-mono mt-1">
+            {preview.language_name || 'Binär fil'} • {item.formatted_size}
+          </div>
+          <p class="text-xs text-slate-400 max-w-xs mt-2 leading-relaxed">
+            Binär fil som inte visas som rå text. Öppna filen i ett dedikerat program för att granska innehållet.
+          </p>
+
+          <div class="flex items-center gap-2 mt-4">
+            <button
+              class="px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold flex items-center gap-1.5 shadow transition-colors"
+              on:click={() => openInDefault(item.path)}
+            >
+              <ExternalLink size={13} />
+              <span>Öppna i standardprogram</span>
+            </button>
+            <button
+              class="px-3 py-1.5 rounded-lg bg-[#181d27] hover:bg-[#222836] text-slate-300 border border-[#262f40] text-xs font-medium flex items-center gap-1.5 transition-colors"
+              on:click={() => revealInOs(item.path)}
+            >
+              <FolderOpen size={13} />
+              <span>Visa i Finder</span>
+            </button>
+          </div>
+
+          {#if preview.hex_lines && preview.hex_lines.length > 0}
+            <div class="mt-6 w-full max-w-md">
+              <button
+                class="text-[10.5px] text-slate-500 hover:text-purple-300 underline font-mono transition-colors"
+                on:click={() => (showHexDump = !showHexDump)}
+              >
+                {showHexDump ? '▲ Dölj Hex-dump' : '▼ Visa rå Hex-dump (första 512 bytes)'}
+              </button>
+
+              {#if showHexDump}
+                <div class="mt-2 p-2 bg-[#0c0d10] border border-[#1e2330] rounded-lg font-mono text-[9.5px] text-purple-300 leading-tight select-text overflow-x-auto text-left max-h-48 overflow-y-auto">
+                  {#each preview.hex_lines as line}
+                    <div>{line}</div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
         </div>
 
       <!-- ERROR / TOO LARGE -->

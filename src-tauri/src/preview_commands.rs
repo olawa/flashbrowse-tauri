@@ -3,9 +3,32 @@ use crate::models::PreviewContent;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use chrono::{DateTime, Local};
+use flate2::read::MultiGzDecoder;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+
+fn decompress_gz_head(file_path: &Path, max_uncompressed_bytes: usize) -> Result<Vec<u8>, String> {
+    let file = File::open(file_path).map_err(|e| e.to_string())?;
+    let mut decoder = MultiGzDecoder::new(file);
+    let mut buffer = vec![0u8; max_uncompressed_bytes];
+    let mut total_read = 0;
+
+    while total_read < max_uncompressed_bytes {
+        match decoder.read(&mut buffer[total_read..]) {
+            Ok(0) => break,
+            Ok(n) => total_read += n,
+            Err(e) => {
+                if total_read > 0 {
+                    break;
+                }
+                return Err(e.to_string());
+            }
+        }
+    }
+    buffer.truncate(total_read);
+    Ok(buffer)
+}
 
 fn detect_language_meta(filename: &str, code: &str) -> (&'static str, &'static str, &'static str) {
     let lower = filename.to_lowercase();
@@ -708,7 +731,89 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 11. Text / Code Preview (with 100+ language detection!)
+    // 11. Gzip / Bgzip Compressed Files (.gz, .bgz, .vcf.gz, .fastq.gz, .tsv.gz, etc.)
+    if ext == "gz" || ext == "bgz" || filename.ends_with(".gz") || filename.ends_with(".bgz") {
+        let max_decompressed = max_bytes.unwrap_or(512 * 1024);
+        if let Ok(uncompressed_bytes) = decompress_gz_head(file_path, max_decompressed) {
+            let is_binary = uncompressed_bytes.iter().take(1024).any(|&b| b == 0);
+            if !is_binary {
+                if let Ok(text) = String::from_utf8(uncompressed_bytes) {
+                    let inner_filename = if filename.ends_with(".gz") {
+                        &filename[..filename.len() - 3]
+                    } else if filename.ends_with(".bgz") {
+                        &filename[..filename.len() - 4]
+                    } else {
+                        &filename
+                    };
+
+                    let inner_ext = Path::new(inner_filename)
+                        .extension()
+                        .map(|e| e.to_string_lossy().to_lowercase())
+                        .unwrap_or_default();
+
+                    // If it's a gzipped CSV/TSV table
+                    if inner_ext == "csv" || inner_ext == "tsv" || inner_ext == "tab" {
+                        let delimiter = if inner_ext == "csv" { ',' } else { '\t' };
+                        let (headers, rows) = parse_table_preview(&text, delimiter);
+                        if !headers.is_empty() {
+                            return Ok(PreviewContent {
+                                kind: "table".to_string(),
+                                text_content: Some(text),
+                                html_content: None,
+                                pdf_base64: None,
+                                media_base64: None,
+                                media_mime: None,
+                                language: Some("table".to_string()),
+                                language_name: Some(format!("{} (gzip)", if inner_ext == "csv" { "CSV Table" } else { "TSV Table" })),
+                                language_emoji: Some("📊".to_string()),
+                                line_count: Some(rows.len() + 1),
+                                image_base64: None,
+                                image_mime: None,
+                                table_headers: Some(headers),
+                                table_rows: Some(rows),
+                                sheet_names: None,
+                                hex_lines: None,
+                                file_size_bytes,
+                                formatted_size,
+                                modified_str,
+                                permissions_str,
+                                error_message: None,
+                            });
+                        }
+                    }
+
+                    // For FASTQ / VCF / BED / GTF / Code / Text
+                    let (lang_id, lang_name, lang_emoji) = detect_language_meta(inner_filename, &text);
+                    let line_count = text.lines().count();
+                    return Ok(PreviewContent {
+                        kind: "code".to_string(),
+                        text_content: Some(text),
+                        html_content: None,
+                        pdf_base64: None,
+                        media_base64: None,
+                        media_mime: None,
+                        language: Some(lang_id.to_string()),
+                        language_name: Some(format!("{} (gzip)", lang_name)),
+                        language_emoji: Some(lang_emoji.to_string()),
+                        line_count: Some(line_count),
+                        image_base64: None,
+                        image_mime: None,
+                        table_headers: None,
+                        table_rows: None,
+                        sheet_names: None,
+                        hex_lines: None,
+                        file_size_bytes,
+                        formatted_size,
+                        modified_str,
+                        permissions_str,
+                        error_message: None,
+                    });
+                }
+            }
+        }
+    }
+
+    // 12. Text / Code Preview (with 100+ language detection!)
     let max_read_limit = max_bytes.unwrap_or(512 * 1024); // 512 KB
     let mut file = File::open(file_path).map_err(|e| e.to_string())?;
     let to_read = (file_size_bytes as usize).min(max_read_limit);
@@ -749,26 +854,26 @@ pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewConten
         }
     }
 
-    // 12. Binary Hex Preview fallback
+    // 13. Binary File Preview (Do NOT dump hex dump by default, return kind: "binary")
     let hex_sample_size = (file_size_bytes as usize).min(512);
     let mut hex_buf = vec![0u8; hex_sample_size];
-    file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
-    let read_hex = file.read(&mut hex_buf).map_err(|e| e.to_string())?;
+    let _ = file.seek(SeekFrom::Start(0));
+    let read_hex = file.read(&mut hex_buf).unwrap_or(0);
     hex_buf.truncate(read_hex);
 
     let hex_lines = format_hex_dump(&hex_buf);
 
     Ok(PreviewContent {
-        kind: "hex".to_string(),
+        kind: "binary".to_string(),
         text_content: None,
         html_content: None,
         pdf_base64: None,
         media_base64: None,
         media_mime: None,
-        language: Some("hex".to_string()),
-        language_name: Some("Binary Hex Dump".to_string()),
-        language_emoji: Some("🔢".to_string()),
-        line_count: Some(hex_lines.len()),
+        language: Some("binary".to_string()),
+        language_name: Some(format!("Binär fil (.{ext})")),
+        language_emoji: Some("📦".to_string()),
+        line_count: None,
         image_base64: None,
         image_mime: None,
         table_headers: None,

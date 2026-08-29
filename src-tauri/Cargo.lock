@@ -1077,6 +1077,7 @@ dependencies = [
  "base64 0.22.1",
  "calamine",
  "chrono",
+ "flate2",
  "serde",
  "serde_json",
  "sysinfo",
