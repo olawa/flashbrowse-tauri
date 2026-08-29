@@ -18,7 +18,8 @@
   import NotebookViewer from './NotebookViewer.svelte';
   import AIInspector from './AIInspector.svelte';
   import NotesInspector from './NotesInspector.svelte';
-  import { leftPane, rightPane, activePaneId } from '../stores/navigation';
+  import MultiItemInspector from './MultiItemInspector.svelte';
+  import { leftPane, rightPane, activePaneId, activeHoveredItem } from '../stores/navigation';
   import { isOllamaOnline } from '../stores/ollamaStore';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
@@ -64,6 +65,24 @@
   let mdViewMode: 'rendered' | 'source' = 'rendered';
   let svgViewMode: 'rendered' | 'source' = 'rendered';
   let currentTab: 'preview' | 'notes' | 'ai' = 'preview';
+
+  $: activePaneState = $activePaneId === 'left' ? $leftPane : $rightPane;
+  $: selectedItems = activePaneState.items.filter((i) => activePaneState.selectedPaths.has(i.path));
+  $: isMultiSelecting = selectedItems.length > 1 && !$isInspectorLocked && !$activeHoveredItem;
+
+  function handleDeselectItem(path: string) {
+    const store = $activePaneId === 'left' ? leftPane : rightPane;
+    store.update((s) => {
+      const next = new Set(s.selectedPaths);
+      next.delete(path);
+      return { ...s, selectedPaths: next };
+    });
+  }
+
+  function handleClearSelection() {
+    const store = $activePaneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, selectedPaths: new Set() }));
+  }
 
   $: activeNotesDirectory = item
     ? (item.is_dir ? item.path : (item.path.substring(0, item.path.lastIndexOf('/')) || '/'))
@@ -289,7 +308,13 @@
 
   <!-- Inspector Body -->
   <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">
-    {#if currentTab === 'notes'}
+    {#if isMultiSelecting}
+      <MultiItemInspector
+        items={selectedItems}
+        onDeselectItem={handleDeselectItem}
+        onClearSelection={handleClearSelection}
+      />
+    {:else if currentTab === 'notes'}
       <NotesInspector dirPath={activeNotesDirectory} />
     {:else if currentTab === 'ai'}
       <AIInspector {item} {preview} />

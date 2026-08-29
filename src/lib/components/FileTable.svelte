@@ -14,9 +14,10 @@
     isInspectorLocked,
     castToSecondaryInspector,
     triggerInspectorScroll,
+    reloadPane,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
-  import { openInDefault, quickLook, renameItem } from '../invoke';
+  import { openInDefault, quickLook, renameItem, trashItems } from '../invoke';
   import ContextMenu from './ContextMenu.svelte';
   import type { FileItem } from '../types';
   import {
@@ -46,7 +47,7 @@
   }
   let contextMenuItem: FileItem | null = null;
   let contextMenuPos = { x: 0, y: 0 };
-  let tableContainerEl: HTMLDivElement;
+  let tableContainerEl: HTMLElement;
 
   // Hover preview state
   let hoverTimer: any = null;
@@ -62,6 +63,109 @@
   // Trackpad pinch gesture accumulator
   let pinchDeltaAccumulator = 0;
   let lastPinchTriggerTime = 0;
+
+  // Marquee / Rubberband drag-selection state
+  let isMarqueeDragging = false;
+  let marqueeStart = { x: 0, y: 0 };
+  let marqueeCurrent = { x: 0, y: 0 };
+  let rowElements: Map<string, HTMLElement> = new Map();
+
+  function registerRow(node: HTMLElement, path: string) {
+    rowElements.set(path, node);
+    return {
+      update(newPath: string) {
+        if (newPath !== path) {
+          rowElements.delete(path);
+          path = newPath;
+          rowElements.set(path, node);
+        }
+      },
+      destroy() {
+        rowElements.delete(path);
+      },
+    };
+  }
+
+  $: marqueeRect = {
+    left: Math.min(marqueeStart.x, marqueeCurrent.x),
+    top: Math.min(marqueeStart.y, marqueeCurrent.y),
+    width: Math.abs(marqueeCurrent.x - marqueeStart.x),
+    height: Math.abs(marqueeCurrent.y - marqueeStart.y),
+  };
+
+  function handleContainerMouseDown(e: MouseEvent) {
+    if (e.button !== 0) return; // only left mouse button
+    const target = e.target as HTMLElement;
+    if (target.closest('input, button, [role="button"], a')) return;
+
+    activePaneId.set(paneId);
+    const store = paneId === 'left' ? leftPane : rightPane;
+
+    const rowEl = target.closest('[data-row-path]') as HTMLElement;
+    if (!rowEl) {
+      // Clicked on empty space: deselect all unless Shift/Cmd is held
+      if (!e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        store.update((s) => ({ ...s, selectedPaths: new Set() }));
+        onSelectPreview(null);
+      }
+    }
+
+    const containerRect = tableContainerEl?.getBoundingClientRect();
+    if (!containerRect) return;
+
+    marqueeStart = {
+      x: e.clientX - containerRect.left + (tableContainerEl?.scrollLeft || 0),
+      y: e.clientY - containerRect.top + (tableContainerEl?.scrollTop || 0),
+    };
+    marqueeCurrent = { ...marqueeStart };
+
+    function onMouseMove(moveEvent: MouseEvent) {
+      const curX = moveEvent.clientX - containerRect.left + (tableContainerEl?.scrollLeft || 0);
+      const curY = moveEvent.clientY - containerRect.top + (tableContainerEl?.scrollTop || 0);
+      const dist = Math.hypot(curX - marqueeStart.x, curY - marqueeStart.y);
+
+      if (dist > 4) {
+        isMarqueeDragging = true;
+        marqueeCurrent = { x: curX, y: curY };
+
+        const selLeft = Math.min(marqueeStart.x, curX);
+        const selRight = Math.max(marqueeStart.x, curX);
+        const selTop = Math.min(marqueeStart.y, curY);
+        const selBottom = Math.max(marqueeStart.y, curY);
+
+        const newSelected = new Set(
+          moveEvent.metaKey || moveEvent.ctrlKey || moveEvent.shiftKey ? pane.selectedPaths : []
+        );
+
+        rowElements.forEach((el, path) => {
+          const r = el.getBoundingClientRect();
+          const rTop = r.top - containerRect.top + tableContainerEl.scrollTop;
+          const rBottom = r.bottom - containerRect.top + tableContainerEl.scrollTop;
+          const rLeft = r.left - containerRect.left + tableContainerEl.scrollLeft;
+          const rRight = r.right - containerRect.left + tableContainerEl.scrollLeft;
+
+          const overlaps = selLeft < rRight && selRight > rLeft && selTop < rBottom && selBottom > rTop;
+          if (overlaps) {
+            newSelected.add(path);
+          }
+        });
+
+        store.update((s) => ({ ...s, selectedPaths: newSelected }));
+      }
+    }
+
+    function onMouseUp() {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      setTimeout(() => {
+        isMarqueeDragging = false;
+      }, 50);
+    }
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }
+
 
   function globToRegex(glob: string): RegExp {
     const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -109,21 +213,49 @@
   function getIconColor(item: FileItem) {
     if (item.is_dir) return 'text-amber-400';
     const ext = item.extension.toLowerCase();
-    if (['rs', 'py', 'js', 'ts', 'swift'].includes(ext)) return 'text-cyan-400';
-    if (['csv', 'tsv'].includes(ext)) return 'text-emerald-400';
-    if (['png', 'jpg', 'jpeg', 'svg'].includes(ext)) return 'text-pink-400';
+    if (['bam', 'cram', 'sam'].includes(ext)) return 'text-emerald-400';
+    if (['vcf', 'bcf'].includes(ext)) return 'text-purple-400';
+    if (['fastq', 'fq'].includes(ext)) return 'text-cyan-400';
+    if (['csv', 'tsv', 'xlsx', 'tab'].includes(ext)) return 'text-blue-400';
+    if (['rs', 'py', 'js', 'ts', 'c', 'cpp', 'swift'].includes(ext)) return 'text-yellow-400';
+    if (['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(ext)) return 'text-pink-400';
     if (['zip', 'tar', 'gz'].includes(ext)) return 'text-red-400';
     return 'text-slate-400';
   }
 
-  // MARK: - Single / Double Click & Finder Rename Handling
+  // MARK: - Single / Double Click & Shift / Cmd Multi-Selection
   function handleRowClick(item: FileItem, event: MouseEvent) {
     activePaneId.set(paneId);
     const store = paneId === 'left' ? leftPane : rightPane;
     const now = Date.now();
     const timeSinceLastClick = now - lastClickTimestamp;
 
-    // Multi-select with Shift or Cmd/Ctrl
+    // 1. Shift + Click: Range Selection from anchor
+    if (event.shiftKey) {
+      const anchorPath = lastClickedPath || (filteredItems.length > 0 ? filteredItems[0].path : null);
+      let anchorIdx = anchorPath ? filteredItems.findIndex((i) => i.path === anchorPath) : 0;
+      let targetIdx = filteredItems.findIndex((i) => i.path === item.path);
+
+      if (anchorIdx === -1) anchorIdx = 0;
+      if (targetIdx === -1) targetIdx = 0;
+
+      const minIdx = Math.min(anchorIdx, targetIdx);
+      const maxIdx = Math.max(anchorIdx, targetIdx);
+
+      const rangePaths = new Set(
+        event.metaKey || event.ctrlKey ? pane.selectedPaths : []
+      );
+      for (let i = minIdx; i <= maxIdx; i++) {
+        rangePaths.add(filteredItems[i].path);
+      }
+
+      store.update((s) => ({ ...s, selectedPaths: rangePaths }));
+      lastClickTimestamp = now;
+      onSelectPreview(item);
+      return;
+    }
+
+    // 2. Cmd + Click / Ctrl + Click: Toggle individual item
     if (event.metaKey || event.ctrlKey) {
       store.update((s) => {
         const next = new Set(s.selectedPaths);
@@ -292,8 +424,8 @@
     }
   }
 
-  // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter, Cmd+Shift+Up for Cast)
-  function handleKeyDown(e: KeyboardEvent) {
+  // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter, Cmd+Backspace for Trash, Cmd+A for Select All, Cmd+Up for GoUp)
+  async function handleKeyDown(e: KeyboardEvent) {
     if (renamingPath) return;
 
     // Shortcut for Cast: Cmd+Shift+Up or Cmd+Alt+Up
@@ -305,6 +437,46 @@
         handleCastItem(item);
         return;
       }
+    }
+
+    // Cmd + Backspace or Delete -> Trash selected items!
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
+      e.preventDefault();
+      const paths = Array.from(pane.selectedPaths);
+      if (paths.length > 0) {
+        try {
+          await trashItems(paths);
+          reloadPane(paneId);
+        } catch (err) {
+          console.error('Failed to trash items:', err);
+        }
+      }
+      return;
+    }
+
+    // Cmd + A -> Select all filtered items
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      const store = paneId === 'left' ? leftPane : rightPane;
+      store.update((s) => ({
+        ...s,
+        selectedPaths: new Set(filteredItems.map((i) => i.path)),
+      }));
+      return;
+    }
+
+    // Esc -> Clear selection
+    if (e.key === 'Escape' && !pane.filterQuery) {
+      const store = paneId === 'left' ? leftPane : rightPane;
+      store.update((s) => ({ ...s, selectedPaths: new Set() }));
+      return;
+    }
+
+    // Cmd + ArrowUp -> Go up to enclosing directory
+    if ((e.metaKey || e.ctrlKey) && e.key === 'ArrowUp') {
+      e.preventDefault();
+      goUp(paneId);
+      return;
     }
 
     if (e.key === ' ' && pane.selectedPaths.size > 0) {
@@ -325,9 +497,6 @@
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectOffset(1);
-    } else if (e.key === 'Backspace' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      goUp(paneId);
     }
   }
 
@@ -360,36 +529,27 @@
 <svelte:window on:click={closeContextMenu} />
 
 <div
-  bind:this={tableContainerEl}
   tabindex="0"
   class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
   on:mousedown={() => activePaneId.set(paneId)}
   on:wheel|passive={handleWheel}
   on:keydown={handleKeyDown}
   role="region"
-  aria-label="File table pane"
+  aria-label="File table for {paneId} pane"
 >
-  <!-- Top Filter bar inside panel -->
-  <div class="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)]">
+  <!-- Search / Quick Filter Bar -->
+  <div class="px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between gap-2 shrink-0">
     <div class="relative flex-1 flex items-center">
-      <Search size={12} class="absolute left-2 text-[var(--text-muted)] pointer-events-none" />
+      <Search size={13} class="text-[var(--text-muted)] absolute left-2 pointer-events-none" />
       <input
         type="text"
         bind:value={filterText}
-        placeholder="Filter (*.png, test*, *.rs *.toml)..."
-        class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded pl-6 pr-6 py-1 border border-[var(--border)] focus:outline-none focus:border-[var(--accent)]"
         on:input={() => {
           const store = paneId === 'left' ? leftPane : rightPane;
           store.update((s) => ({ ...s, filterQuery: filterText }));
         }}
-        on:keydown={(e) => {
-          if (e.key === 'Escape') {
-            filterText = '';
-            const store = paneId === 'left' ? leftPane : rightPane;
-            store.update((s) => ({ ...s, filterQuery: '' }));
-            e.stopPropagation();
-          }
-        }}
+        placeholder="Filter... (e.g. *.png, test, rs)"
+        class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] pl-7 pr-6 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none placeholder:text-[var(--text-muted)] font-mono"
       />
       {#if filterText}
         <button
@@ -437,7 +597,19 @@
     </div>
   {:else}
     <!-- Pro Table View -->
-    <div class="flex-1 overflow-y-auto flex flex-col text-xs font-mono select-none">
+    <div
+      bind:this={tableContainerEl}
+      on:mousedown={handleContainerMouseDown}
+      class="flex-1 overflow-y-auto flex flex-col text-xs font-mono select-none relative"
+    >
+      <!-- Rubberband / Marquee selection overlay box -->
+      {#if isMarqueeDragging && marqueeRect.width > 3 && marqueeRect.height > 3}
+        <div
+          class="absolute border border-[var(--accent)] bg-[var(--accent)]/20 rounded pointer-events-none z-30 transition-none"
+          style="left: {marqueeRect.left}px; top: {marqueeRect.top}px; width: {marqueeRect.width}px; height: {marqueeRect.height}px;"
+        ></div>
+      {/if}
+
       <!-- Table Header -->
       <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] font-sans font-semibold text-[11px] sticky top-0 z-10">
         <button
@@ -482,6 +654,8 @@
           {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
 
           <div
+            data-row-path={item.path}
+            use:registerRow={item.path}
             class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
             on:click={(e) => handleRowClick(item, e)}
             on:dblclick={() => handleDoubleClick(item)}
