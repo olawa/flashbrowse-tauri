@@ -90,7 +90,9 @@
 
   function handleRowWheel(item: FileItem, e: WheelEvent) {
     if (e.ctrlKey) return;
-    if (Math.abs(e.deltaY) > 0) {
+    // Cmd + scroll on row drives remote inspector scrolling!
+    if (e.metaKey && Math.abs(e.deltaY) > 0) {
+      e.preventDefault();
       triggerInspectorScroll(e.deltaY);
     }
   }

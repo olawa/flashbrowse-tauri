@@ -257,8 +257,10 @@
       return;
     }
 
-    // 2. Two-finger scroll UP/DOWN on row drives remote inspector scrolling!
-    if (Math.abs(e.deltaY) > 0) {
+    // 2. Cmd + scroll on row drives remote inspector scrolling!
+    // Without Cmd, standard scrolling moves the file list up/down naturally.
+    if (e.metaKey && Math.abs(e.deltaY) > 0) {
+      e.preventDefault();
       triggerInspectorScroll(e.deltaY);
     }
   }
