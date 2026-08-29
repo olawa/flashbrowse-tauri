@@ -16,6 +16,8 @@
   import CodeViewer from './CodeViewer.svelte';
   import SpreadsheetViewer from './SpreadsheetViewer.svelte';
   import NotebookViewer from './NotebookViewer.svelte';
+  import AIInspector from './AIInspector.svelte';
+  import { isOllamaOnline } from '../stores/ollamaStore';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
     FileText,
@@ -58,6 +60,7 @@
   let pdfViewMode: 'pdf' | 'hex' = 'pdf';
   let mdViewMode: 'rendered' | 'source' = 'rendered';
   let svgViewMode: 'rendered' | 'source' = 'rendered';
+  let currentTab: 'preview' | 'ai' = 'preview';
 
   // Remote Two-Finger Scroll listener
   $: if ($inspectorScroll.pulse && $inspectorScroll.pulse !== lastScrollPulse) {
@@ -197,8 +200,17 @@
       </span>
     </div>
 
-    {#if item}
-      <div class="flex items-center gap-1 shrink-0">
+    <div class="flex items-center gap-1 shrink-0">
+      <!-- Local AI Assistant Toggle Button -->
+      <button
+        class="p-1 rounded transition-all {currentTab === 'ai' ? 'bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20 ring-1 ring-amber-400' : 'hover:bg-[var(--bg-hover)] text-amber-400 hover:text-amber-300'}"
+        on:click={() => (currentTab = currentTab === 'ai' ? 'preview' : 'ai')}
+        title={currentTab === 'ai' ? 'Växla tillbaka till standard förhandsgranskning' : 'Öppna Lokal AI-Assistent (Ollama)'}
+      >
+        <Sparkles size={12} class={currentTab === 'ai' ? 'animate-spin' : ''} />
+      </button>
+
+      {#if item}
         <!-- Lock Preview button -->
         <button
           class="p-1 rounded transition-colors {$isInspectorLocked ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50' : 'hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]'}"
@@ -244,13 +256,15 @@
         >
           <FolderOpen size={12} />
         </button>
-      </div>
-    {/if}
+      {/if}
+    </div>
   </div>
 
   <!-- Inspector Body -->
   <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">
-    {#if !item}
+    {#if currentTab === 'ai'}
+      <AIInspector {item} {preview} />
+    {:else if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">
         <FileText size={32} class="opacity-20 mb-2" />
         <span>Välj en fil för att visa förhandsgranskning och metadata</span>
