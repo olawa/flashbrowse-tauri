@@ -39,8 +39,8 @@
   let alignmentsError = '';
   let alignRegion = '';
   let alignOffset = 0;
-  let alignLimit = 50;
-  let alignViewMode: 'table' | 'raw' = 'table';
+  let alignLimit = 500;
+  let alignViewMode: 'raw' | 'table' = 'raw';
   let copiedRecordIndex: number | null = null;
   let copiedAll = false;
 
@@ -468,24 +468,26 @@
             </button>
 
             <!-- Paginator -->
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
               <button
-                class="p-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-300 disabled:opacity-40"
+                class="px-2 py-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-300 disabled:opacity-40 flex items-center gap-1 text-[11px] font-medium"
                 disabled={alignOffset === 0}
                 on:click={handlePrevPage}
-                title="Föregående sida"
+                title="Föregående {alignLimit} rader"
               >
                 <ChevronLeft size={13} />
+                <span>-{alignLimit}</span>
               </button>
-              <span class="font-mono text-[10.5px] text-slate-400 px-1">
-                {alignOffset + 1}–{alignOffset + (samResult?.records.length || 0)}
+              <span class="font-mono text-[11px] text-emerald-400 font-bold px-1">
+                Rad {alignOffset + 1}–{alignOffset + (samResult?.records.length || 0)}
               </span>
               <button
-                class="p-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-300 disabled:opacity-40"
+                class="px-2 py-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-300 disabled:opacity-40 flex items-center gap-1 text-[11px] font-medium"
                 disabled={!samResult?.has_more}
                 on:click={handleNextPage}
-                title="Nästa sida"
+                title="Nästa {alignLimit} rader"
               >
+                <span>+{alignLimit}</span>
                 <ChevronRight size={13} />
               </button>
             </div>
@@ -579,8 +581,8 @@
           </div>
         {:else}
           <!-- Raw Text View (less -S) -->
-          <div class="p-3 rounded-xl bg-[#0c0d10] border border-[#252d3d] font-mono text-[11px] text-slate-300 leading-tight overflow-x-auto">
-            <pre class="m-0 whitespace-pre">{samResult.raw_output}</pre>
+          <div class="p-3.5 rounded-xl bg-[#0c0d10] border border-[#252d3d] font-mono text-[11px] text-slate-300 leading-normal overflow-auto select-text shadow-inner">
+            <pre class="m-0 whitespace-pre font-mono">{samResult.raw_output}</pre>
           </div>
         {/if}
       {:else}
