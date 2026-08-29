@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
-  import { refreshPane } from '../stores/navigation';
+  import { refreshPane, leftPane, rightPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
   import { castToSecondaryInspector } from '../stores/navigation';
   import type { FileItem } from '../types';
@@ -16,6 +16,7 @@
     Activity,
     Layers,
     Rocket,
+    CheckCheck,
     X,
   } from 'lucide-svelte';
 
@@ -99,6 +100,51 @@
     addToStash(item);
     onClose();
   }
+
+  $: sameTypeCount = (() => {
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    if (item.is_dir) {
+      return store.items.filter((i) => i.is_dir).length;
+    }
+    const ext = item.extension.toLowerCase();
+    const name = item.name.toLowerCase();
+    const isCompoundGz = name.endsWith('.vcf.gz') ? '.vcf.gz' :
+                         name.endsWith('.fastq.gz') ? '.fastq.gz' :
+                         name.endsWith('.fq.gz') ? '.fq.gz' :
+                         name.endsWith('.tar.gz') ? '.tar.gz' : null;
+    return store.items.filter((i) => {
+      if (i.is_dir) return false;
+      if (isCompoundGz) return i.name.toLowerCase().endsWith(isCompoundGz);
+      return i.extension.toLowerCase() === ext;
+    }).length;
+  })();
+
+  function handleSelectSameType() {
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => {
+      let matchingPaths: string[] = [];
+      if (item.is_dir) {
+        matchingPaths = s.items.filter((i) => i.is_dir).map((i) => i.path);
+      } else {
+        const ext = item.extension.toLowerCase();
+        const name = item.name.toLowerCase();
+        const isCompoundGz = name.endsWith('.vcf.gz') ? '.vcf.gz' :
+                             name.endsWith('.fastq.gz') ? '.fastq.gz' :
+                             name.endsWith('.fq.gz') ? '.fq.gz' :
+                             name.endsWith('.tar.gz') ? '.tar.gz' : null;
+
+        matchingPaths = s.items
+          .filter((i) => {
+            if (i.is_dir) return false;
+            if (isCompoundGz) return i.name.toLowerCase().endsWith(isCompoundGz);
+            return i.extension.toLowerCase() === ext;
+          })
+          .map((i) => i.path);
+      }
+      return { ...s, selectedPaths: new Set(matchingPaths) };
+    });
+    onClose();
+  }
 </script>
 
 <div
@@ -106,6 +152,22 @@
   style="top: {y}px; left: {x}px;"
   on:click|stopPropagation
 >
+  <!-- Select all of same type -->
+  <button
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors font-medium text-emerald-400 hover:text-white"
+    on:click={handleSelectSameType}
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <CheckCheck size={13} class="text-emerald-400 shrink-0" />
+      <span class="truncate">Markera alla av samma typ</span>
+    </div>
+    <span class="text-[10px] font-mono opacity-70 ml-1 shrink-0">
+      {item.is_dir ? 'mapp' : `.${item.extension || 'fil'}`} ({sameTypeCount})
+    </span>
+  </button>
+
+  <div class="h-px my-1 bg-[var(--border)]"></div>
+
   {#if isBamOrCram}
     <button
       class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-purple-600 hover:text-white text-purple-400 font-medium text-left transition-colors"
