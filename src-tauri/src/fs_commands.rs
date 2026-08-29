@@ -524,11 +524,29 @@ pub async fn scan_directory_index(
         for entry in walker.filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             if e.file_type().is_dir() {
+                let lower = name.to_lowercase();
                 // Skip hidden folders (.git, .Trash, etc.) and heavy build caches
                 if name.starts_with('.') && name != "." {
                     return false;
                 }
-                if name == "node_modules" || name == "target" || name == ".Trash" || name == "Caches" {
+                // Exclude system / TCC protected user directories that trigger permission popups
+                if lower == "music"
+                    || lower == "pictures"
+                    || lower == "photos library.photoslibrary"
+                    || lower == "movies"
+                    || lower == "podcasts"
+                    || lower == "library"
+                    || lower == "node_modules"
+                    || lower == "target"
+                    || lower == "build"
+                    || lower == "dist"
+                    || lower == ".trash"
+                    || lower == "caches"
+                    || lower == ".cache"
+                    || lower == ".cargo"
+                    || lower == ".rustup"
+                    || lower == ".npm"
+                {
                     return false;
                 }
             }

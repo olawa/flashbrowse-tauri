@@ -15,6 +15,7 @@
     deselectAllIndexDirs,
     toggleIndexDir,
     refreshCurrentIndex,
+    activeHighlightedParentDir,
   } from '../stores/indexStore';
   import {
     leftPane,
@@ -63,6 +64,8 @@
   }
 
   function handleFileClick(item: FileItem) {
+    const parentDir = item.path.substring(0, item.path.lastIndexOf('/')) || '/';
+    activeHighlightedParentDir.set(parentDir);
     onSelectPreview(item);
   }
 
@@ -75,6 +78,8 @@
 
   function handleFileMouseEnter(item: FileItem) {
     hoveredPath = item.path;
+    const parentDir = item.path.substring(0, item.path.lastIndexOf('/')) || '/';
+    activeHighlightedParentDir.set(parentDir);
     activeHoveredItem.set(item);
     onSelectPreview(item);
   }
@@ -257,8 +262,9 @@
         <div class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/30">
           {#each $indexedGroups as group}
             {@const isSelected = $selectedDirectories.size === 0 || $selectedDirectories.has(group.directory_path)}
+            {@const isParentOfActive = $activeHighlightedParentDir === group.directory_path}
             <div
-              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-colors {isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
+              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
               on:click={(e) => handleFolderClick(group, e)}
               role="button"
               tabindex="-1"
@@ -273,12 +279,19 @@
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-1">
-                  <span class="font-semibold text-xs truncate" title={group.directory_name}>
+                  <span class="font-semibold text-xs truncate {isParentOfActive ? 'text-white' : ''}" title={group.directory_name}>
                     {group.directory_name}
                   </span>
-                  <span class="px-1.5 py-0.2 rounded-full bg-[var(--bg-panel)] text-[10px] font-mono text-[var(--text-secondary)] shrink-0">
-                    {group.items.length}
-                  </span>
+                  <div class="flex items-center gap-1 shrink-0">
+                    {#if isParentOfActive}
+                      <span class="px-1.5 py-0.2 rounded bg-[var(--accent)] text-white text-[9px] font-bold tracking-wide">
+                        Aktiv
+                      </span>
+                    {/if}
+                    <span class="px-1.5 py-0.2 rounded-full bg-[var(--bg-panel)] text-[10px] font-mono text-[var(--text-secondary)] shrink-0">
+                      {group.items.length}
+                    </span>
+                  </div>
                 </div>
                 <div class="text-[10px] font-mono text-[var(--text-muted)] truncate" title={group.relative_path}>
                   {group.relative_path}

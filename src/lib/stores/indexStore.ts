@@ -8,6 +8,7 @@ export const indexedGroups = writable<DirectoryIndexGroup[]>([]);
 export const selectedDirectories = writable<Set<string>>(new Set());
 export const isIndexScanning = writable<boolean>(false);
 export const indexSearchQuery = writable<string>('');
+export const activeHighlightedParentDir = writable<string | null>(null);
 
 export const activeIndexGroups = derived(
   [indexedGroups, selectedDirectories],
@@ -30,9 +31,12 @@ export const activeIndexFilteredItems = derived(
   }
 );
 
-export async function openIndexScan(meta: FileTypeIndexMeta, root?: string) {
+function getCacheKey(root: string, categoryId: string): string {
+  return `flashbrowse_idx_cache_v1_${root}_${categoryId}`;
+}
+
+export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forceRefresh = false) {
   activeIndexMeta.set(meta);
-  isIndexScanning.set(true);
   indexSearchQuery.set('');
 
   let targetRoot = root;
@@ -42,11 +46,39 @@ export async function openIndexScan(meta: FileTypeIndexMeta, root?: string) {
   }
   indexRootPath.set(targetRoot);
 
+  const cacheKey = getCacheKey(targetRoot, meta.id);
+
+  // 1. Check local persistent cache if not forcing refresh
+  if (!forceRefresh) {
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed: DirectoryIndexGroup[] = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          indexedGroups.set(parsed);
+          selectedDirectories.set(new Set(parsed.map((g) => g.directory_path)));
+          isIndexScanning.set(false);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to read index cache from localStorage:', e);
+    }
+  }
+
+  // 2. Perform scan if no cache or forced refresh
+  isIndexScanning.set(true);
   try {
     const groups = await scanDirectoryIndex(targetRoot, meta.extensions, 8);
     indexedGroups.set(groups);
-    // Default select all folders
     selectedDirectories.set(new Set(groups.map((g) => g.directory_path)));
+
+    // Persist to localStorage
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(groups));
+    } catch (saveErr) {
+      console.warn('Failed to save index cache to localStorage:', saveErr);
+    }
   } catch (err) {
     console.error('Failed to scan index:', err);
     indexedGroups.set([]);
@@ -60,7 +92,7 @@ export async function refreshCurrentIndex() {
   const meta = get(activeIndexMeta);
   const root = get(indexRootPath);
   if (meta && root) {
-    await openIndexScan(meta, root);
+    await openIndexScan(meta, root, true);
   }
 }
 
@@ -69,6 +101,7 @@ export function closeIndexView() {
   indexedGroups.set([]);
   selectedDirectories.set(new Set());
   indexSearchQuery.set('');
+  activeHighlightedParentDir.set(null);
 }
 
 export function selectAllIndexDirs() {
@@ -90,9 +123,7 @@ export function toggleIndexDir(path: string, isCtrlOrCmd = false) {
         next.add(path);
       }
     } else {
-      // Single click selects only this folder, or toggles if alone
       if (next.has(path) && next.size === 1) {
-        // Toggle to all
         return new Set(get(indexedGroups).map((g) => g.directory_path));
       }
       return new Set([path]);
