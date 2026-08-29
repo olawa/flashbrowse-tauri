@@ -117,6 +117,17 @@
       return;
     }
 
+    // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / Cmd + [ / Cmd + ] / Cmd + Alt + ArrowLeft/Right / Ctrl + Tab: Switch active pane focus
+    if (
+      ((e.metaKey || e.ctrlKey) && (e.key === '<' || e.key === '>' || e.key === '§' || e.key === '`' || e.key === '[' || e.key === ']')) ||
+      ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) ||
+      (e.ctrlKey && e.key === 'Tab')
+    ) {
+      e.preventDefault();
+      activePaneId.update((p) => (p === 'left' ? 'right' : 'left'));
+      return;
+    }
+
     // Cmd+K / Ctrl+K: Command Palette
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();

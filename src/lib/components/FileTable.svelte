@@ -15,6 +15,7 @@
     castToSecondaryInspector,
     triggerInspectorScroll,
     reloadPane,
+    isDualPane,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem, trashItems } from '../invoke';
@@ -33,6 +34,9 @@
     Search,
     Rocket,
     X,
+    LayoutList,
+    FileStack,
+    Dna,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
@@ -48,6 +52,219 @@
   let contextMenuItem: FileItem | null = null;
   let contextMenuPos = { x: 0, y: 0 };
   let tableContainerEl: HTMLElement;
+
+  let isGroupedMode = false;
+  let hoveredGroupId: string | null = null;
+
+  interface FileTypeGroup {
+    id: string;
+    label: string;
+    sublabel: string;
+    icon: any;
+    color: string;
+    count: number;
+    totalBytes: number;
+    formattedSize: string;
+    items: FileItem[];
+  }
+
+  function formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  // Group items by file type clusters
+  $: fileTypeGroups = (() => {
+    const map = new Map<string, { label: string; sublabel: string; icon: any; color: string; items: FileItem[] }>();
+
+    for (const item of filteredItems) {
+      if (item.is_dir) {
+        const entry = map.get('dir') || {
+          label: 'Mappar',
+          sublabel: 'Undermappar',
+          icon: Folder,
+          color: 'text-amber-400 bg-amber-950/40 border-amber-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('dir', entry);
+        continue;
+      }
+
+      const ext = item.extension.toLowerCase();
+      const name = item.name.toLowerCase();
+
+      if (ext === 'bam' || ext === 'cram' || ext === 'sam' || name.endsWith('.bam') || name.endsWith('.cram')) {
+        const entry = map.get('bam') || {
+          label: 'BAM / CRAM Alignments',
+          sublabel: '.bam, .cram, .sam',
+          icon: Dna,
+          color: 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('bam', entry);
+      } else if (ext === 'vcf' || ext === 'bcf' || name.endsWith('.vcf.gz') || name.endsWith('.bcf')) {
+        const entry = map.get('vcf') || {
+          label: 'VCF / BCF Varianter',
+          sublabel: '.vcf, .vcf.gz, .bcf',
+          icon: Dna,
+          color: 'text-purple-400 bg-purple-950/40 border-purple-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('vcf', entry);
+      } else if (ext === 'fastq' || ext === 'fq' || name.endsWith('.fastq.gz') || name.endsWith('.fq.gz')) {
+        const entry = map.get('fastq') || {
+          label: 'FASTQ Sekvensdata',
+          sublabel: '.fastq, .fq.gz',
+          icon: Dna,
+          color: 'text-cyan-400 bg-cyan-950/40 border-cyan-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('fastq', entry);
+      } else if (['fasta', 'fa', 'fna', 'faa'].includes(ext) || name.endsWith('.fa.gz')) {
+        const entry = map.get('fasta') || {
+          label: 'FASTA Referenser',
+          sublabel: '.fa, .fasta, .fna',
+          icon: Dna,
+          color: 'text-teal-400 bg-teal-950/40 border-teal-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('fasta', entry);
+      } else if (['tsv', 'csv', 'tab', 'xlsx', 'xls'].includes(ext) || name.endsWith('.tsv.gz') || name.endsWith('.csv.gz')) {
+        const entry = map.get('table') || {
+          label: 'Tabeller & Kalkylark',
+          sublabel: '.tsv, .csv, .xlsx',
+          icon: FileSpreadsheet,
+          color: 'text-blue-400 bg-blue-950/40 border-blue-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('table', entry);
+      } else if (['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'swift', 'r', 'json', 'yaml', 'toml'].includes(ext)) {
+        const entry = map.get('code') || {
+          label: 'Kod & Skript',
+          sublabel: '.py, .sh, .rs, .r, .json',
+          icon: FileCode,
+          color: 'text-yellow-400 bg-yellow-950/40 border-yellow-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('code', entry);
+      } else if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(ext)) {
+        const entry = map.get('image') || {
+          label: 'Bilder',
+          sublabel: '.png, .jpg, .svg',
+          icon: FileImage,
+          color: 'text-pink-400 bg-pink-950/40 border-pink-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('image', entry);
+      } else if (['txt', 'md', 'pdf', 'log', 'doc', 'docx'].includes(ext)) {
+        const entry = map.get('doc') || {
+          label: 'Dokument & Loggar',
+          sublabel: '.txt, .md, .pdf, .log',
+          icon: FileText,
+          color: 'text-slate-300 bg-slate-800/40 border-slate-700/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('doc', entry);
+      } else if (['zip', 'tar', 'gz', 'tgz', 'bz2', '7z'].includes(ext)) {
+        const entry = map.get('archive') || {
+          label: 'Arkiv & Komprimerat',
+          sublabel: '.zip, .tar.gz, .gz',
+          icon: FileArchive,
+          color: 'text-orange-400 bg-orange-950/40 border-orange-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set('archive', entry);
+      } else {
+        const genericKey = ext ? `ext_${ext}` : 'other';
+        const entry = map.get(genericKey) || {
+          label: ext ? `.${ext.toUpperCase()} filer` : 'Övriga filer',
+          sublabel: ext ? `.${ext}` : 'Filer utan ändelse',
+          icon: File,
+          color: 'text-indigo-400 bg-indigo-950/40 border-indigo-800/60',
+          items: [],
+        };
+        entry.items.push(item);
+        map.set(genericKey, entry);
+      }
+    }
+
+    const groups: FileTypeGroup[] = [];
+    map.forEach((val, key) => {
+      const totalBytes = val.items.reduce((acc, i) => acc + (i.is_dir ? 0 : i.size_bytes), 0);
+      groups.push({
+        id: key,
+        label: val.label,
+        sublabel: val.sublabel,
+        icon: val.icon,
+        color: val.color,
+        count: val.items.length,
+        totalBytes,
+        formattedSize: formatBytes(totalBytes),
+        items: val.items,
+      });
+    });
+
+    return groups.sort((a, b) => {
+      if (a.id === 'dir') return -1;
+      if (b.id === 'dir') return 1;
+      return b.count - a.count;
+    });
+  })();
+
+  function handleGroupHover(group: FileTypeGroup) {
+    hoveredGroupId = group.id;
+    if ($isDualPane) {
+      const otherPaneId = paneId === 'left' ? 'right' : 'left';
+      const otherStore = otherPaneId === 'left' ? leftPane : rightPane;
+      otherStore.update((s) => ({
+        ...s,
+        items: group.items,
+        currentPath: pane.currentPath,
+        filterQuery: '',
+        selectedPaths: new Set(group.items.length > 0 ? [group.items[0].path] : []),
+      }));
+      if (group.items.length > 0) {
+        onSelectPreview(group.items[0]);
+      }
+    } else if (group.items.length > 0) {
+      onSelectPreview(group.items[0]);
+    }
+  }
+
+  function handleGroupMouseLeave() {
+    hoveredGroupId = null;
+  }
+
+  function handleGroupClick(group: FileTypeGroup) {
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({
+      ...s,
+      selectedPaths: new Set(group.items.map((i) => i.path)),
+    }));
+    if (group.items.length > 0) {
+      onSelectPreview(group.items[0]);
+    }
+  }
+
+  function handleGroupDblClick(group: FileTypeGroup) {
+    filterText = group.sublabel.split(',')[0].trim().replace(/^\./, '*.');
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, filterQuery: filterText }));
+    isGroupedMode = false;
+  }
 
   // Hover preview state
   let hoverTimer: any = null;
@@ -428,6 +645,17 @@
   async function handleKeyDown(e: KeyboardEvent) {
     if (renamingPath) return;
 
+    // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / Cmd + [ / Cmd + ] / Cmd + Alt + ArrowLeft/Right / Ctrl + Tab: Switch active pane focus
+    if (
+      ((e.metaKey || e.ctrlKey) && (e.key === '<' || e.key === '>' || e.key === '§' || e.key === '`' || e.key === '[' || e.key === ']')) ||
+      ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) ||
+      (e.ctrlKey && e.key === 'Tab')
+    ) {
+      e.preventDefault();
+      activePaneId.update((p) => (p === 'left' ? 'right' : 'left'));
+      return;
+    }
+
     // Shortcut for Cast: Cmd+Shift+Up or Cmd+Alt+Up
     if ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey) && e.key === 'ArrowUp') {
       e.preventDefault();
@@ -537,8 +765,8 @@
   role="region"
   aria-label="File table for {paneId} pane"
 >
-  <!-- Search / Quick Filter Bar -->
-  <div class="px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between gap-2 shrink-0">
+  <!-- Search / Quick Filter & View Mode Bar -->
+  <div class="px-2.5 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between gap-2 shrink-0">
     <div class="relative flex-1 flex items-center">
       <Search size={13} class="text-[var(--text-muted)] absolute left-2 pointer-events-none" />
       <input
@@ -565,9 +793,27 @@
         </button>
       {/if}
     </div>
-    <span class="text-[11px] text-[var(--text-muted)] font-mono whitespace-nowrap">
-      {filteredItems.length} / {pane.items.length}
-    </span>
+
+    <!-- View Mode Selector (List vs Grouped Clusters) -->
+    <div class="flex items-center gap-1 shrink-0">
+      <button
+        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {!isGroupedMode ? 'bg-[var(--accent)] text-white border-[var(--accent)] font-semibold shadow-sm' : 'bg-[var(--bg-panel)] text-slate-400 border-[var(--border)] hover:text-white'}"
+        on:click={() => (isGroupedMode = false)}
+        title="Vanlig fillista"
+      >
+        <LayoutList size={11} />
+        <span>Filer ({filteredItems.length})</span>
+      </button>
+
+      <button
+        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {isGroupedMode ? 'bg-purple-600 text-white border-purple-500 font-bold shadow-sm' : 'bg-[var(--bg-panel)] text-slate-400 border-[var(--border)] hover:text-white'}"
+        on:click={() => (isGroupedMode = true)}
+        title="Gruppera filer per typ (BAM, VCF, FASTQ, etc.)"
+      >
+        <FileStack size={11} />
+        <span>Grupper ({fileTypeGroups.length})</span>
+      </button>
+    </div>
   </div>
 
   {#if pane.errorMessage}
@@ -593,6 +839,61 @@
           <span class="font-bold text-sm text-[var(--text-primary)] truncate max-w-[120px]">{item.name}</span>
           <span class="text-[10px] text-[var(--text-muted)]">{item.formatted_size}</span>
         </button>
+      {/each}
+    </div>
+  {:else if isGroupedMode}
+    <!-- Grouped Clusters View -->
+    <div class="flex-1 overflow-y-auto p-2.5 space-y-2 select-none bg-[var(--bg-base)]">
+      <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+        <span>Klustrade filtyper ({fileTypeGroups.length} grupper)</span>
+        <span class="text-[10px] font-mono opacity-70">
+          {$isDualPane ? 'Hovra för att lista i högra panelen' : 'Klicka för att markera'}
+        </span>
+      </div>
+
+      {#each fileTypeGroups as group}
+        {@const isHovered = hoveredGroupId === group.id}
+        {@const isAllSelected = group.items.length > 0 && group.items.every(i => pane.selectedPaths.has(i.path))}
+        {@const proportion = Math.min(100, (group.count / Math.max(1, filteredItems.length)) * 100)}
+        <div
+          class="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 relative overflow-hidden group {isAllSelected ? 'bg-purple-950/40 border-purple-500 ring-2 ring-purple-500/50' : isHovered ? 'bg-[#181d28] border-purple-500/60 shadow-lg ring-1 ring-purple-500/40' : 'bg-[#11141b] border-[#222938] hover:bg-[#161a22]'}"
+          on:mouseenter={() => handleGroupHover(group)}
+          on:mouseleave={handleGroupMouseLeave}
+          on:click={() => handleGroupClick(group)}
+          on:dblclick={() => handleGroupDblClick(group)}
+          role="button"
+          tabindex="-1"
+        >
+          <!-- Background Proportion Bar -->
+          <div
+            class="absolute left-0 bottom-0 top-0 opacity-10 bg-purple-500 transition-all pointer-events-none"
+            style="width: {proportion}%"
+          ></div>
+
+          <!-- Left info -->
+          <div class="flex items-center gap-2.5 min-w-0 flex-1 relative z-10">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border {group.color}">
+              <svelte:component this={group.icon} size={16} />
+            </div>
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-semibold text-xs text-white truncate">{group.label}</span>
+                <span class="px-1.5 py-0.2 rounded-full bg-[#202738] text-purple-300 font-mono text-[10px] font-bold border border-[#2b354c]">
+                  {group.count} {group.count === 1 ? 'fil' : 'filer'}
+                </span>
+              </div>
+              <span class="text-[10px] text-slate-400 font-mono truncate">{group.sublabel}</span>
+            </div>
+          </div>
+
+          <!-- Right Size & Hint -->
+          <div class="flex items-center gap-2 shrink-0 relative z-10">
+            <span class="font-mono text-xs text-slate-300 font-semibold">{group.formattedSize}</span>
+            <span class="text-[10px] text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium hidden sm:inline">
+              {$isDualPane ? '→ Höger panel' : 'Klicka'}
+            </span>
+          </div>
+        </div>
       {/each}
     </div>
   {:else}
