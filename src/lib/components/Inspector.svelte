@@ -17,6 +17,8 @@
   import SpreadsheetViewer from './SpreadsheetViewer.svelte';
   import NotebookViewer from './NotebookViewer.svelte';
   import AIInspector from './AIInspector.svelte';
+  import NotesInspector from './NotesInspector.svelte';
+  import { leftPane, rightPane, activePaneId } from '../stores/navigation';
   import { isOllamaOnline } from '../stores/ollamaStore';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
@@ -38,6 +40,7 @@
     Sparkles,
     Lock,
     Unlock,
+    NotebookPen,
   } from 'lucide-svelte';
 
   export let item: FileItem | null = null;
@@ -60,7 +63,11 @@
   let pdfViewMode: 'pdf' | 'hex' = 'pdf';
   let mdViewMode: 'rendered' | 'source' = 'rendered';
   let svgViewMode: 'rendered' | 'source' = 'rendered';
-  let currentTab: 'preview' | 'ai' = 'preview';
+  let currentTab: 'preview' | 'notes' | 'ai' = 'preview';
+
+  $: activeNotesDirectory = item
+    ? (item.is_dir ? item.path : (item.path.substring(0, item.path.lastIndexOf('/')) || '/'))
+    : ($activePaneId === 'left' ? $leftPane.currentPath : $rightPane.currentPath) || '/';
 
   // Remote Two-Finger Scroll listener
   $: if ($inspectorScroll.pulse && $inspectorScroll.pulse !== lastScrollPulse) {
@@ -201,14 +208,34 @@
     </div>
 
     <div class="flex items-center gap-1 shrink-0">
-      <!-- Local AI Assistant Toggle Button -->
-      <button
-        class="p-1 rounded transition-all {currentTab === 'ai' ? 'bg-amber-500 text-black font-bold shadow-md shadow-amber-500/20 ring-1 ring-amber-400' : 'hover:bg-[var(--bg-hover)] text-amber-400 hover:text-amber-300'}"
-        on:click={() => (currentTab = currentTab === 'ai' ? 'preview' : 'ai')}
-        title={currentTab === 'ai' ? 'Växla tillbaka till standard förhandsgranskning' : 'Öppna Lokal AI-Assistent (Ollama)'}
-      >
-        <Sparkles size={12} class={currentTab === 'ai' ? 'animate-spin' : ''} />
-      </button>
+      <!-- Tab Toggles: Preview | Anteckningar | AI -->
+      <div class="flex items-center gap-0.5 bg-[var(--bg-surface)] p-0.5 rounded-lg border border-[var(--border)] mr-0.5">
+        <button
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors {currentTab === 'preview' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
+          on:click={() => (currentTab = 'preview')}
+          title="Visa standard filförhandsgranskning"
+        >
+          Förhandsgranska
+        </button>
+
+        <button
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {currentTab === 'notes' ? 'bg-amber-600 text-white font-bold' : 'text-[var(--text-secondary)] hover:text-amber-400'}"
+          on:click={() => (currentTab = 'notes')}
+          title="Mappens anteckningar & lab notebook (NOTES.md)"
+        >
+          <NotebookPen size={11} />
+          <span>Anteckningar</span>
+        </button>
+
+        <button
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {currentTab === 'ai' ? 'bg-purple-600 text-white font-bold' : 'text-[var(--text-secondary)] hover:text-purple-400'}"
+          on:click={() => (currentTab = 'ai')}
+          title="Öppna Lokal AI-Assistent (Ollama)"
+        >
+          <Sparkles size={11} class={currentTab === 'ai' ? 'animate-spin' : ''} />
+          <span>AI</span>
+        </button>
+      </div>
 
       {#if item}
         <!-- Lock Preview button -->
@@ -262,7 +289,9 @@
 
   <!-- Inspector Body -->
   <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">
-    {#if currentTab === 'ai'}
+    {#if currentTab === 'notes'}
+      <NotesInspector dirPath={activeNotesDirectory} />
+    {:else if currentTab === 'ai'}
       <AIInspector {item} {preview} />
     {:else if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">

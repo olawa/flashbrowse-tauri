@@ -4,6 +4,7 @@
   import { activePaneId, navigatePane } from '../stores/navigation';
   import { openTerminalAt } from '../stores/terminal';
   import { addMultipleToStash } from '../stores/stash';
+  import NotesInspector from './NotesInspector.svelte';
   import type { FileItem, DirectorySummary } from '../types';
   import {
     Folder,
@@ -31,11 +32,12 @@
     TrendingUp,
     LayoutDashboard,
     List,
+    NotebookPen,
   } from 'lucide-svelte';
 
   export let item: FileItem;
 
-  let viewMode: 'summary' | 'list' = 'summary'; // Default to summary overview
+  let viewMode: 'summary' | 'list' | 'notes' = 'summary'; // Default to summary overview
   let children: FileItem[] = [];
   let allChildrenIncludingHidden: FileItem[] = [];
   let isLoadingChildren = false;
@@ -300,6 +302,13 @@
           <List size={11} />
           <span>Fillista ({children.length})</span>
         </button>
+        <button
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'notes' ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-amber-400'}"
+          on:click={() => (viewMode = 'notes')}
+        >
+          <NotebookPen size={11} />
+          <span>Anteckningar</span>
+        </button>
       </div>
 
       <!-- Quick Action Buttons -->
@@ -438,7 +447,7 @@
           {/if}
         </div>
       </div>
-    {:else}
+    {:else if viewMode === 'list'}
       <!-- MODE 2: DETAILED FILTERABLE CHILD LIST -->
       <div class="space-y-2">
         <!-- Search & Filter Controls -->
@@ -539,6 +548,11 @@
             </table>
           </div>
         {/if}
+      </div>
+    {:else if viewMode === 'notes'}
+      <!-- MODE 3: DIRECTORY LAB NOTES (NOTES.md) -->
+      <div class="h-full flex flex-col -m-3">
+        <NotesInspector dirPath={item.path} />
       </div>
     {/if}
   </div>

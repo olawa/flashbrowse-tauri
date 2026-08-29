@@ -3,6 +3,7 @@ import type {
   ArchiveSummary,
   BamHeaderData,
   DirectoryIndexGroup,
+  DirectoryNotes,
   DirectorySummary,
   DiskInfo,
   FileItem,
@@ -146,5 +147,14 @@ export async function getBamAlignments(
   });
 }
 
+export async function getDirectoryNotes(dirPath: string): Promise<DirectoryNotes> {
+  return await invoke<DirectoryNotes>('get_directory_notes', { dirPath });
+}
 
-
+export async function saveDirectoryNotes(
+  dirPath: string,
+  content: string,
+  filename?: string,
+): Promise<DirectoryNotes> {
+  return await invoke<DirectoryNotes>('save_directory_notes', { dirPath, content, filename });
+}

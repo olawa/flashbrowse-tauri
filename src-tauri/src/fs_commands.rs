@@ -1,4 +1,4 @@
-use crate::models::{DirectoryIndexGroup, DirectorySummary, DiskInfo, FileItem};
+use crate::models::{DirectoryIndexGroup, DirectoryNotes, DirectorySummary, DiskInfo, FileItem};
 use chrono::{DateTime, Local};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -651,3 +651,76 @@ pub async fn scan_directory_index(
         Ok(result_groups)
     }).await.map_err(|e| e.to_string())?
 }
+
+/// Fetch notes for a given directory (looks for NOTES.md, notes.md, .notes.md, README.md)
+#[tauri::command]
+pub fn get_directory_notes(dir_path: String) -> Result<DirectoryNotes, String> {
+    let resolved = resolve_path(&dir_path);
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
+    }
+
+    let candidates = ["NOTES.md", "notes.md", ".notes.md", "README.md", "readme.md"];
+    for c in &candidates {
+        let note_path = resolved.join(c);
+        if note_path.is_file() {
+            if let Ok(content) = fs::read_to_string(&note_path) {
+                let mod_time = fs::metadata(&note_path)
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .map(|t| {
+                        let dt: DateTime<Local> = t.into();
+                        dt.format("%Y-%m-%d %H:%M").to_string()
+                    });
+                return Ok(DirectoryNotes {
+                    content,
+                    filename: c.to_string(),
+                    path: note_path.to_string_lossy().to_string(),
+                    exists: true,
+                    last_modified: mod_time,
+                });
+            }
+        }
+    }
+
+    let default_path = resolved.join("NOTES.md");
+    Ok(DirectoryNotes {
+        content: String::new(),
+        filename: "NOTES.md".to_string(),
+        path: default_path.to_string_lossy().to_string(),
+        exists: false,
+        last_modified: None,
+    })
+}
+
+/// Save notes for a given directory to NOTES.md (or specified filename)
+#[tauri::command]
+pub fn save_directory_notes(dir_path: String, content: String, filename: Option<String>) -> Result<DirectoryNotes, String> {
+    let resolved = resolve_path(&dir_path);
+    if !resolved.is_dir() {
+        return Err(format!("Not a directory: {}", resolved.display()));
+    }
+
+    let target_name = filename.unwrap_or_else(|| "NOTES.md".to_string());
+    let note_path = resolved.join(&target_name);
+
+    fs::write(&note_path, &content)
+        .map_err(|e| format!("Kunde inte spara anteckning till {}: {}", note_path.display(), e))?;
+
+    let mod_time = fs::metadata(&note_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .map(|t| {
+            let dt: DateTime<Local> = t.into();
+            dt.format("%Y-%m-%d %H:%M").to_string()
+        });
+
+    Ok(DirectoryNotes {
+        content,
+        filename: target_name,
+        path: note_path.to_string_lossy().to_string(),
+        exists: true,
+        last_modified: mod_time,
+    })
+}
+

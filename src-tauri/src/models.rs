@@ -172,4 +172,11 @@ pub struct SamViewResult {
     pub raw_output: String,
 }
 
-
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryNotes {
+    pub content: String,
+    pub filename: String,
+    pub path: String,
+    pub exists: bool,
+    pub last_modified: Option<String>,
+}
