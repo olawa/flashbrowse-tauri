@@ -8,6 +8,14 @@ export interface OllamaModelInfo {
   quantization_level?: string;
 }
 
+export interface RunningModelInfo {
+  name: string;
+  size: number;
+  formatted_size: string;
+  processor: string;
+  expires_at?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -15,14 +23,52 @@ export interface ChatMessage {
   timestamp: number;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  }
+  if (bytes >= 1024 * 1024) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  return bytes + ' B';
+}
+
 export const ollamaEndpoint = writable<string>('http://127.0.0.1:11434');
 export const isOllamaOnline = writable<boolean>(false);
 export const installedModels = writable<OllamaModelInfo[]>([]);
+export const runningModels = writable<RunningModelInfo[]>([]);
 export const selectedModel = writable<string>('');
 export const isAiGenerating = writable<boolean>(false);
 export const aiChatMessages = writable<ChatMessage[]>([]);
 
 let currentAbortController: AbortController | null = null;
+
+export async function checkRunningModels(): Promise<RunningModelInfo[]> {
+  const endpoint = get(ollamaEndpoint);
+  try {
+    const res = await fetch(`${endpoint}/api/ps`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!res.ok) {
+      runningModels.set([]);
+      return [];
+    }
+    const data = await res.json();
+    const list: RunningModelInfo[] = (data.models || []).map((m: any) => ({
+      name: m.name || m.model || '',
+      size: m.size || 0,
+      formatted_size: formatBytes(m.size || 0),
+      processor: m.processor || 'GPU',
+      expires_at: m.expires_at,
+    }));
+    runningModels.set(list);
+    return list;
+  } catch {
+    runningModels.set([]);
+    return [];
+  }
+}
 
 export async function checkOllamaConnection(): Promise<boolean> {
   const endpoint = get(ollamaEndpoint);
@@ -47,13 +93,15 @@ export async function checkOllamaConnection(): Promise<boolean> {
     installedModels.set(models);
     isOllamaOnline.set(true);
 
+    await checkRunningModels();
+
     // Pick a smart default model if none is selected
     const current = get(selectedModel);
     if (!current || !models.some((m) => m.name === current)) {
       const preferred =
+        models.find((m) => m.name.includes('gemma4:latest') || m.name.includes('8b') || m.name.includes('7b')) ||
+        models.find((m) => m.name.includes('qwen3.6:35B')) ||
         models.find((m) => m.name.includes('coder')) ||
-        models.find((m) => m.name.includes('qwen')) ||
-        models.find((m) => m.name.includes('gemma')) ||
         models[0];
       if (preferred) {
         selectedModel.set(preferred.name);
@@ -64,6 +112,41 @@ export async function checkOllamaConnection(): Promise<boolean> {
     isOllamaOnline.set(false);
     return false;
   }
+}
+
+export async function unloadOllamaModel(modelName: string): Promise<void> {
+  const endpoint = get(ollamaEndpoint);
+  try {
+    await fetch(`${endpoint}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: modelName,
+        keep_alive: 0,
+      }),
+    });
+    await checkRunningModels();
+  } catch (err) {
+    console.warn('Failed to unload model:', err);
+  }
+}
+
+export async function unloadAllOllamaModels(): Promise<void> {
+  const running = get(runningModels);
+  for (const m of running) {
+    await unloadOllamaModel(m.name);
+  }
+  // Extra check
+  await checkRunningModels();
+}
+
+export async function selectModelWithAutoEvict(newModel: string): Promise<void> {
+  const oldModel = get(selectedModel);
+  if (oldModel && oldModel !== newModel) {
+    // Unload the old model to free RAM
+    await unloadOllamaModel(oldModel);
+  }
+  selectedModel.set(newModel);
 }
 
 export async function askOllamaStream(
@@ -121,6 +204,7 @@ export async function askOllamaStream(
         system:
           systemContext ||
           'Du är en snabb, hjälpsam AI-assistent integrerad i filutforskaren Flashbrowse. Svara koncist och tydligt på svenska med snygg GitHub-formaterad Markdown.',
+        keep_alive: '2m', // Auto-evict from VRAM after 2 minutes of idle
         stream: true,
       }),
       signal: currentAbortController.signal,
@@ -129,6 +213,9 @@ export async function askOllamaStream(
     if (!res.ok || !res.body) {
       throw new Error(`Ollama svarade med felkod: ${res.status}`);
     }
+
+    // Refresh running models in background
+    setTimeout(() => checkRunningModels(), 1000);
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder('utf-8');
@@ -177,6 +264,7 @@ export async function askOllamaStream(
   } finally {
     isAiGenerating.set(false);
     currentAbortController = null;
+    await checkRunningModels();
   }
 }
 

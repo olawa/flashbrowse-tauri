@@ -3,10 +3,13 @@
   import {
     isOllamaOnline,
     installedModels,
+    runningModels,
     selectedModel,
     isAiGenerating,
     aiChatMessages,
     checkOllamaConnection,
+    selectModelWithAutoEvict,
+    unloadAllOllamaModels,
     askOllamaStream,
     stopAiGeneration,
     clearAiChat,
@@ -29,6 +32,7 @@
     Check,
     AlertCircle,
     CheckCircle2,
+    Cpu,
   } from 'lucide-svelte';
 
   export let item: FileItem | null = null;
@@ -124,8 +128,10 @@
       <!-- Model Selector Dropdown -->
       {#if $isOllamaOnline && $installedModels.length > 0}
         <select
-          bind:value={$selectedModel}
-          class="bg-[var(--bg-surface)] text-[var(--text-primary)] text-[11px] font-mono px-2 py-0.5 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none max-w-[180px] truncate"
+          value={$selectedModel}
+          on:change={(e) => selectModelWithAutoEvict(e.currentTarget.value)}
+          class="bg-[var(--bg-surface)] text-[var(--text-primary)] text-[11px] font-mono px-2 py-0.5 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none max-w-[170px] truncate"
+          title="Välj modell. Tidigare modell avlastas automatiskt för att spara RAM."
         >
           {#each $installedModels as m}
             <option value={m.name}>
@@ -134,10 +140,33 @@
           {/each}
         </select>
       {/if}
+
+      <!-- Running Memory Usage Badge -->
+      {#if $runningModels.length > 0}
+        {@const totalRAM = $runningModels.map(m => m.formatted_size).join(', ')}
+        {@const isHeavy = $runningModels.some(m => m.size > 20_000_000_000)}
+        <div
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded {isHeavy ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-500/40' : 'bg-amber-500/20 text-amber-300'} font-mono text-[10px] shrink-0"
+          title="Modell aktiv i VRAM/RAM: {totalRAM}"
+        >
+          <Cpu size={10} />
+          <span>{totalRAM}</span>
+        </div>
+      {/if}
     </div>
 
-    <!-- Actions: Refresh & Clear -->
+    <!-- Actions: Unload RAM, Refresh & Clear -->
     <div class="flex items-center gap-1 shrink-0">
+      {#if $runningModels.length > 0}
+        <button
+          class="px-2 py-0.5 rounded bg-rose-600/20 hover:bg-rose-600/40 text-rose-300 border border-rose-500/40 font-sans text-[10.5px] font-semibold flex items-center gap-1 transition-colors shrink-0"
+          on:click={() => unloadAllOllamaModels()}
+          title="Frigör RAM: Avlasta modellen omedelbart ur minnet för att göra datorn snabb igen"
+        >
+          <span>Frigör RAM</span>
+        </button>
+      {/if}
+
       <button
         class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
         on:click={() => checkOllamaConnection()}
