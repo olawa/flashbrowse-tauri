@@ -73,8 +73,17 @@ export async function tabComplete(input: string, cwd: string): Promise<TabComple
   return await invoke<TabCompletionResult>('tab_complete', { input, cwd });
 }
 
-export async function sshListDirectory(host: string, path: string): Promise<FileItem[]> {
-  return await invoke<FileItem[]>('ssh_list_directory', { host, path });
+export interface SshDirectoryResult {
+  current_path: string;
+  items: FileItem[];
+}
+
+export async function sshListDirectory(host: string, path: string): Promise<SshDirectoryResult> {
+  return await invoke<SshDirectoryResult>('ssh_list_directory', { host, path });
+}
+
+export async function sshGetPreview(host: string, path: string): Promise<PreviewContent> {
+  return await invoke<PreviewContent>('ssh_get_preview', { host, path });
 }
 
 export async function sshRunCommand(host: string, cmd: string, cwd: string): Promise<TerminalOutput> {

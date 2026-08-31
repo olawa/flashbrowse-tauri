@@ -30,7 +30,7 @@ fn decompress_gz_head(file_path: &Path, max_uncompressed_bytes: usize) -> Result
     Ok(buffer)
 }
 
-fn detect_language_meta(filename: &str, code: &str) -> (&'static str, &'static str, &'static str) {
+pub(crate) fn detect_language_meta(filename: &str, code: &str) -> (&'static str, &'static str, &'static str) {
     let lower = filename.to_lowercase();
     let ext = Path::new(filename)
         .extension()
@@ -260,7 +260,7 @@ fn format_hex_dump(bytes: &[u8]) -> Vec<String> {
     lines
 }
 
-fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String>, Vec<Vec<String>>) {
+pub(crate) fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String>, Vec<Vec<String>>) {
     let mut lines = content.lines().take(50);
     let headers = if let Some(first_line) = lines.next() {
         first_line

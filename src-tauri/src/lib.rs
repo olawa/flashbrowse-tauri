@@ -32,6 +32,7 @@ pub fn run() {
             run_command,
             tab_complete,
             ssh_list_directory,
+            ssh_get_preview,
             ssh_run_command,
             quick_look,
             toggle_detached_inspector,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
+  import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
   import {
     isInspectorDetached,
     castToSecondaryInspector,
@@ -161,6 +161,8 @@
     try {
       if (target.is_dir) {
         preview = null;
+      } else if (activePaneState.isSSH) {
+        preview = await sshGetPreview(activePaneState.sshHost, target.path);
       } else {
         preview = await getPreview(target.path);
       }

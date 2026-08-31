@@ -105,8 +105,11 @@ export async function navigatePane(
 
   try {
     let items: FileItem[] = [];
+    let resolvedPath = path;
     if (current.isSSH) {
-      items = await sshListDirectory(current.sshHost, path);
+      const res = await sshListDirectory(current.sshHost, path);
+      items = res.items;
+      resolvedPath = res.current_path;
     } else {
       items = await listDirectory(path, showHidden);
     }
@@ -115,9 +118,9 @@ export async function navigatePane(
       let newHistory = s.history;
       let newIndex = s.historyIndex;
 
-      if (addToHistory && s.currentPath !== path) {
+      if (addToHistory && s.currentPath !== resolvedPath) {
         newHistory = s.history.slice(0, s.historyIndex + 1);
-        newHistory.push(path);
+        newHistory.push(resolvedPath);
         newIndex = newHistory.length - 1;
       }
 
@@ -128,7 +131,7 @@ export async function navigatePane(
 
       return {
         ...s,
-        currentPath: path,
+        currentPath: resolvedPath,
         history: newHistory,
         historyIndex: newIndex,
         items,
