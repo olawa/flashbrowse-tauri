@@ -1,7 +1,7 @@
 <script lang="ts">
   import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
-  import { refreshPane, leftPane, rightPane } from '../stores/navigation';
+  import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
   import { castToSecondaryInspector } from '../stores/navigation';
   import type { FileItem } from '../types';
@@ -18,6 +18,7 @@
     Rocket,
     CheckCheck,
     X,
+    ArrowRightLeft,
   } from 'lucide-svelte';
 
   export let item: FileItem;
@@ -145,6 +146,12 @@
     });
     onClose();
   }
+
+  async function handleTransferToOtherPane() {
+    const otherPane = paneId === 'left' ? 'right' : 'left';
+    await transferBetweenPanes(paneId, otherPane, [item.path]);
+    onClose();
+  }
 </script>
 
 <div
@@ -152,6 +159,21 @@
   style="top: {y}px; left: {x}px;"
   on:click|stopPropagation
 >
+  <!-- Transfer to other pane -->
+  {#if $isDualPane}
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-cyan-600 hover:text-white text-left transition-colors font-medium text-cyan-400"
+      on:click={handleTransferToOtherPane}
+      title="Överför/kopiera till motsatt panel"
+    >
+      <div class="flex items-center gap-2 min-w-0">
+        <ArrowRightLeft size={13} class="text-cyan-400 shrink-0" />
+        <span class="truncate">Överför till andra panelen</span>
+      </div>
+      <kbd class="text-[9px] font-mono opacity-70">F5</kbd>
+    </button>
+  {/if}
+
   <!-- Select all of same type -->
   <button
     class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors font-medium text-emerald-400 hover:text-white"

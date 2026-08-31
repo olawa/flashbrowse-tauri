@@ -22,6 +22,7 @@ pub fn run() {
             calculate_dir_size,
             trash_items,
             copy_items,
+            transfer_items,
             move_items,
             create_directory,
             create_file,

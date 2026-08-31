@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { listDirectory, getHomeDirectory, sshListDirectory } from '../invoke';
+import { listDirectory, getHomeDirectory, sshListDirectory, transferItems } from '../invoke';
 import type { FileItem } from '../types';
 
 export interface PaneState {
@@ -198,4 +198,48 @@ export function sortPaneItems(paneId: 'left' | 'right', sortBy: 'name' | 'size' 
     const sortAsc = isSame ? !s.sortAsc : true;
     return { ...s, sortBy, sortAsc };
   });
+}
+
+export const isTransferring = writable<boolean>(false);
+export const transferStatus = writable<string | null>(null);
+
+export async function transferBetweenPanes(
+  fromPaneId: 'left' | 'right',
+  toPaneId: 'left' | 'right',
+  explicitPaths?: string[]
+) {
+  const fromStore = fromPaneId === 'left' ? leftPane : rightPane;
+  const toStore = toPaneId === 'left' ? leftPane : rightPane;
+
+  const fromState = get(fromStore);
+  const toState = get(toStore);
+
+  const paths = explicitPaths && explicitPaths.length > 0
+    ? explicitPaths
+    : Array.from(fromState.selectedPaths);
+
+  if (paths.length === 0) return;
+  if (!toState.currentPath) return;
+
+  isTransferring.set(true);
+  transferStatus.set(`Överför ${paths.length} objekt...`);
+
+  try {
+    const resultMsg = await transferItems(
+      fromState.isSSH,
+      fromState.sshHost,
+      paths,
+      toState.isSSH,
+      toState.sshHost,
+      toState.currentPath
+    );
+    transferStatus.set(resultMsg);
+    setTimeout(() => transferStatus.set(null), 3000);
+    await reloadPane(toPaneId);
+  } catch (err: any) {
+    transferStatus.set(`Fel vid överföring: ${err}`);
+    setTimeout(() => transferStatus.set(null), 6000);
+  } finally {
+    isTransferring.set(false);
+  }
 }

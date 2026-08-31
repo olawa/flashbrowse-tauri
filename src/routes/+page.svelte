@@ -14,6 +14,9 @@
     toggleInspectorLock,
     reloadPane,
     type InspectorPreset,
+    isTransferring,
+    transferStatus,
+    transferBetweenPanes,
   } from '$lib/stores/navigation';
   import {
     isTerminalOpen,
@@ -445,6 +448,16 @@
         <Terminal />
       {/if}
     </div>
+  </div>
+{/if}
+
+<!-- Transfer Status Banner / Toast -->
+{#if $isTransferring || $transferStatus}
+  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-cyan-950/90 text-cyan-200 border border-cyan-500/50 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
+    {#if $isTransferring}
+      <div class="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+    {/if}
+    <span>{$transferStatus || 'Överför...'}</span>
   </div>
 {/if}
 

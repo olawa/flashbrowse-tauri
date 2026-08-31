@@ -16,6 +16,9 @@
     triggerInspectorScroll,
     reloadPane,
     isDualPane,
+    transferBetweenPanes,
+    isTransferring,
+    transferStatus,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem, trashItems } from '../invoke';
@@ -37,10 +40,14 @@
     LayoutList,
     FileStack,
     Dna,
+    ArrowDownToLine,
+    ArrowRightLeft,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
   export let onSelectPreview: (item: FileItem | null) => void;
+
+  let isDragOver = false;
 
   $: pane = paneId === 'left' ? $leftPane : $rightPane;
   $: isActive = $activePaneId === paneId;
@@ -414,7 +421,72 @@
     return name.toLowerCase().includes(pattern.toLowerCase());
   }
 
-  $: filteredItems = pane.items.filter((item) => matchFilter(item.name, filterText));
+  $: filteredItems = (() => {
+    let result = pane.items.filter((item) => matchFilter(item.name, filterText));
+    const { sortBy, sortAsc } = pane;
+
+    return result.sort((a, b) => {
+      if (a.is_dir !== b.is_dir) {
+        return b.is_dir ? 1 : -1;
+      }
+
+      let cmp = 0;
+      if (sortBy === 'name') {
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortBy === 'size') {
+        cmp = a.size_bytes - b.size_bytes;
+      } else if (sortBy === 'modified') {
+        cmp = a.modified_timestamp - b.modified_timestamp;
+      } else if (sortBy === 'type') {
+        cmp = a.extension.localeCompare(b.extension);
+      }
+
+      return sortAsc ? cmp : -cmp;
+    });
+  })();
+
+  // MARK: - Drag and Drop between Panels
+  function handleRowDragStart(item: FileItem, e: DragEvent) {
+    const selected = pane.selectedPaths.has(item.path)
+      ? Array.from(pane.selectedPaths)
+      : [item.path];
+    if (e.dataTransfer) {
+      e.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({ sourcePaneId: paneId, paths: selected })
+      );
+      e.dataTransfer.effectAllowed = 'copy';
+    }
+  }
+
+  function handleContainerDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    isDragOver = true;
+  }
+
+  function handleContainerDragLeave() {
+    isDragOver = false;
+  }
+
+  async function handleContainerDrop(e: DragEvent) {
+    e.preventDefault();
+    isDragOver = false;
+    if (!e.dataTransfer) return;
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.sourcePaneId && data.sourcePaneId !== paneId && data.paths?.length > 0) {
+          await transferBetweenPanes(data.sourcePaneId, paneId, data.paths);
+        }
+      }
+    } catch (err) {
+      console.error('Drop transfer failed:', err);
+    }
+  }
 
   function getFileIcon(item: FileItem) {
     if (item.is_dir) return Folder;
@@ -653,6 +725,14 @@
     ) {
       e.preventDefault();
       activePaneId.update((p) => (p === 'left' ? 'right' : 'left'));
+      return;
+    }
+
+    // F5 or Cmd + E -> Transfer selected items to other pane!
+    if (e.key === 'F5' || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'e')) {
+      e.preventDefault();
+      const otherPaneId = paneId === 'left' ? 'right' : 'left';
+      await transferBetweenPanes(paneId, otherPaneId);
       return;
     }
 
@@ -901,8 +981,20 @@
     <div
       bind:this={tableContainerEl}
       on:mousedown={handleContainerMouseDown}
-      class="flex-1 overflow-y-auto flex flex-col text-xs font-mono select-none relative"
+      on:dragover={handleContainerDragOver}
+      on:dragleave={handleContainerDragLeave}
+      on:drop={handleContainerDrop}
+      class="flex-1 overflow-y-auto flex flex-col text-xs font-mono select-none relative {isDragOver ? 'ring-2 ring-cyan-500 ring-inset bg-cyan-950/20' : ''}"
     >
+      <!-- Drop Overlay -->
+      {#if isDragOver}
+        <div class="absolute inset-0 z-40 bg-cyan-950/85 border-2 border-cyan-400 border-dashed rounded m-1 flex flex-col items-center justify-center text-cyan-200 pointer-events-none backdrop-blur-sm animate-pulse">
+          <ArrowDownToLine size={28} class="text-cyan-400 mb-1.5" />
+          <span class="font-bold text-xs">Släpp för att föra över till denna mapp</span>
+          <span class="text-[10px] text-slate-300 font-mono mt-0.5">{pane.currentPath}</span>
+        </div>
+      {/if}
+
       <!-- Rubberband / Marquee selection overlay box -->
       {#if isMarqueeDragging && marqueeRect.width > 3 && marqueeRect.height > 3}
         <div
@@ -914,32 +1006,35 @@
       <!-- Table Header -->
       <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] font-sans font-semibold text-[11px] sticky top-0 z-10">
         <button
-          class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)]"
+          class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors"
           on:click={() => sortPaneItems(paneId, 'name')}
+          title="Sortera efter namn"
         >
-          <span>Name</span>
+          <span>Namn</span>
           {#if pane.sortBy === 'name'}
-            {#if pane.sortAsc}<ArrowUp size={11} />{:else}<ArrowDown size={11} />{/if}
+            {#if pane.sortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
           {/if}
         </button>
 
         <button
-          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)]"
+          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors"
           on:click={() => sortPaneItems(paneId, 'size')}
+          title="Sortera efter storlek"
         >
-          <span>Size</span>
+          <span>Storlek</span>
           {#if pane.sortBy === 'size'}
-            {#if pane.sortAsc}<ArrowUp size={11} />{:else}<ArrowDown size={11} />{/if}
+            {#if pane.sortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
           {/if}
         </button>
 
         <button
-          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] pr-1"
+          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
           on:click={() => sortPaneItems(paneId, 'modified')}
+          title="Sortera efter ändringsdatum"
         >
-          <span>Modified</span>
+          <span>Ändrad</span>
           {#if pane.sortBy === 'modified'}
-            {#if pane.sortAsc}<ArrowUp size={11} />{:else}<ArrowDown size={11} />{/if}
+            {#if pane.sortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
           {/if}
         </button>
       </div>
@@ -957,6 +1052,8 @@
           <div
             data-row-path={item.path}
             use:registerRow={item.path}
+            draggable="true"
+            on:dragstart={(e) => handleRowDragStart(item, e)}
             class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
             on:click={(e) => handleRowClick(item, e)}
             on:dblclick={() => handleDoubleClick(item)}

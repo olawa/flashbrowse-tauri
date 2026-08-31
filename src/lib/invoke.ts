@@ -37,6 +37,24 @@ export async function copyItems(paths: string[], destinationDir: string): Promis
   await invoke('copy_items', { paths, destinationDir });
 }
 
+export async function transferItems(
+  sourceIsSsh: boolean,
+  sourceSshHost: string,
+  sourcePaths: string[],
+  destIsSsh: boolean,
+  destSshHost: string,
+  destDir: string,
+): Promise<string> {
+  return await invoke<string>('transfer_items', {
+    sourceIsSsh,
+    sourceSshHost,
+    sourcePaths,
+    destIsSsh,
+    destSshHost,
+    destDir,
+  });
+}
+
 export async function moveItems(paths: string[], destinationDir: string): Promise<void> {
   await invoke('move_items', { paths, destinationDir });
 }

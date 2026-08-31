@@ -1,7 +1,7 @@
 <script lang="ts">
   import { trashItems, revealInOs, openInDefault, launchRsnap } from '../invoke';
   import { addMultipleToStash } from '../stores/stash';
-  import { reloadPane, activePaneId } from '../stores/navigation';
+  import { reloadPane, activePaneId, transferBetweenPanes, isDualPane } from '../stores/navigation';
   import type { FileItem } from '../types';
   import {
     Files,
@@ -21,6 +21,7 @@
     ExternalLink,
     AlertTriangle,
     Camera,
+    ArrowRightLeft,
   } from 'lucide-svelte';
 
   export let items: FileItem[] = [];
@@ -96,6 +97,13 @@
   $: bamPaths = items
     .filter((i) => !i.is_dir && (i.extension === 'bam' || i.extension === 'cram' || i.name.endsWith('.bam') || i.name.endsWith('.cram')))
     .map((i) => i.path);
+
+  async function handleTransfer() {
+    if (items.length === 0) return;
+    const fromPane = $activePaneId;
+    const toPane = fromPane === 'left' ? 'right' : 'left';
+    await transferBetweenPanes(fromPane, toPane, items.map((i) => i.path));
+  }
 
   async function handleTrash() {
     if (items.length === 0 || isTrashing) return;
@@ -187,6 +195,19 @@
 
   <!-- Primary Batch Action Buttons -->
   <div class="p-3 bg-[#11141b] border-b border-[#252d3d] flex items-center gap-2 flex-wrap shrink-0">
+    <!-- Transfer / Copy to other pane -->
+    {#if $isDualPane}
+      <button
+        class="px-3 py-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        on:click={handleTransfer}
+        title="Överför/kopiera markerade filer till den andra panelen (F5)"
+      >
+        <ArrowRightLeft size={13} class="text-cyan-400" />
+        <span>Överför ({totalCount})</span>
+        <kbd class="ml-1 px-1 py-0.2 rounded bg-black/40 text-[9px] font-mono opacity-70">F5</kbd>
+      </button>
+    {/if}
+
     <!-- Trash / Delete (Cmd+Backspace) -->
     <button
       class="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"

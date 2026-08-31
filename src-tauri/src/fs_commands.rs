@@ -296,6 +296,129 @@ pub async fn copy_items(paths: Vec<String>, destination_dir: String) -> Result<(
     .map_err(|e| e.to_string())?
 }
 
+#[tauri::command]
+pub async fn transfer_items(
+    source_is_ssh: bool,
+    source_ssh_host: String,
+    source_paths: Vec<String>,
+    dest_is_ssh: bool,
+    dest_ssh_host: String,
+    dest_dir: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if source_paths.is_empty() {
+            return Ok("Inga filer valda".to_string());
+        }
+
+        // Case 1: Local to Local
+        if !source_is_ssh && !dest_is_ssh {
+            let dest = resolve_path(&dest_dir);
+            if !dest.is_dir() {
+                return Err(format!("Målmappen finns inte lokalt: {}", dest_dir));
+            }
+            for p in &source_paths {
+                let src = resolve_path(p);
+                if let Some(file_name) = src.file_name() {
+                    let target = dest.join(file_name);
+                    if src.is_dir() {
+                        copy_dir_recursive(&src, &target).map_err(|e| e.to_string())?;
+                    } else {
+                        fs::copy(&src, &target).map_err(|e| format!("Kunde inte kopiera {}: {}", p, e))?;
+                    }
+                }
+            }
+            return Ok(format!("Kopierade {} objekt lokalt", source_paths.len()));
+        }
+
+        // Case 2: Local to Remote (Upload via scp)
+        if !source_is_ssh && dest_is_ssh {
+            let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
+            let mut args = vec![
+                "-r".to_string(),
+                "-o".to_string(), "BatchMode=yes".to_string(),
+                "-o".to_string(), "ConnectTimeout=15".to_string(),
+                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
+            ];
+            for p in &source_paths {
+                args.push(p.clone());
+            }
+            args.push(target_remote);
+
+            let out = std::process::Command::new("scp")
+                .args(&args)
+                .output()
+                .map_err(|e| format!("Kunde inte starta scp för uppladdning: {}", e))?;
+
+            if !out.status.success() {
+                let err = String::from_utf8_lossy(&out.stderr);
+                return Err(format!("Uppladdning misslyckades: {}", err));
+            }
+            return Ok(format!("Överförde {} objekt till {}", source_paths.len(), dest_ssh_host));
+        }
+
+        // Case 3: Remote to Local (Download via scp)
+        if source_is_ssh && !dest_is_ssh {
+            let dest_local = resolve_path(&dest_dir);
+            let dest_str = dest_local.to_string_lossy().to_string();
+
+            let mut args = vec![
+                "-r".to_string(),
+                "-o".to_string(), "BatchMode=yes".to_string(),
+                "-o".to_string(), "ConnectTimeout=15".to_string(),
+                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
+            ];
+            for p in &source_paths {
+                let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
+                args.push(remote_src);
+            }
+            args.push(dest_str);
+
+            let out = std::process::Command::new("scp")
+                .args(&args)
+                .output()
+                .map_err(|e| format!("Kunde inte starta scp för nedladdning: {}", e))?;
+
+            if !out.status.success() {
+                let err = String::from_utf8_lossy(&out.stderr);
+                return Err(format!("Nedladdning misslyckades: {}", err));
+            }
+            return Ok(format!("Laddade ner {} objekt från {}", source_paths.len(), source_ssh_host));
+        }
+
+        // Case 4: Remote to Remote
+        if source_is_ssh && dest_is_ssh {
+            let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
+            let mut args = vec![
+                "-3".to_string(),
+                "-r".to_string(),
+                "-o".to_string(), "BatchMode=yes".to_string(),
+                "-o".to_string(), "ConnectTimeout=15".to_string(),
+                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
+            ];
+            for p in &source_paths {
+                let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
+                args.push(remote_src);
+            }
+            args.push(target_remote);
+
+            let out = std::process::Command::new("scp")
+                .args(&args)
+                .output()
+                .map_err(|e| format!("Kunde inte starta fjärröverföring med scp: {}", e))?;
+
+            if !out.status.success() {
+                let err = String::from_utf8_lossy(&out.stderr);
+                return Err(format!("Fjärröverföring misslyckades: {}", err));
+            }
+            return Ok(format!("Överförde {} objekt mellan fjärrservrar", source_paths.len()));
+        }
+
+        Ok("Överföring slutförd".to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     if src.is_symlink() {
         let target = fs::read_link(src)?;
