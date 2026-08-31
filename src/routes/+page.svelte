@@ -51,6 +51,7 @@
     Columns2,
     Columns3,
     EyeOff,
+    Terminal as TerminalIcon,
   } from 'lucide-svelte';
 
   let leftPreviewItem: FileItem | null = null;
@@ -285,6 +286,17 @@
               </button>
             {/if}
           {/if}
+
+          <!-- Terminal Toggle Button -->
+          <button
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-semibold transition-all {$isTerminalOpen ? 'bg-amber-500 text-black border-amber-400 shadow-md' : 'bg-[#141822] hover:bg-[#1f2535] text-slate-300 border-[#252d3d]'}"
+            on:click={toggleTerminal}
+            title="Öppna/Stäng Terminal (⌘J)"
+          >
+            <TerminalIcon size={13} class={$isTerminalOpen ? 'text-black' : 'text-amber-400'} />
+            <span class="font-mono">Terminal</span>
+            <kbd class="px-1 py-0.2 rounded text-[9px] font-mono {$isTerminalOpen ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-400'}">⌘J</kbd>
+          </button>
 
           <!-- Inspector Layout Preset Switcher -->
           <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">

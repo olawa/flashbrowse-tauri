@@ -36,7 +36,9 @@
     Filter,
     Layers,
     Zap,
+    Terminal as TerminalIcon,
   } from 'lucide-svelte';
+  import { isTerminalOpen, toggleTerminal } from '../stores/terminal';
   import {
     activeIndexMeta,
     openIndexScan,
@@ -201,6 +203,18 @@
         >
           <FolderGit2 size={14} class="text-purple-400" />
           <span>Projects</span>
+        </button>
+
+        <button
+          class="w-full flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors {$isTerminalOpen ? 'bg-amber-500/20 text-amber-300 font-semibold border border-amber-500/40' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+          on:click={toggleTerminal}
+          title="Öppna/Stäng inbyggd Terminal (⌘J)"
+        >
+          <div class="flex items-center gap-2">
+            <TerminalIcon size={14} class={$isTerminalOpen ? 'text-amber-400' : 'text-amber-400/80'} />
+            <span>Terminal</span>
+          </div>
+          <kbd class="text-[9px] px-1 py-0.2 rounded font-mono {$isTerminalOpen ? 'bg-amber-400/30 text-amber-200' : 'bg-[var(--border)] text-[var(--text-muted)]'}">⌘J</kbd>
         </button>
       </div>
     </div>
