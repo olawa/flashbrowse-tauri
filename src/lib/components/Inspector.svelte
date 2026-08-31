@@ -42,7 +42,16 @@
     Lock,
     Unlock,
     NotebookPen,
+    Download,
+    Settings,
   } from 'lucide-svelte';
+  import {
+    downloadDirectory,
+    isSavingFile,
+    saveRemoteOrLocalItem,
+    setDownloadDirectory,
+    initDownloadStore,
+  } from '../stores/downloadStore';
 
   export let item: FileItem | null = null;
   export let titlePrefix = 'Inspector';
@@ -203,6 +212,27 @@
     }
   }
 
+  let isSaveSuccess = false;
+  let isDownloadConfigOpen = false;
+  let customDownloadInput = '';
+
+  onMount(() => {
+    initDownloadStore();
+  });
+
+  async function handleSavePermanent() {
+    if (!item) return;
+    const res = await saveRemoteOrLocalItem(
+      activePaneState.isSSH,
+      activePaneState.sshHost,
+      item.path
+    );
+    if (res.success) {
+      isSaveSuccess = true;
+      setTimeout(() => (isSaveSuccess = false), 2500);
+    }
+  }
+
   function truncateMiddle(str: string, maxLen = 32): string {
     if (!str || str.length <= maxLen) return str;
     const half = Math.floor((maxLen - 3) / 2);
@@ -260,6 +290,71 @@
       </div>
 
       {#if item}
+        <!-- Save Permanent / Download to Mac -->
+        <div class="relative flex items-center">
+          <button
+            class="flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-semibold transition-all {isSaveSuccess ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm' : 'bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 border-cyan-800/80 hover:text-white'}"
+            on:click={handleSavePermanent}
+            disabled={$isSavingFile}
+            title="Spara permanent lokal kopia till {$downloadDirectory || '~/Downloads'}"
+          >
+            {#if $isSavingFile}
+              <div class="w-2.5 h-2.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+              <span>Sparar...</span>
+            {:else if isSaveSuccess}
+              <Check size={11} class="text-white" />
+              <span>Sparad!</span>
+            {:else}
+              <Download size={11} class="text-cyan-400" />
+              <span>Spara {activePaneState.isSSH ? 'till Mac' : 'kopia'}</span>
+            {/if}
+          </button>
+
+          <button
+            class="p-1 ml-0.5 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white"
+            on:click={() => {
+              customDownloadInput = $downloadDirectory;
+              isDownloadConfigOpen = !isDownloadConfigOpen;
+            }}
+            title="Ändra Downloads-mapp (Nu: {$downloadDirectory || '~/Downloads'})"
+          >
+            <Settings size={11} />
+          </button>
+
+          <!-- Download Directory Popover -->
+          {#if isDownloadConfigOpen}
+            <div
+              class="absolute right-0 top-full mt-1 w-64 p-3 bg-[var(--bg-surface)] border border-[var(--border)] rounded-lg shadow-2xl z-50 text-xs text-[var(--text-primary)]"
+              on:click|stopPropagation
+            >
+              <div class="font-bold text-[11px] mb-1 text-slate-300">Downloads-katalog:</div>
+              <input
+                type="text"
+                bind:value={customDownloadInput}
+                placeholder="t.ex. /Users/olwal516/Downloads"
+                class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none font-mono mb-2"
+              />
+              <div class="flex justify-end gap-1.5">
+                <button
+                  class="px-2 py-0.5 rounded border border-[var(--border)] text-[10.5px] hover:bg-[var(--bg-hover)]"
+                  on:click={() => (isDownloadConfigOpen = false)}
+                >
+                  Stäng
+                </button>
+                <button
+                  class="px-2 py-0.5 rounded bg-[var(--accent)] text-white text-[10.5px] font-semibold hover:bg-[var(--accent-hover)]"
+                  on:click={() => {
+                    setDownloadDirectory(customDownloadInput);
+                    isDownloadConfigOpen = false;
+                  }}
+                >
+                  Spara
+                </button>
+              </div>
+            </div>
+          {/if}
+        </div>
+
         <!-- Lock Preview button -->
         <button
           class="p-1 rounded transition-colors {$isInspectorLocked ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50' : 'hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]'}"

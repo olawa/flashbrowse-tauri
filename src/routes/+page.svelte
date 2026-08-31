@@ -36,6 +36,7 @@
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { toggleStash } from '$lib/stores/stash';
   import { activeIndexMeta, closeIndexView, refreshCurrentIndex } from '$lib/stores/indexStore';
+  import { saveNotification } from '$lib/stores/downloadStore';
   import type { FileItem } from '$lib/types';
   import {
     Lock,
@@ -470,6 +471,14 @@
       <div class="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
     {/if}
     <span>{$transferStatus || 'Överför...'}</span>
+  </div>
+{/if}
+
+<!-- Save / Download Notification Toast -->
+{#if $saveNotification}
+  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-emerald-950/95 text-emerald-200 border border-emerald-500/50 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
+    <Check size={14} class="text-emerald-400" />
+    <span>{$saveNotification.text}</span>
   </div>
 {/if}
 

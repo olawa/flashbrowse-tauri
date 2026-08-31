@@ -39,6 +39,7 @@
     Terminal as TerminalIcon,
   } from 'lucide-svelte';
   import { isTerminalOpen, toggleTerminal } from '../stores/terminal';
+  import { downloadDirectory, setDownloadDirectory, initDownloadStore } from '../stores/downloadStore';
   import {
     activeIndexMeta,
     openIndexScan,
@@ -396,6 +397,28 @@
             <span>Show Dotfiles</span>
           {/if}
         </button>
+      </div>
+    </div>
+
+    <!-- Downloads Target Folder -->
+    <div>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Downloads-Mapp</span>
+      <div class="mt-1 px-2 py-1.5 rounded bg-[var(--bg-panel)] border border-[var(--border)]">
+        <div class="flex items-center justify-between text-[11px] gap-1">
+          <div class="flex items-center gap-1.5 text-slate-300 min-w-0 flex-1">
+            <Download size={13} class="text-cyan-400 shrink-0" />
+            <span class="truncate font-mono text-[10px]" title={$downloadDirectory || '~/Downloads'}>
+              {$downloadDirectory || '~/Downloads'}
+            </span>
+          </div>
+          <button
+            class="text-[10px] text-[var(--accent)] hover:underline font-semibold shrink-0"
+            on:click={() => jumpTo($downloadDirectory || `${homeDir}/Downloads`)}
+            title="Öppna downloadsmappen i aktiv panel"
+          >
+            Öppna
+          </button>
+        </div>
       </div>
     </div>
   </div>

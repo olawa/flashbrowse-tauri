@@ -19,7 +19,9 @@
     CheckCheck,
     X,
     ArrowRightLeft,
+    Download,
   } from 'lucide-svelte';
+  import { saveRemoteOrLocalItem, downloadDirectory } from '../stores/downloadStore';
 
   export let item: FileItem;
   export let paneId: 'left' | 'right';
@@ -152,6 +154,12 @@
     await transferBetweenPanes(paneId, otherPane, [item.path]);
     onClose();
   }
+
+  async function handleSaveToDownloads() {
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    await saveRemoteOrLocalItem(store.isSSH, store.sshHost, item.path);
+    onClose();
+  }
 </script>
 
 <div
@@ -159,6 +167,19 @@
   style="top: {y}px; left: {x}px;"
   on:click|stopPropagation
 >
+  <!-- Save permanently to Downloads -->
+  <button
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400"
+    on:click={handleSaveToDownloads}
+    title="Spara permanent lokal kopia till {$downloadDirectory || '~/Downloads'}"
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <Download size={13} class="text-emerald-400 shrink-0" />
+      <span class="truncate">Spara till Downloads</span>
+    </div>
+    <span class="text-[9px] font-mono opacity-70">Lokal</span>
+  </button>
+
   <!-- Transfer to other pane -->
   {#if $isDualPane}
     <button

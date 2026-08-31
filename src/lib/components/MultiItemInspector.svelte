@@ -1,7 +1,9 @@
 <script lang="ts">
   import { trashItems, revealInOs, openInDefault, launchRsnap } from '../invoke';
   import { addMultipleToStash } from '../stores/stash';
-  import { reloadPane, activePaneId, transferBetweenPanes, isDualPane } from '../stores/navigation';
+  import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
+  import { get } from 'svelte/store';
+  import { saveMultipleItems, downloadDirectory, isSavingFile } from '../stores/downloadStore';
   import type { FileItem } from '../types';
   import {
     Files,
@@ -22,6 +24,7 @@
     AlertTriangle,
     Camera,
     ArrowRightLeft,
+    Download,
   } from 'lucide-svelte';
 
   export let items: FileItem[] = [];
@@ -97,6 +100,23 @@
   $: bamPaths = items
     .filter((i) => !i.is_dir && (i.extension === 'bam' || i.extension === 'cram' || i.name.endsWith('.bam') || i.name.endsWith('.cram')))
     .map((i) => i.path);
+
+  let isSavedAll = false;
+
+  async function handleSaveAllToDownloads() {
+    if (items.length === 0) return;
+    const store = $activePaneId === 'left' ? leftPane : rightPane;
+    const paneState = get(store);
+    const res = await saveMultipleItems(
+      paneState.isSSH,
+      paneState.sshHost,
+      items.map((i) => i.path)
+    );
+    if (res.success) {
+      isSavedAll = true;
+      setTimeout(() => (isSavedAll = false), 2500);
+    }
+  }
 
   async function handleTransfer() {
     if (items.length === 0) return;
@@ -195,6 +215,25 @@
 
   <!-- Primary Batch Action Buttons -->
   <div class="p-3 bg-[#11141b] border-b border-[#252d3d] flex items-center gap-2 flex-wrap shrink-0">
+    <!-- Save All permanently to Downloads -->
+    <button
+      class="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm {isSavedAll ? 'bg-emerald-600 text-white' : ''}"
+      on:click={handleSaveAllToDownloads}
+      disabled={$isSavingFile}
+      title="Spara permanent lokal kopia av alla markerade filer till {$downloadDirectory || '~/Downloads'}"
+    >
+      {#if $isSavingFile}
+        <div class="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
+        <span>Sparar...</span>
+      {:else if isSavedAll}
+        <Check size={13} class="text-white" />
+        <span>Sparade alla!</span>
+      {:else}
+        <Download size={13} class="text-emerald-400" />
+        <span>Spara alla till Mac ({totalCount})</span>
+      {/if}
+    </button>
+
     <!-- Transfer / Copy to other pane -->
     {#if $isDualPane}
       <button
