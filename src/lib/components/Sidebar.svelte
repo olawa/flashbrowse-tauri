@@ -43,16 +43,58 @@
     closeIndexView,
   } from '../stores/indexStore';
   import type { FileTypeIndexMeta, ThemeName } from '../types';
+  import { Plus, Trash2, X as XIcon } from 'lucide-svelte';
 
   let homeDir = '';
   let devProjectsDir = '';
+
+  interface SshServerItem {
+    name: string;
+    host: string;
+    path?: string;
+  }
+
+  let savedSshServers: SshServerItem[] = [
+    { name: 'Marvin (HPC)', host: 'marvin.cgu.igp.uu.se', path: '~' },
+  ];
+
+  let isAddingSsh = false;
+  let newSshName = '';
+  let newSshHost = '';
 
   onMount(async () => {
     try {
       homeDir = await getHomeDirectory();
       devProjectsDir = `${homeDir}/dev/projects`;
+      const stored = localStorage.getItem('flashbrowse_ssh_servers');
+      if (stored) {
+        savedSshServers = JSON.parse(stored);
+      }
     } catch {}
   });
+
+  function saveSshServers(list: SshServerItem[]) {
+    savedSshServers = list;
+    try {
+      localStorage.setItem('flashbrowse_ssh_servers', JSON.stringify(list));
+    } catch {}
+  }
+
+  function handleAddSsh() {
+    if (!newSshHost.trim()) return;
+    const name = newSshName.trim() || newSshHost.trim().split('.')[0];
+    const updated = [...savedSshServers, { name, host: newSshHost.trim(), path: '~' }];
+    saveSshServers(updated);
+    newSshName = '';
+    newSshHost = '';
+    isAddingSsh = false;
+  }
+
+  function handleRemoveSsh(host: string, e: MouseEvent) {
+    e.stopPropagation();
+    const updated = savedSshServers.filter((s) => s.host !== host);
+    saveSshServers(updated);
+  }
 
   function jumpTo(path: string, isSSH = false, host = '') {
     closeIndexView();
@@ -207,15 +249,73 @@
 
     <!-- Remote SSH Servers -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Remote (SSH)</span>
-      <div class="mt-1 space-y-0.5">
+      <div class="px-2 flex items-center justify-between">
+        <span class="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Remote (SSH)</span>
         <button
-          class="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-green-400"
-          on:click={() => jumpTo('~', true, 'marvin.cgu.igp.uu.se')}
+          class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white"
+          on:click={() => (isAddingSsh = !isAddingSsh)}
+          title="Lägg till SSH-server"
         >
-          <Server size={14} />
-          <span>Marvin (HPC)</span>
+          <Plus size={12} />
         </button>
+      </div>
+
+      {#if isAddingSsh}
+        <div class="mt-1 p-2 bg-[#12151c] rounded-lg border border-[#252d3d] space-y-1.5 text-xs">
+          <input
+            type="text"
+            bind:value={newSshName}
+            placeholder="Namn (t.ex. Marvin)"
+            class="w-full bg-[#1c2230] text-[var(--text-primary)] px-2 py-1 rounded border border-[#2e394e] text-xs focus:outline-none focus:border-[var(--accent)]"
+          />
+          <input
+            type="text"
+            bind:value={newSshHost}
+            placeholder="Värd (user@host:port)"
+            class="w-full bg-[#1c2230] text-[var(--text-primary)] px-2 py-1 rounded border border-[#2e394e] text-xs font-mono focus:outline-none focus:border-[var(--accent)]"
+            on:keydown={(e) => e.key === 'Enter' && handleAddSsh()}
+          />
+          <div class="flex items-center justify-end gap-1 pt-1">
+            <button
+              class="px-2 py-0.5 rounded text-slate-400 hover:text-white text-[11px]"
+              on:click={() => (isAddingSsh = false)}
+            >
+              Avbryt
+            </button>
+            <button
+              class="px-2.5 py-0.5 rounded bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-[11px] font-semibold"
+              on:click={handleAddSsh}
+            >
+              Spara
+            </button>
+          </div>
+        </div>
+      {/if}
+
+      <div class="mt-1 space-y-0.5">
+        {#each savedSshServers as srv}
+          {@const isActive = $activePaneId === 'left' ? ($leftPane.isSSH && $leftPane.sshHost === srv.host) : ($rightPane.isSSH && $rightPane.sshHost === srv.host)}
+          <div class="flex items-center justify-between group rounded {isActive ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold' : 'hover:bg-[var(--bg-hover)] text-green-400'}">
+            <button
+              class="flex-1 flex items-center gap-2 px-2 py-1.5 text-left truncate"
+              on:click={() => jumpTo(srv.path || '~', true, srv.host)}
+              title="{srv.name} ({srv.host})"
+            >
+              <Server size={14} class="shrink-0" />
+              <span class="truncate">{srv.name}</span>
+            </button>
+
+            {#if srv.host !== 'marvin.cgu.igp.uu.se'}
+              <button
+                class="opacity-0 group-hover:opacity-100 p-1 mr-1 rounded text-slate-500 hover:text-red-400"
+                on:click={(e) => handleRemoveSsh(srv.host, e)}
+                title="Ta bort server"
+              >
+                <XIcon size={11} />
+              </button>
+            {/if}
+          </div>
+        {/each}
       </div>
     </div>
 

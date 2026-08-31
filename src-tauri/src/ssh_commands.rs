@@ -5,25 +5,37 @@ use std::process::Command;
 #[tauri::command]
 pub async fn ssh_list_directory(host: String, path: String) -> Result<Vec<FileItem>, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let clean_path = if path.is_empty() { "~" } else { &path };
-        let escaped_path = clean_path.replace('\'', "'\\''");
-
-        // Run remote ls script
-        let remote_script = format!("cd '{}' 2>/dev/null && pwd && ls -la", escaped_path);
+        let remote_script = if path.is_empty() || path == "~" {
+            "cd ~ && pwd && ls -la".to_string()
+        } else if path.starts_with("~/") {
+            let rest = &path[2..].replace('\'', "'\\''");
+            format!("cd \"${{HOME}}/{}\" && pwd && ls -la", rest)
+        } else {
+            let escaped_path = path.replace('\'', "'\\''");
+            format!("cd '{}' && pwd && ls -la", escaped_path)
+        };
 
         let output = Command::new("ssh")
             .args([
                 "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=5",
+                "-o", "ConnectTimeout=15",
+                "-o", "ServerAliveInterval=15",
+                "-o", "ServerAliveCountMax=3",
+                "-o", "StrictHostKeyChecking=accept-new",
                 &host,
                 &remote_script,
             ])
             .output()
-            .map_err(|e| format!("SSH command failed to launch: {}", e))?;
+            .map_err(|e| format!("Kunde inte starta SSH-klient: {}", e))?;
 
         if !output.status.success() {
-            let err = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("SSH error: {}", err));
+            let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let msg = if err.is_empty() {
+                format!("SSH-anslutning misslyckades till {} (kod {:?})", host, output.status.code())
+            } else {
+                format!("SSH-fel ({host}): {err}")
+            };
+            return Err(msg);
         }
 
         let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -110,19 +122,28 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<Vec<FileIt
 #[tauri::command]
 pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<TerminalOutput, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let clean_cwd = if cwd.is_empty() { "~" } else { &cwd };
-        let escaped_cwd = clean_cwd.replace('\'', "'\\''");
-        let remote_script = format!("cd '{}' 2>/dev/null && {}", escaped_cwd, cmd);
+        let remote_script = if cwd.is_empty() || cwd == "~" {
+            format!("cd ~ && {}", cmd)
+        } else if cwd.starts_with("~/") {
+            let rest = &cwd[2..].replace('\'', "'\\''");
+            format!("cd \"${{HOME}}/{}\" && {}", rest, cmd)
+        } else {
+            let escaped_cwd = cwd.replace('\'', "'\\''");
+            format!("cd '{}' && {}", escaped_cwd, cmd)
+        };
 
         let output = Command::new("ssh")
             .args([
                 "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=8",
+                "-o", "ConnectTimeout=15",
+                "-o", "ServerAliveInterval=15",
+                "-o", "ServerAliveCountMax=3",
+                "-o", "StrictHostKeyChecking=accept-new",
                 &host,
                 &remote_script,
             ])
             .output()
-            .map_err(|e| format!("SSH command execution failed: {}", e))?;
+            .map_err(|e| format!("Kunde inte köra SSH-kommando: {}", e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
