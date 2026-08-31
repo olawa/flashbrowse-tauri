@@ -128,8 +128,69 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
     .map_err(|e| e.to_string())?
 }
 
+fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::path::PathBuf, String> {
+    let cache_dir = std::env::temp_dir().join("flashbrowse_ssh_cache");
+    let _ = std::fs::create_dir_all(&cache_dir);
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hash::hash(&(host, remote_path), &mut hasher);
+    let hash = std::hash::Hasher::finish(&hasher);
+
+    let file_name = Path::new(remote_path)
+        .file_name()
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_else(|| "remote_file".to_string());
+
+    let cached_path = cache_dir.join(format!("{:x}_{}", hash, file_name));
+
+    let remote_src = format!("{}:'{}'", host, remote_path.replace('\'', "'\\''"));
+    let out = Command::new("scp")
+        .args([
+            "-o", "BatchMode=yes",
+            "-o", "ConnectTimeout=15",
+            "-o", "StrictHostKeyChecking=accept-new",
+            &remote_src,
+            &cached_path.to_string_lossy(),
+        ])
+        .output()
+        .map_err(|e| format!("Kunde inte köra scp för förhandsgranskning: {}", e))?;
+
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(format!("Kunde inte ladda ner fil för förhandsgranskning: {}", err));
+    }
+
+    Ok(cached_path)
+}
+
 #[tauri::command]
 pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewContent, String> {
+    let ext = Path::new(&path)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    let is_rich_doc = matches!(
+        ext.as_str(),
+        "xlsx" | "xls" | "ods" | "xlsb" | "docx" | "doc" | "pdf" | "ipynb" | "odt" | "rtf" | "epub"
+    );
+
+    if is_rich_doc {
+        let host_c = host.clone();
+        let path_c = path.clone();
+        let cached_res = tauri::async_runtime::spawn_blocking(move || {
+            get_or_fetch_ssh_cached_file(&host_c, &path_c)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        if let Ok(cached_path) = cached_res {
+            if let Ok(preview) = crate::preview_commands::get_preview(&cached_path.to_string_lossy(), None) {
+                return Ok(preview);
+            }
+        }
+    }
+
     tauri::async_runtime::spawn_blocking(move || {
         let escaped_path = path.replace('\'', "'\\''");
         let ext = Path::new(&path)
