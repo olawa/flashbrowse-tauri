@@ -123,14 +123,39 @@
     }
 
     // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / Cmd + [ / Cmd + ] / Cmd + Alt + ArrowLeft/Right / Ctrl + Tab: Switch active pane focus
-    if (
-      ((e.metaKey || e.ctrlKey) && (e.key === '<' || e.key === '>' || e.key === '§' || e.key === '`' || e.key === '[' || e.key === ']')) ||
-      ((e.metaKey || e.ctrlKey) && e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) ||
-      (e.ctrlKey && e.key === 'Tab')
-    ) {
+    const isSwitchFocus =
+      ((e.metaKey || e.ctrlKey) &&
+        (e.key === '<' ||
+          e.key === '>' ||
+          e.key === '§' ||
+          e.key === '±' ||
+          e.key === '`' ||
+          e.key === '~' ||
+          e.key === '[' ||
+          e.key === ']' ||
+          e.code === 'IntlBackslash' ||
+          e.code === 'Backquote' ||
+          (e.code === 'Comma' && e.shiftKey) ||
+          (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) ||
+      (e.ctrlKey && e.key === 'Tab');
+
+    if (isSwitchFocus) {
       e.preventDefault();
       activePaneId.update((p) => (p === 'left' ? 'right' : 'left'));
       return;
+    }
+
+    // Cmd + 1 / Cmd + 2: Direct focus to left / right pane
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+      if (e.key === '1') {
+        e.preventDefault();
+        activePaneId.set('left');
+        return;
+      } else if (e.key === '2' && $isDualPane) {
+        e.preventDefault();
+        activePaneId.set('right');
+        return;
+      }
     }
 
     // Cmd+K / Ctrl+K: Command Palette

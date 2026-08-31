@@ -42,6 +42,9 @@
     Dna,
     ArrowDownToLine,
     ArrowRightLeft,
+    ChevronDown,
+    CheckSquare,
+    Square,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
@@ -231,36 +234,53 @@
     });
   })();
 
-  function handleGroupHover(group: FileTypeGroup) {
-    hoveredGroupId = group.id;
-    if ($isDualPane) {
-      const otherPaneId = paneId === 'left' ? 'right' : 'left';
-      const otherStore = otherPaneId === 'left' ? leftPane : rightPane;
-      otherStore.update((s) => ({
-        ...s,
-        items: group.items,
-        currentPath: pane.currentPath,
-        filterQuery: '',
-        selectedPaths: new Set(group.items.length > 0 ? [group.items[0].path] : []),
-      }));
-      if (group.items.length > 0) {
-        onSelectPreview(group.items[0]);
+  let expandedGroupIds = new Set<string>();
+  let groupHoverTimer: any = null;
+  let groupLeaveTimer: any = null;
+
+  function handleGroupMouseEnter(group: FileTypeGroup) {
+    clearTimeout(groupLeaveTimer);
+    clearTimeout(groupHoverTimer);
+    groupHoverTimer = setTimeout(() => {
+      hoveredGroupId = group.id;
+      expandedGroupIds = new Set([...expandedGroupIds, group.id]);
+    }, 180);
+  }
+
+  function handleGroupMouseLeave(group: FileTypeGroup) {
+    clearTimeout(groupHoverTimer);
+    clearTimeout(groupLeaveTimer);
+    groupLeaveTimer = setTimeout(() => {
+      if (hoveredGroupId === group.id) {
+        hoveredGroupId = null;
       }
-    } else if (group.items.length > 0) {
-      onSelectPreview(group.items[0]);
+    }, 280);
+  }
+
+  function toggleGroupExpand(group: FileTypeGroup) {
+    const next = new Set(expandedGroupIds);
+    if (next.has(group.id)) {
+      next.delete(group.id);
+      if (hoveredGroupId === group.id) hoveredGroupId = null;
+    } else {
+      next.add(group.id);
     }
+    expandedGroupIds = next;
   }
 
-  function handleGroupMouseLeave() {
-    hoveredGroupId = null;
-  }
-
-  function handleGroupClick(group: FileTypeGroup) {
+  function selectAllInGroup(group: FileTypeGroup, event?: MouseEvent) {
+    event?.stopPropagation();
     const store = paneId === 'left' ? leftPane : rightPane;
-    store.update((s) => ({
-      ...s,
-      selectedPaths: new Set(group.items.map((i) => i.path)),
-    }));
+    store.update((s) => {
+      const next = new Set(s.selectedPaths);
+      const isAllSelected = group.items.length > 0 && group.items.every((i) => next.has(i.path));
+      if (isAllSelected) {
+        group.items.forEach((i) => next.delete(i.path));
+      } else {
+        group.items.forEach((i) => next.add(i.path));
+      }
+      return { ...s, selectedPaths: next };
+    });
     if (group.items.length > 0) {
       onSelectPreview(group.items[0]);
     }
@@ -922,57 +942,118 @@
       {/each}
     </div>
   {:else if isGroupedMode}
-    <!-- Grouped Clusters View -->
+    <!-- Grouped Clusters View (Inline Expandable Accordion) -->
     <div class="flex-1 overflow-y-auto p-2.5 space-y-2 select-none bg-[var(--bg-base)]">
       <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
         <span>Klustrade filtyper ({fileTypeGroups.length} grupper)</span>
         <span class="text-[10px] font-mono opacity-70">
-          {$isDualPane ? 'Hovra för att lista i högra panelen' : 'Klicka för att markera'}
+          Hovra eller klicka för att fälla ut filer under gruppen
         </span>
       </div>
 
       {#each fileTypeGroups as group}
         {@const isHovered = hoveredGroupId === group.id}
-        {@const isAllSelected = group.items.length > 0 && group.items.every(i => pane.selectedPaths.has(i.path))}
+        {@const isExpanded = expandedGroupIds.has(group.id) || isHovered}
+        {@const isAllSelected = group.items.length > 0 && group.items.every((i) => pane.selectedPaths.has(i.path))}
         {@const proportion = Math.min(100, (group.count / Math.max(1, filteredItems.length)) * 100)}
+
         <div
-          class="p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 relative overflow-hidden group {isAllSelected ? 'bg-purple-950/40 border-purple-500 ring-2 ring-purple-500/50' : isHovered ? 'bg-[#181d28] border-purple-500/60 shadow-lg ring-1 ring-purple-500/40' : 'bg-[#11141b] border-[#222938] hover:bg-[#161a22]'}"
-          on:mouseenter={() => handleGroupHover(group)}
-          on:mouseleave={handleGroupMouseLeave}
-          on:click={() => handleGroupClick(group)}
-          on:dblclick={() => handleGroupDblClick(group)}
-          role="button"
-          tabindex="-1"
+          class="rounded-xl border transition-all overflow-hidden bg-[#11141b] {isAllSelected ? 'border-purple-500 ring-1 ring-purple-500/40' : isExpanded ? 'border-purple-500/70 shadow-lg' : 'border-[#222938] hover:border-purple-500/40'}"
+          on:mouseenter={() => handleGroupMouseEnter(group)}
+          on:mouseleave={() => handleGroupMouseLeave(group)}
         >
-          <!-- Background Proportion Bar -->
+          <!-- Group Header Row -->
           <div
-            class="absolute left-0 bottom-0 top-0 opacity-10 bg-purple-500 transition-all pointer-events-none"
-            style="width: {proportion}%"
-          ></div>
+            class="p-2.5 cursor-pointer flex items-center justify-between gap-3 relative transition-colors {isExpanded ? 'bg-[#181d28]' : 'hover:bg-[#161a22]'}"
+            on:click={() => toggleGroupExpand(group)}
+            on:dblclick={() => handleGroupDblClick(group)}
+            role="button"
+            tabindex="-1"
+          >
+            <!-- Background Proportion Bar -->
+            <div
+              class="absolute left-0 bottom-0 top-0 opacity-10 bg-purple-500 transition-all pointer-events-none"
+              style="width: {proportion}%"
+            ></div>
 
-          <!-- Left info -->
-          <div class="flex items-center gap-2.5 min-w-0 flex-1 relative z-10">
-            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border {group.color}">
-              <svelte:component this={group.icon} size={16} />
-            </div>
-            <div class="flex flex-col min-w-0">
-              <div class="flex items-center gap-2">
-                <span class="font-semibold text-xs text-white truncate">{group.label}</span>
-                <span class="px-1.5 py-0.2 rounded-full bg-[#202738] text-purple-300 font-mono text-[10px] font-bold border border-[#2b354c]">
-                  {group.count} {group.count === 1 ? 'fil' : 'filer'}
-                </span>
+            <!-- Left info -->
+            <div class="flex items-center gap-2.5 min-w-0 flex-1 relative z-10">
+              <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border {group.color}">
+                <svelte:component this={group.icon} size={16} />
               </div>
-              <span class="text-[10px] text-slate-400 font-mono truncate">{group.sublabel}</span>
+              <div class="flex flex-col min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="font-semibold text-xs text-white truncate">{group.label}</span>
+                  <span class="px-1.5 py-0.2 rounded-full bg-[#202738] text-purple-300 font-mono text-[10px] font-bold border border-[#2b354c]">
+                    {group.count} {group.count === 1 ? 'fil' : 'filer'}
+                  </span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-mono truncate">{group.sublabel}</span>
+              </div>
+            </div>
+
+            <!-- Right Size, Select Button & Chevron -->
+            <div class="flex items-center gap-2 shrink-0 relative z-10">
+              <span class="font-mono text-xs text-slate-300 font-semibold">{group.formattedSize}</span>
+
+              <!-- Quick Select All in Group -->
+              <button
+                class="p-1 rounded hover:bg-purple-900/50 text-slate-400 hover:text-purple-300 transition-colors"
+                on:click={(e) => selectAllInGroup(group, e)}
+                title={isAllSelected ? 'Avmarkera alla i gruppen' : 'Markera alla i gruppen'}
+              >
+                {#if isAllSelected}
+                  <CheckSquare size={14} class="text-purple-400" />
+                {:else}
+                  <Square size={14} />
+                {/if}
+              </button>
+
+              <div class="text-slate-400 transition-transform duration-200 {isExpanded ? 'rotate-180 text-purple-400' : ''}">
+                <ChevronDown size={14} />
+              </div>
             </div>
           </div>
 
-          <!-- Right Size & Hint -->
-          <div class="flex items-center gap-2 shrink-0 relative z-10">
-            <span class="font-mono text-xs text-slate-300 font-semibold">{group.formattedSize}</span>
-            <span class="text-[10px] text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium hidden sm:inline">
-              {$isDualPane ? '→ Höger panel' : 'Klicka'}
-            </span>
-          </div>
+          <!-- Inline Expanded Files List Under Group -->
+          {#if isExpanded}
+            <div class="border-t border-[#202738] bg-[#0c0e14] max-h-80 overflow-y-auto divide-y divide-[#1c2230]/60 text-[11px] font-mono select-none">
+              {#each group.items as item}
+                {@const isSelected = pane.selectedPaths.has(item.path)}
+                {@const isRowHovered = hoveredPath === item.path}
+                {@const isCasting = castingRowPath === item.path}
+                <div
+                  draggable="true"
+                  on:dragstart={(e) => handleRowDragStart(item, e)}
+                  class="grid grid-cols-12 gap-2 px-3 py-1.5 items-center cursor-pointer transition-colors {isCasting ? '-translate-y-1 bg-amber-500/20 shadow-lg text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isRowHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-slate-300'}"
+                  on:click={(e) => handleRowClick(item, e)}
+                  on:dblclick={() => handleDoubleClick(item)}
+                  on:mouseenter={(e) => handleRowMouseEnter(item, e)}
+                  on:mouseleave={handleRowMouseLeave}
+                  on:wheel={(e) => handleRowWheel(item, e)}
+                  on:contextmenu={(e) => handleContextMenu(item, e)}
+                  role="row"
+                  tabindex="-1"
+                >
+                  <!-- Name with icon -->
+                  <div class="col-span-8 flex items-center gap-2 min-w-0">
+                    <svelte:component this={getFileIcon(item)} size={13} class="{getIconColor(item)} shrink-0" />
+                    <span class="truncate">{item.name}</span>
+                  </div>
+
+                  <!-- Size -->
+                  <div class="col-span-2 text-right text-slate-400 text-[10.5px]">
+                    {item.formatted_size}
+                  </div>
+
+                  <!-- Modified -->
+                  <div class="col-span-2 text-right text-slate-500 text-[10.5px] truncate">
+                    {item.formatted_modified}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
