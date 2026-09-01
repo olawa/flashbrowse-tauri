@@ -101,7 +101,11 @@
 
   async function handleRsnap() {
     try {
-      await launchRsnap([item.path]);
+      const store = paneId === 'left' ? $leftPane : $rightPane;
+      const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+        ? Array.from(store.selectedPaths)
+        : [item.path];
+      await launchRsnap(paths);
     } catch (e: any) {
       alert(`rsnap fel: ${e}`);
     }
@@ -110,7 +114,11 @@
 
   async function handleSendToIgv() {
     try {
-      const res = await sendToIgv([item.path]);
+      const store = paneId === 'left' ? $leftPane : $rightPane;
+      const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+        ? Array.from(store.selectedPaths)
+        : [item.path];
+      const res = await sendToIgv(paths);
       alert(res.message || 'Skickat till IGV!');
     } catch (e: any) {
       alert(`IGV fel: ${e}`);
@@ -119,7 +127,11 @@
   }
 
   function handleOpenHub() {
-    addTracksToHub([item]);
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    const itemsToAdd = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+      ? store.items.filter((i) => store.selectedPaths.has(i.path))
+      : [item];
+    addTracksToHub(itemsToAdd);
     isGenomicsHubOpen.set(true);
     onClose();
   }
@@ -154,6 +166,17 @@
       if (isCompoundGz) return i.name.toLowerCase().endsWith(isCompoundGz);
       return i.extension.toLowerCase() === ext;
     }).length;
+  })();
+
+  $: selectedGenomicsCount = (() => {
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    if (store.selectedPaths.has(item.path) && store.selectedPaths.size > 1) {
+      return store.items.filter((i) => store.selectedPaths.has(i.path) && (
+        ['bam', 'cram', 'sam', 'vcf', 'bcf', 'bed', 'bw', 'bigwig'].includes(i.extension.toLowerCase()) ||
+        i.name.toLowerCase().endsWith('.vcf.gz')
+      )).length;
+    }
+    return 1;
   })();
 
   function handleSelectSameType() {
@@ -270,27 +293,51 @@
 
   {#if isGenomics}
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
       on:click={handleRsnap}
+      title="Öppna i rsnap Desktop Viewer"
     >
-      <ExternalLink size={13} />
-      <span>Öppna i rsnap Viewer</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <ExternalLink size={13} class="text-emerald-400 shrink-0" />
+        <span class="truncate">Öppna i rsnap Viewer</span>
+      </div>
+      {#if selectedGenomicsCount > 1}
+        <span class="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">
+          {selectedGenomicsCount} spår
+        </span>
+      {/if}
     </button>
 
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-blue-600 hover:text-white text-blue-400 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-blue-400 font-medium text-left transition-colors"
       on:click={handleSendToIgv}
+      title="Skicka till IGV Desktop (port 60151)"
     >
-      <Radio size={13} />
-      <span>Skicka till IGV Desktop</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <Radio size={13} class="text-blue-400 shrink-0" />
+        <span class="truncate">Skicka till IGV Desktop</span>
+      </div>
+      {#if selectedGenomicsCount > 1}
+        <span class="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-blue-950 text-blue-300 border border-blue-800 shrink-0">
+          {selectedGenomicsCount} spår
+        </span>
+      {/if}
     </button>
 
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#273144] text-emerald-300 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[#273144] text-emerald-300 font-medium text-left transition-colors"
       on:click={handleOpenHub}
+      title="Öppna i Genomics Hub..."
     >
-      <Sparkles size={13} class="text-amber-400" />
-      <span>Öppna i Genomics Hub...</span>
+      <div class="flex items-center gap-2 min-w-0">
+        <Sparkles size={13} class="text-amber-400 shrink-0" />
+        <span class="truncate">Öppna i Genomics Hub...</span>
+      </div>
+      {#if selectedGenomicsCount > 1}
+        <span class="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800 shrink-0">
+          {selectedGenomicsCount} spår
+        </span>
+      {/if}
     </button>
     <div class="h-px my-1 bg-[var(--border)]"></div>
   {/if}

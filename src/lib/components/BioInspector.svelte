@@ -32,12 +32,15 @@
     X,
     Radio,
     Sparkles,
+    ZoomIn,
+    ZoomOut,
+    Sliders,
   } from 'lucide-svelte';
 
   export let item: FileItem;
 
-  // Tabs: 'header' is the primary default!
-  let activeTab: 'header' | 'alignments' | 'rsnap' | 'rsqc' = 'header';
+  // Tabs: 'rsnap' is the premier live interactive visualizer tab!
+  let activeTab: 'rsnap' | 'header' | 'alignments' | 'rsqc' = 'rsnap';
 
   let bamHeader: BamHeaderData | null = null;
   let isLoadingHeader = false;
@@ -54,11 +57,22 @@
   let copiedRecordIndex: number | null = null;
   let copiedAll = false;
 
-  // rsnap Snapshot state
-  let snapshotRegion = 'chr1:1000000-1005000';
+  // rsnap Live Viewer state
+  let snapshotRegion = 'chr7:55152000-55153000';
   let snapshotB64: string | null = null;
   let isGeneratingSnapshot = false;
   let snapshotError = '';
+  let copiedSnapshot = false;
+
+  const quickGenes: { name: string; locus: string; desc: string }[] = [
+    { name: 'EGFR', locus: 'chr7:55152000-55153000', desc: 'Exon 19/20' },
+    { name: 'TP53', locus: 'chr17:7668402-7687550', desc: 'Tumörsuppressor' },
+    { name: 'BRAF', locus: 'chr7:140753336-140753337', desc: 'V600E' },
+    { name: 'KRAS', locus: 'chr12:25245350-25245351', desc: 'G12/G13' },
+    { name: 'BRCA1', locus: 'chr17:43044295-43125483', desc: 'DNA-repair' },
+    { name: 'BRCA2', locus: 'chr13:32315474-32400266', desc: 'DNA-repair' },
+    { name: 'MYC', locus: 'chr8:127735434-127742951', desc: 'Onkogen' },
+  ];
 
   // rs-qc state
   let qcReport: string | null = null;
@@ -73,20 +87,27 @@
     loadHeader(item.path);
     if (activeTab === 'alignments') {
       loadAlignments(item.path, alignRegion, alignOffset, alignLimit);
+    } else if (activeTab === 'rsnap') {
+      handleGenerateSnapshot();
     }
+  }
+
+  $: if ($selectedLocus && $selectedLocus !== snapshotRegion) {
+    snapshotRegion = $selectedLocus;
   }
 
   async function loadHeader(path: string) {
     isLoadingHeader = true;
     headerError = '';
-    snapshotB64 = null;
     qcReport = null;
     try {
       bamHeader = await getBamHeader(path);
       if (bamHeader && bamHeader.contigs.length > 0) {
-        const first = bamHeader.contigs[0];
-        const end = Math.min(first.length, 50000);
-        snapshotRegion = `${first.name}:10000-${end}`;
+        if (!snapshotRegion || snapshotRegion === 'chr1:1000000-1005000') {
+          const first = bamHeader.contigs[0];
+          const end = Math.min(first.length, 50000);
+          snapshotRegion = `${first.name}:10000-${end}`;
+        }
       }
     } catch (e: any) {
       headerError = String(e);
@@ -112,6 +133,8 @@
     activeTab = tab;
     if (tab === 'alignments' && (!samResult || samResult.offset !== alignOffset)) {
       loadAlignments(item.path, alignRegion, alignOffset, alignLimit);
+    } else if (tab === 'rsnap' && !snapshotB64) {
+      handleGenerateSnapshot();
     }
   }
 
@@ -138,26 +161,20 @@
     }
   }
 
-  async function copyRawRecord(raw: string, index: number) {
-    try {
-      await navigator.clipboard.writeText(raw);
-      copiedRecordIndex = index;
-      setTimeout(() => {
-        copiedRecordIndex = null;
-      }, 1500);
-    } catch {}
+  function copyRawRecord(line: string, index: number) {
+    navigator.clipboard.writeText(line);
+    copiedRecordIndex = index;
+    setTimeout(() => {
+      if (copiedRecordIndex === index) copiedRecordIndex = null;
+    }, 1500);
   }
 
-  async function copyAllVisible() {
-    if (!samResult || samResult.records.length === 0) return;
-    try {
-      const allText = samResult.records.map((r) => r.raw_line).join('\n');
-      await navigator.clipboard.writeText(allText);
-      copiedAll = true;
-      setTimeout(() => {
-        copiedAll = false;
-      }, 1500);
-    } catch {}
+  function copyAllVisible() {
+    if (!samResult) return;
+    const allText = samResult.records.map((r) => r.raw_line).join('\n');
+    navigator.clipboard.writeText(allText);
+    copiedAll = true;
+    setTimeout(() => (copiedAll = false), 2000);
   }
 
   async function handleLaunchViewer() {
@@ -221,6 +238,73 @@
     }
   }
 
+  function parseLocus(locusStr: string): { chr: string; start: number; end: number } | null {
+    const clean = locusStr.trim().replace(/,/g, '');
+    const match = clean.match(/^([^:]+):(\d+)[-_](\d+)$/);
+    if (!match) return null;
+    return {
+      chr: match[1],
+      start: parseInt(match[2], 10),
+      end: parseInt(match[3], 10),
+    };
+  }
+
+  function formatLocus(chr: string, start: number, end: number): string {
+    const safeStart = Math.max(1, Math.round(start));
+    const safeEnd = Math.max(safeStart + 50, Math.round(end));
+    return `${chr}:${safeStart}-${safeEnd}`;
+  }
+
+  function panRegion(fraction: number) {
+    const parsed = parseLocus(snapshotRegion);
+    if (!parsed) return;
+    const span = parsed.end - parsed.start;
+    const shift = Math.round(span * fraction);
+    snapshotRegion = formatLocus(parsed.chr, parsed.start + shift, parsed.end + shift);
+    selectedLocus.set(snapshotRegion);
+    handleGenerateSnapshot();
+  }
+
+  function zoomRegion(factor: number) {
+    const parsed = parseLocus(snapshotRegion);
+    if (!parsed) return;
+    const mid = (parsed.start + parsed.end) / 2;
+    const newSpan = (parsed.end - parsed.start) * factor;
+    snapshotRegion = formatLocus(parsed.chr, mid - newSpan / 2, mid + newSpan / 2);
+    selectedLocus.set(snapshotRegion);
+    handleGenerateSnapshot();
+  }
+
+  function setSpan(spanBp: number) {
+    const parsed = parseLocus(snapshotRegion);
+    if (!parsed) return;
+    const mid = (parsed.start + parsed.end) / 2;
+    snapshotRegion = formatLocus(parsed.chr, mid - spanBp / 2, mid + spanBp / 2);
+    selectedLocus.set(snapshotRegion);
+    handleGenerateSnapshot();
+  }
+
+  function jumpToGene(locus: string) {
+    snapshotRegion = locus;
+    selectedLocus.set(snapshotRegion);
+    handleGenerateSnapshot();
+  }
+
+  async function copySnapshotImage() {
+    if (!snapshotB64) return;
+    try {
+      const res = await fetch(`data:image/png;base64,${snapshotB64}`);
+      const blob = await res.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob }),
+      ]);
+      copiedSnapshot = true;
+      setTimeout(() => (copiedSnapshot = false), 2000);
+    } catch (err) {
+      console.warn('Copy image failed:', err);
+    }
+  }
+
   async function handleRunQc() {
     isRunningQc = true;
     qcError = '';
@@ -234,8 +318,8 @@
   }
 
   function getMapqColor(mapq: number): string {
-    if (mapq >= 60) return 'text-emerald-400 font-bold';
-    if (mapq >= 30) return 'text-cyan-400 font-semibold';
+    if (mapq >= 50) return 'text-emerald-400 font-bold';
+    if (mapq >= 30) return 'text-sky-400';
     if (mapq >= 10) return 'text-amber-400';
     return 'text-rose-400 opacity-80';
   }
@@ -306,11 +390,19 @@
     <!-- Tab Bar -->
     <div class="flex items-center gap-1 border-b border-[#252d3d] pb-1 pt-0.5">
       <button
+        class="flex items-center gap-1.5 px-3 py-1 rounded font-medium transition-colors text-xs {activeTab === 'rsnap' ? 'bg-amber-500/20 text-amber-300 font-bold border-b-2 border-amber-400' : 'text-slate-400 hover:text-white'}"
+        on:click={() => handleTabChange('rsnap')}
+      >
+        <Camera size={13} />
+        <span>🧬 rsnap Live Viewer</span>
+      </button>
+
+      <button
         class="flex items-center gap-1.5 px-3 py-1 rounded font-medium transition-colors text-xs {activeTab === 'header' ? 'bg-emerald-500/20 text-emerald-300 font-bold border-b-2 border-emerald-400' : 'text-slate-400 hover:text-white'}"
         on:click={() => handleTabChange('header')}
       >
         <Dna size={13} />
-        <span>Header ({bamHeader?.total_contigs || 0} contigs)</span>
+        <span>Header ({bamHeader?.total_contigs || 0})</span>
       </button>
 
       <button
@@ -318,15 +410,7 @@
         on:click={() => handleTabChange('alignments')}
       >
         <ListFilter size={13} />
-        <span>Alignments (samtools view)</span>
-      </button>
-
-      <button
-        class="flex items-center gap-1.5 px-3 py-1 rounded font-medium transition-colors text-xs {activeTab === 'rsnap' ? 'bg-amber-500/20 text-amber-300 font-bold border-b-2 border-amber-400' : 'text-slate-400 hover:text-white'}"
-        on:click={() => handleTabChange('rsnap')}
-      >
-        <Camera size={13} />
-        <span>rsnap Snapshot</span>
+        <span>Alignments (SAM)</span>
       </button>
 
       <button
@@ -653,46 +737,201 @@
         </div>
       {/if}
 
-    <!-- TAB 3: RSNAP SNAPSHOT -->
+    <!-- TAB: RSNAP LIVE VIEWER -->
     {:else if activeTab === 'rsnap'}
-      <div class="p-3.5 rounded-xl bg-[#151922] border border-[#252d3d] space-y-3">
-        <div class="flex items-center justify-between">
-          <span class="font-bold text-xs text-amber-300 flex items-center gap-1.5">
-            <Camera size={13} /> rsnap Snapshot Renderer
-          </span>
-          <button
-            class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs flex items-center gap-1"
-            on:click={handleLaunchViewer}
-          >
-            <ExternalLink size={12} />
-            <span>Öppna desktop viewer</span>
-          </button>
+      <div class="flex-1 flex flex-col space-y-2.5">
+        <!-- Live Toolbar -->
+        <div class="p-3 rounded-xl bg-[#151922] border border-[#252d3d] space-y-2.5">
+          <!-- Top Row: Locus input + Jump + Actions -->
+          <div class="flex items-center gap-2">
+            <div class="flex-1 flex items-center bg-[#0e1015] border border-[#252d3d] rounded-lg px-2.5 py-1 text-xs font-mono text-white focus-within:border-amber-400">
+              <span class="text-slate-500 text-[10.5px] mr-1.5">Locus:</span>
+              <input
+                type="text"
+                bind:value={snapshotRegion}
+                placeholder="chr1:1000000-1005000 eller gen (t.ex. EGFR)"
+                class="flex-1 bg-transparent text-white focus:outline-none font-mono text-xs"
+                on:keydown={(e) => {
+                  if (e.key === 'Enter') {
+                    selectedLocus.set(snapshotRegion);
+                    handleGenerateSnapshot();
+                  }
+                }}
+              />
+              {#if isGeneratingSnapshot}
+                <RefreshCw size={13} class="animate-spin text-amber-400 shrink-0 ml-1" />
+              {/if}
+            </div>
+
+            <button
+              class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+              disabled={isGeneratingSnapshot}
+              on:click={() => {
+                selectedLocus.set(snapshotRegion);
+                handleGenerateSnapshot();
+              }}
+            >
+              <Camera size={13} />
+              <span>Uppdatera</span>
+            </button>
+
+            <button
+              class="p-1.5 rounded-lg bg-[#1f2636] hover:bg-[#2b354a] text-slate-300 hover:text-white border border-[#2c374d] transition-colors"
+              on:click={copySnapshotImage}
+              title="Kopiera bild till urklipp"
+              disabled={!snapshotB64}
+            >
+              {#if copiedSnapshot}
+                <Check size={14} class="text-emerald-400" />
+              {:else}
+                <Copy size={14} />
+              {/if}
+            </button>
+
+            <button
+              class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors shrink-0 shadow"
+              on:click={handleLaunchViewer}
+              title="Öppna desktop viewer (egui fönster)"
+            >
+              <ExternalLink size={13} />
+              <span class="hidden sm:inline">Externt fönster</span>
+            </button>
+          </div>
+
+          <!-- Navigation Row: Pan & Zoom Controls -->
+          <div class="flex items-center justify-between gap-2 flex-wrap pt-0.5 text-xs">
+            <!-- Pan Buttons -->
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Panorera:</span>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-slate-300 text-[11px] font-mono border border-[#2e394f]"
+                on:click={() => panRegion(-0.5)}
+                title="Panorera vänster 50%"
+              >
+                ◀◀ 50%
+              </button>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-slate-300 text-[11px] font-mono border border-[#2e394f]"
+                on:click={() => panRegion(-0.1)}
+                title="Panorera vänster 10%"
+              >
+                ◀ 10%
+              </button>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-slate-300 text-[11px] font-mono border border-[#2e394f]"
+                on:click={() => panRegion(0.1)}
+                title="Panorera höger 10%"
+              >
+                10% ▶
+              </button>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-slate-300 text-[11px] font-mono border border-[#2e394f]"
+                on:click={() => panRegion(0.5)}
+                title="Panorera höger 50%"
+              >
+                50% ▶▶
+              </button>
+            </div>
+
+            <!-- Zoom Buttons -->
+            <div class="flex items-center gap-1">
+              <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider mr-1">Zooma:</span>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-amber-300 font-bold text-[11px] border border-[#2e394f] flex items-center gap-0.5"
+                on:click={() => zoomRegion(0.5)}
+                title="Zooma in 2x"
+              >
+                <ZoomIn size={12} /> 2x
+              </button>
+              <button
+                class="px-2 py-0.5 rounded bg-[#1e2433] hover:bg-[#2a3449] text-amber-300 font-bold text-[11px] border border-[#2e394f] flex items-center gap-0.5"
+                on:click={() => zoomRegion(2)}
+                title="Zooma ut 2x"
+              >
+                <ZoomOut size={12} /> 2x
+              </button>
+
+              <div class="h-3.5 w-px bg-[#2e394f] mx-1"></div>
+
+              <!-- Span Presets -->
+              {#each [1000, 5000, 20000, 100000] as span}
+                <button
+                  class="px-1.5 py-0.5 rounded bg-[#161a24] hover:bg-[#242b3d] text-slate-400 hover:text-white text-[10px] font-mono border border-[#263044]"
+                  on:click={() => setSpan(span)}
+                >
+                  {span >= 1000 ? `${span / 1000}kb` : `${span}bp`}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <!-- Quick Gene Chips -->
+          <div class="flex items-center gap-1.5 flex-wrap pt-0.5 border-t border-[#202738]">
+            <span class="text-[10px] text-slate-500 font-medium">Snabba gener:</span>
+            {#each quickGenes as g}
+              <button
+                class="px-2 py-0.5 rounded-md bg-[#181d28] hover:bg-amber-950/40 text-slate-300 hover:text-amber-300 text-[10px] font-mono border border-[#273145] hover:border-amber-700 transition-colors"
+                on:click={() => jumpToGene(g.locus)}
+                title="{g.name} ({g.desc}): {g.locus}"
+              >
+                {g.name}
+              </button>
+            {/each}
+          </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <input
-            type="text"
-            bind:value={snapshotRegion}
-            placeholder="t.ex. chr1:1000000-1005000"
-            class="flex-1 bg-[#0e1015] border border-[#252d3d] rounded-lg px-2.5 py-1 text-xs font-mono text-white focus:outline-none"
-            on:keydown={(e) => e.key === 'Enter' && handleGenerateSnapshot()}
-          />
-          <button
-            class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow transition-colors disabled:opacity-50"
-            disabled={isGeneratingSnapshot}
-            on:click={handleGenerateSnapshot}
-          >
-            {isGeneratingSnapshot ? 'Genererar...' : 'Skapa bild'}
-          </button>
-        </div>
-
+        <!-- Live Snapshot Canvas Image Display -->
         {#if snapshotError}
-          <div class="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-300 font-mono text-xs">
-            {snapshotError}
+          <div class="p-4 rounded-xl bg-red-950/40 border border-red-800 text-red-300 font-mono text-xs space-y-1">
+            <div class="font-bold">Kunde inte generera rsnap vy:</div>
+            <div>{snapshotError}</div>
+          </div>
+        {:else if isGeneratingSnapshot && !snapshotB64}
+          <div class="p-16 flex flex-col items-center justify-center text-slate-400 gap-3 bg-[#0e1118] border border-[#252d3d] rounded-xl">
+            <RefreshCw size={24} class="animate-spin text-amber-400" />
+            <span class="font-mono text-xs">Renderar alignment-vy med rsnap...</span>
           </div>
         {:else if snapshotB64}
-          <div class="p-1 rounded-lg bg-black border border-[#252d3d] overflow-hidden">
-            <img src="data:image/png;base64,{snapshotB64}" alt="snapshot" class="w-full object-contain rounded" />
+          <div class="relative rounded-xl bg-black border border-[#252d3d] overflow-hidden shadow-2xl group select-none">
+            <img
+              src="data:image/png;base64,{snapshotB64}"
+              alt="rsnap alignment snapshot"
+              class="w-full object-contain rounded transition-transform"
+            />
+
+            <!-- Top Floating Badge -->
+            <div class="absolute top-2 left-2 px-2 py-1 rounded bg-black/75 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] flex items-center gap-2 shadow-lg">
+              <span class="font-bold text-amber-300">{snapshotRegion}</span>
+              {#if bamHeader?.detected_reference}
+                <span class="text-slate-400">({bamHeader.detected_reference})</span>
+              {/if}
+            </div>
+
+            <!-- Quick on-canvas pan controls -->
+            <div class="absolute inset-y-0 left-0 w-12 flex items-center justify-center opacity-0 group-hover:opacity-80 transition-opacity bg-gradient-to-r from-black/60 to-transparent">
+              <button
+                class="p-1.5 rounded-full bg-black/80 text-white hover:scale-110 transition-transform shadow-lg border border-white/20"
+                on:click={() => panRegion(-0.25)}
+                title="Panorera vänster"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+
+            <div class="absolute inset-y-0 right-0 w-12 flex items-center justify-center opacity-0 group-hover:opacity-80 transition-opacity bg-gradient-to-l from-black/60 to-transparent">
+              <button
+                class="p-1.5 rounded-full bg-black/80 text-white hover:scale-110 transition-transform shadow-lg border border-white/20"
+                on:click={() => panRegion(0.25)}
+                title="Panorera höger"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="p-12 flex flex-col items-center justify-center text-slate-500 gap-2 bg-[#0e1118] border border-[#252d3d] rounded-xl text-center">
+            <Camera size={28} class="text-slate-600 mb-1" />
+            <span class="text-xs">Klicka "Uppdatera" eller välj en gen ovan för att ladda rsnap-vyn.</span>
           </div>
         {/if}
       </div>
