@@ -433,6 +433,18 @@ pub fn watch_directory(app: tauri::AppHandle, path: String) -> Result<(), String
 
     let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
         if let Ok(event) = res {
+            // Ignore hidden and OS metadata files like .DS_Store, .git, temp files
+            let should_ignore = event.paths.iter().any(|p| {
+                if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                    name.starts_with('.') || name.ends_with('~') || name.ends_with(".tmp") || name.ends_with(".swp")
+                } else {
+                    false
+                }
+            });
+            if should_ignore {
+                return;
+            }
+
             if event.kind.is_create() || event.kind.is_remove() || event.kind.is_modify() {
                 let _ = app_handle.emit("directory-changed", &watched_path_str);
             }

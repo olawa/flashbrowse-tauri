@@ -53,10 +53,17 @@
     { name: 'MYC', locus: 'chr8:127735434-127742951', desc: 'Onkogen' },
   ];
 
-  onMount(() => {
+  $: if ($isGenomicsHubOpen) {
     pollGenomicsStatuses();
-    pollInterval = setInterval(pollGenomicsStatuses, 3000);
-  });
+    if (!pollInterval) {
+      pollInterval = setInterval(pollGenomicsStatuses, 3000);
+    }
+  } else {
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
+    }
+  }
 
   onDestroy(() => {
     if (pollInterval) clearInterval(pollInterval);

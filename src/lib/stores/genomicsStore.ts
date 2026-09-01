@@ -1,4 +1,4 @@
-import { writable } from 'svelte/store';
+import { get, writable } from 'svelte/store';
 import type { FileItem, RsnapServerInfo } from '../types';
 import { getRsnapServerStatus, startRsnapServer, stopRsnapServer, checkIgvStatus } from '../invoke';
 
@@ -53,17 +53,18 @@ export function clearTracksInHub() {
 export async function pollGenomicsStatuses() {
   try {
     const info = await getRsnapServerStatus();
-    isRsnapServerRunning.set(info.is_running);
-    rsnapServerPid.set(info.pid || null);
+    if (get(isRsnapServerRunning) !== info.is_running) isRsnapServerRunning.set(info.is_running);
+    if (get(rsnapServerPid) !== (info.pid || null)) rsnapServerPid.set(info.pid || null);
   } catch {
-    isRsnapServerRunning.set(false);
-    rsnapServerPid.set(null);
+    if (get(isRsnapServerRunning) !== false) isRsnapServerRunning.set(false);
+    if (get(rsnapServerPid) !== null) rsnapServerPid.set(null);
   }
 
   try {
     const igvOk = await checkIgvStatus(60151);
-    isIgvConnected.set(igvOk);
+    if (get(isIgvConnected) !== igvOk) isIgvConnected.set(igvOk);
   } catch {
-    isIgvConnected.set(false);
+    if (get(isIgvConnected) !== false) isIgvConnected.set(false);
   }
 }
+

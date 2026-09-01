@@ -76,6 +76,7 @@ export async function castToSecondaryInspector(item: FileItem) {
 }
 
 let isWatchingStarted = false;
+let refreshDebounceTimer: any = null;
 const navRequestCounters = { left: 0, right: 0 };
 
 export async function initNavigation() {
@@ -87,14 +88,17 @@ export async function initNavigation() {
     isWatchingStarted = true;
     listen<string>('directory-changed', (event) => {
       const changedPath = event.payload;
-      const left = get(leftPane);
-      const right = get(rightPane);
-      if (!left.isSSH && left.currentPath === changedPath) {
-        quietRefreshPane('left');
-      }
-      if (!right.isSSH && right.currentPath === changedPath) {
-        quietRefreshPane('right');
-      }
+      clearTimeout(refreshDebounceTimer);
+      refreshDebounceTimer = setTimeout(() => {
+        const left = get(leftPane);
+        const right = get(rightPane);
+        if (!left.isSSH && left.currentPath === changedPath) {
+          quietRefreshPane('left');
+        }
+        if (!right.isSSH && right.currentPath === changedPath) {
+          quietRefreshPane('right');
+        }
+      }, 500);
     }).catch(console.error);
   }
 }
@@ -115,12 +119,24 @@ export async function quietRefreshPane(paneId: 'left' | 'right') {
   const showHidden = get(showHiddenFiles);
   const reqId = ++navRequestCounters[paneId];
   try {
-    const items = await listDirectory(current.currentPath, showHidden);
+    const newItems = await listDirectory(current.currentPath, showHidden);
     if (reqId !== navRequestCounters[paneId]) return;
+
+    // Content diff check: only update store if items actually changed
+    const isSame =
+      current.items.length === newItems.length &&
+      current.items.every(
+        (it, i) =>
+          it.path === newItems[i].path &&
+          it.size_bytes === newItems[i].size_bytes &&
+          it.modified_timestamp === newItems[i].modified_timestamp
+      );
+
+    if (isSame) return;
 
     store.update((s) => ({
       ...s,
-      items,
+      items: newItems,
     }));
   } catch (e) {
     console.warn('Quiet refresh error:', e);
