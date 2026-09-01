@@ -12,6 +12,7 @@
     isExecuting,
   } from '../stores/terminal';
   import { leftPane, rightPane, activePaneId } from '../stores/navigation';
+  import { terminalHeight, terminalWidth } from '../stores/layoutStore';
   import {
     Terminal as TerminalIcon,
     X,
@@ -77,9 +78,10 @@
 </script>
 
 <div
-  class="flex flex-col bg-[#0c0d10] border-[var(--border)] select-none {isSideDocked
-    ? 'w-96 h-full border-l'
-    : 'w-full h-64 border-t'}"
+  class="flex flex-col bg-[#0c0d10] border-[var(--border)] select-none shrink-0 {isSideDocked
+    ? 'h-full border-l'
+    : 'w-full border-t'}"
+  style={isSideDocked ? `width: ${$terminalWidth}px; min-width: 240px; max-width: 850px;` : `height: ${$terminalHeight}px; min-height: 120px; max-height: 600px;`}
 >
   <!-- Terminal Header -->
   <div class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] text-xs">

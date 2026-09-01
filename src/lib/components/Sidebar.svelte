@@ -46,7 +46,8 @@
     closeIndexView,
   } from '../stores/indexStore';
   import type { FileTypeIndexMeta, ThemeName } from '../types';
-  import { Plus, Trash2, X as XIcon } from 'lucide-svelte';
+  import { sidebarWidth } from '../stores/layoutStore';
+  import { Plus, Trash2, X as XIcon, Command } from 'lucide-svelte';
 
   let homeDir = '';
   let devProjectsDir = '';
@@ -112,10 +113,36 @@
     navigatePane(paneId, path);
   }
 
+  function switchToLocal() {
+    jumpTo(homeDir || '/');
+  }
+
+  function switchToSSH(host: string) {
+    jumpTo('~', true, host);
+  }
+
+  function toggleHidden() {
+    showHiddenFiles.update((v) => !v);
+  }
+
+  function toggleClickMode() {
+    clickMode.update((m) => {
+      if (m === 'always') return 'folders-only';
+      if (m === 'folders-only') return 'double-click';
+      return 'always';
+    });
+  }
+
+  function toggleSmartHover() {
+    smartHoverPreview.update((v) => !v);
+  }
+
   function handleCategoryClick(cat: typeof indexCategories[number]) {
     if ($activeIndexMeta?.id === cat.id) {
       closeIndexView();
     } else {
+      const pane = $activePaneId === 'left' ? $leftPane : $rightPane;
+      const currentDir = pane.isSSH ? homeDir : pane.currentPath;
       const meta: FileTypeIndexMeta = {
         id: cat.id,
         name: cat.label,
@@ -124,7 +151,7 @@
         iconName: cat.badge,
         colorClass: cat.color,
       };
-      openIndexScan(meta, homeDir);
+      openIndexScan(meta, currentDir);
     }
   }
 
@@ -139,14 +166,19 @@
   ];
 
   const themes: Array<{ id: ThemeName; label: string; icon: any }> = [
-    { id: 'pro-dark', label: 'Pro Dark (Default)', icon: Sparkles },
+    { id: 'swift-dark', label: '🍎 Swift macOS (Dark)', icon: Command },
+    { id: 'swift-light', label: '🍎 Swift macOS (Light)', icon: Command },
+    { id: 'pro-dark', label: 'Pro Dark (Midnight)', icon: Sparkles },
     { id: 'cyberpunk', label: 'Cyberpunk Neon', icon: Palette },
     { id: 'retro-mac', label: 'Retro Mac 1995', icon: Monitor },
     { id: 'kids-mode', label: '🎈 Barn-läge (Kids)', icon: Baby },
   ];
 </script>
 
-<aside class="w-52 h-full flex flex-col border-r border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none">
+<aside
+  class="h-full flex flex-col border-r border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none shrink-0"
+  style="width: {$sidebarWidth}px; min-width: 140px; max-width: 420px;"
+>
   <!-- Header / App Logo -->
   <div class="px-3 py-3 border-b border-[var(--border)] flex items-center gap-2">
     <div class="w-6 h-6 rounded bg-[var(--accent)] flex items-center justify-center font-black text-white text-xs shadow-sm">

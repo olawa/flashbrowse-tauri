@@ -25,6 +25,14 @@
     toggleTerminalDock,
   } from '$lib/stores/terminal';
   import { currentTheme, isKidsMode, setTheme } from '$lib/stores/theme';
+  import {
+    sidebarWidth,
+    inspectorWidth,
+    dualInspectorWidth,
+    terminalHeight,
+    terminalWidth,
+  } from '$lib/stores/layoutStore';
+  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Breadcrumb from '$lib/components/Breadcrumb.svelte';
   import FileTable from '$lib/components/FileTable.svelte';
@@ -77,7 +85,7 @@
     }
 
     await initNavigation();
-    setTheme('pro-dark');
+    setTheme($currentTheme);
 
     // Default select first items for instant preview
     if ($leftPane.items.length > 0) {
@@ -221,6 +229,13 @@
   <div class="flex h-screen w-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
     <!-- 1. Left Sidebar -->
     <Sidebar />
+
+    <!-- Sidebar Resize Divider -->
+    <ResizeHandle
+      direction="vertical"
+      onResize={(delta) => sidebarWidth.update((w) => Math.max(140, Math.min(420, w + delta)))}
+      onReset={() => sidebarWidth.set(208)}
+    />
 
     <!-- 2. Main Workstation Area -->
     <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
@@ -377,7 +392,15 @@
 
           <!-- Inspector alongside Index Hub -->
           {#if $inspectorPreset !== 'none'}
-            <div class="w-[460px] lg:w-[560px] xl:w-[660px] 2xl:w-[760px] h-full shrink-0 border-l border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
+            <ResizeHandle
+              direction="vertical"
+              onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
+              onReset={() => inspectorWidth.set(540)}
+            />
+            <div
+              class="h-full shrink-0 flex flex-col bg-[var(--bg-surface)]"
+              style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+            >
               <Inspector item={activeSharedItem} titlePrefix="Index Hub" />
             </div>
           {/if}
@@ -386,18 +409,35 @@
           <!-- 1. CENTER SHARED INSPECTOR (DEFAULT) -->
           {#if $inspectorPreset === 'center'}
             <!-- Left Browser -->
-            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[200px] h-full">
               <Breadcrumb paneId="left" />
               <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
             </div>
 
+            <!-- Left to Center Divider -->
+            <ResizeHandle
+              direction="vertical"
+              onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
+              onReset={() => inspectorWidth.set(540)}
+            />
+
             <!-- Central Shared Inspector -->
-            <div class="w-[460px] lg:w-[560px] xl:w-[660px] 2xl:w-[760px] h-full shrink-0 border-r border-[var(--border)] flex flex-col bg-[var(--bg-surface)]">
+            <div
+              class="h-full shrink-0 flex flex-col bg-[var(--bg-surface)]"
+              style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+            >
               <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
             </div>
 
+            <!-- Center to Right Divider -->
+            <ResizeHandle
+              direction="vertical"
+              onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w + delta)))}
+              onReset={() => inspectorWidth.set(540)}
+            />
+
             <!-- Right Browser -->
-            <div class="flex-1 flex flex-col min-w-[240px] h-full">
+            <div class="flex-1 flex flex-col min-w-[200px] h-full">
               <Breadcrumb paneId="right" />
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
@@ -405,19 +445,29 @@
           <!-- 2. RIGHT-ALIGNED INSPECTOR -->
           {:else if $inspectorPreset === 'right'}
             <!-- Left Browser -->
-            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[200px] h-full border-r border-[var(--border)]">
               <Breadcrumb paneId="left" />
               <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
             </div>
 
             <!-- Right Browser -->
-            <div class="flex-1 flex flex-col min-w-[240px] h-full border-r border-[var(--border)]">
+            <div class="flex-1 flex flex-col min-w-[200px] h-full">
               <Breadcrumb paneId="right" />
               <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
             </div>
 
+            <!-- Right Inspector Divider -->
+            <ResizeHandle
+              direction="vertical"
+              onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
+              onReset={() => inspectorWidth.set(540)}
+            />
+
             <!-- Right Inspector -->
-            <div class="w-[460px] lg:w-[560px] xl:w-[660px] h-full shrink-0 flex flex-col bg-[var(--bg-surface)]">
+            <div
+              class="h-full shrink-0 flex flex-col bg-[var(--bg-surface)]"
+              style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+            >
               <Inspector item={activeSharedItem} titlePrefix={activeSharedTitle} />
             </div>
 
@@ -425,22 +475,38 @@
           {:else if $inspectorPreset === 'dual'}
             <!-- Left Workstation -->
             <div class="flex-1 flex min-w-0 h-full border-r border-[var(--border)]">
-              <div class="flex-1 flex flex-col min-w-[220px] h-full border-r border-[var(--border)]">
+              <div class="flex-1 flex flex-col min-w-[180px] h-full">
                 <Breadcrumb paneId="left" />
                 <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
               </div>
-              <div class="w-[320px] xl:w-[380px] h-full shrink-0">
+              <ResizeHandle
+                direction="vertical"
+                onResize={(delta) => dualInspectorWidth.update((w) => Math.max(220, Math.min(600, w - delta)))}
+                onReset={() => dualInspectorWidth.set(360)}
+              />
+              <div
+                class="h-full shrink-0 bg-[var(--bg-surface)] flex flex-col"
+                style="width: {$dualInspectorWidth}px; min-width: 220px; max-width: 600px;"
+              >
                 <Inspector item={leftPreviewItem} titlePrefix="Vänster" />
               </div>
             </div>
 
             <!-- Right Workstation -->
             <div class="flex-1 flex min-w-0 h-full">
-              <div class="flex-1 flex flex-col min-w-[220px] h-full border-r border-[var(--border)]">
+              <div class="flex-1 flex flex-col min-w-[180px] h-full">
                 <Breadcrumb paneId="right" />
                 <FileTable paneId="right" onSelectPreview={(item) => (rightPreviewItem = item)} />
               </div>
-              <div class="w-[320px] xl:w-[380px] h-full shrink-0">
+              <ResizeHandle
+                direction="vertical"
+                onResize={(delta) => dualInspectorWidth.update((w) => Math.max(220, Math.min(600, w - delta)))}
+                onReset={() => dualInspectorWidth.set(360)}
+              />
+              <div
+                class="h-full shrink-0 bg-[var(--bg-surface)] flex flex-col"
+                style="width: {$dualInspectorWidth}px; min-width: 220px; max-width: 600px;"
+              >
                 <Inspector
                   item={rightPreviewItem}
                   titlePrefix={$rightPane.isSSH ? `Remote (${$rightPane.sshHost.split('.')[0]})` : 'Höger'}
@@ -462,13 +528,21 @@
 
         <!-- SINGLE PANE MODE -->
         {:else}
-          <div class="flex-1 flex flex-col min-w-[320px] h-full { $inspectorPreset !== 'none' ? 'border-r border-[var(--border)]' : '' }">
+          <div class="flex-1 flex flex-col min-w-[320px] h-full">
             <Breadcrumb paneId="left" />
             <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
           </div>
 
           {#if $inspectorPreset !== 'none'}
-            <div class="w-[480px] lg:w-[600px] xl:w-[720px] h-full shrink-0 bg-[var(--bg-surface)]">
+            <ResizeHandle
+              direction="vertical"
+              onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
+              onReset={() => inspectorWidth.set(540)}
+            />
+            <div
+              class="h-full shrink-0 bg-[var(--bg-surface)] flex flex-col"
+              style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+            >
               <Inspector item={leftPreviewItem} titlePrefix="Lokal" />
             </div>
           {/if}
@@ -476,6 +550,11 @@
 
         <!-- Vertical Full-Height Side Terminal Column -->
         {#if $isTerminalOpen && $terminalDockPosition === 'side'}
+          <ResizeHandle
+            direction="vertical"
+            onResize={(delta) => terminalWidth.update((w) => Math.max(240, Math.min(850, w - delta)))}
+            onReset={() => terminalWidth.set(400)}
+          />
           <Terminal />
         {/if}
       </div>
@@ -485,6 +564,11 @@
 
       <!-- Horizontal Bottom Terminal Drawer -->
       {#if $isTerminalOpen && $terminalDockPosition === 'bottom'}
+        <ResizeHandle
+          direction="horizontal"
+          onResize={(delta) => terminalHeight.update((h) => Math.max(120, Math.min(600, h - delta)))}
+          onReset={() => terminalHeight.set(240)}
+        />
         <Terminal />
       {/if}
     </div>

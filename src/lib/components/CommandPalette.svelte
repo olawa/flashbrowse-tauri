@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { setTheme } from '../stores/theme';
+  import { resetLayoutWidths } from '../stores/layoutStore';
   import { isDualInspector, isDualPane, showHiddenFiles, navigatePane, activePaneId, leftPane, rightPane } from '../stores/navigation';
   import { isTerminalOpen, toggleTerminal, toggleTerminalDock } from '../stores/terminal';
   import { isGenomicsHubOpen, addTracksToHub, isRsnapServerRunning } from '../stores/genomicsStore';
@@ -57,10 +58,13 @@
       { id: 'rsnap-viewer', title: 'rsnap: Öppna Desktop Viewer', category: 'Genomics', icon: Dna, action: () => launchRsnap([]) },
       { id: 'rsnap-server-start', title: 'rsnap: Starta rsnap Server (port 5555)', category: 'Genomics', icon: Server, action: async () => { await startRsnapServer(); isRsnapServerRunning.set(true); } },
       { id: 'rsnap-server-stop', title: 'rsnap: Stoppa rsnap Server', category: 'Genomics', icon: Server, action: async () => { await stopRsnapServer(); isRsnapServerRunning.set(false); } },
-      { id: 'theme-pro', title: 'Theme: Pro Dark (Default)', category: 'Utseende', icon: Sparkles, action: () => setTheme('pro-dark') },
+      { id: 'theme-swift-dark', title: 'Theme: 🍎 Swift macOS (Dark)', category: 'Utseende', icon: Sparkles, action: () => setTheme('swift-dark') },
+      { id: 'theme-swift-light', title: 'Theme: 🍎 Swift macOS (Light)', category: 'Utseende', icon: Sparkles, action: () => setTheme('swift-light') },
+      { id: 'theme-pro', title: 'Theme: Pro Dark (Midnight)', category: 'Utseende', icon: Sparkles, action: () => setTheme('pro-dark') },
       { id: 'theme-cyber', title: 'Theme: Cyberpunk Neon', category: 'Utseende', icon: Palette, action: () => setTheme('cyberpunk') },
       { id: 'theme-retro', title: 'Theme: Retro Mac 1995', category: 'Utseende', icon: Monitor, action: () => setTheme('retro-mac') },
       { id: 'theme-kids', title: 'Theme: 🎈 Barn-läge (Kids Mode)', category: 'Utseende', icon: Baby, action: () => setTheme('kids-mode') },
+      { id: 'reset-layout', title: 'Layout: Återställ panelbredder till standard', category: 'Vy', icon: LayoutGrid, action: () => resetLayoutWidths() },
       { id: 'toggle-terminal', title: 'Toggle Terminal (Cmd+J)', category: 'Vy', icon: Terminal, action: () => toggleTerminal() },
       { id: 'toggle-dock', title: 'Toggle Terminal Dock Position', category: 'Vy', icon: Terminal, action: () => toggleTerminalDock() },
       { id: 'toggle-inspector', title: 'Toggle Dual Inspector', category: 'Vy', icon: LayoutGrid, action: () => isDualInspector.update((v) => !v) },

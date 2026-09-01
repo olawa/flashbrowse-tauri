@@ -164,7 +164,7 @@ export interface SamViewResult {
   raw_output: string;
 }
 
-export type ThemeName = 'pro-dark' | 'cyberpunk' | 'retro-mac' | 'kids-mode';
+export type ThemeName = 'swift-dark' | 'swift-light' | 'pro-dark' | 'cyberpunk' | 'retro-mac' | 'kids-mode';
 
 export interface DirectoryNotes {
   content: string;

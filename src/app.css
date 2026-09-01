@@ -16,6 +16,38 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
+[data-theme="swift-dark"] {
+  --bg-base: #0d1117;
+  --bg-surface: #13161c;
+  --bg-panel: #161b22;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: #21262d;
+  --text-primary: #f0f6fc;
+  --text-secondary: #8b949e;
+  --text-muted: #586069;
+  --accent: #e95420;
+  --accent-hover: #ff6835;
+  --accent-subtle: rgba(233, 84, 32, 0.16);
+  --border: #21262d;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+[data-theme="swift-light"] {
+  --bg-base: #ffffff;
+  --bg-surface: #f6f8fa;
+  --bg-panel: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: #eaeef2;
+  --text-primary: #24292f;
+  --text-secondary: #57606a;
+  --text-muted: #8c959f;
+  --accent: #e95420;
+  --accent-hover: #d04618;
+  --accent-subtle: rgba(233, 84, 32, 0.12);
+  --border: #d0d7de;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 [data-theme="cyberpunk"] {
   --bg-base: #050814;
   --bg-surface: #0a0f26;
