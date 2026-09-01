@@ -1,5 +1,6 @@
 import { writable, get } from 'svelte/store';
-import { listDirectory, getHomeDirectory, sshListDirectory, transferItems } from '../invoke';
+import { listDirectory, getHomeDirectory, sshListDirectory, transferItems, watchDirectory } from '../invoke';
+import { listen } from '@tauri-apps/api/event';
 import type { FileItem } from '../types';
 
 export interface PaneState {
@@ -74,10 +75,28 @@ export async function castToSecondaryInspector(item: FileItem) {
   }
 }
 
+let isWatchingStarted = false;
+const navRequestCounters = { left: 0, right: 0 };
+
 export async function initNavigation() {
   const home = await getHomeDirectory();
   await navigatePane('left', home);
   await navigatePane('right', home);
+
+  if (!isWatchingStarted) {
+    isWatchingStarted = true;
+    listen<string>('directory-changed', (event) => {
+      const changedPath = event.payload;
+      const left = get(leftPane);
+      const right = get(rightPane);
+      if (!left.isSSH && left.currentPath === changedPath) {
+        quietRefreshPane('left');
+      }
+      if (!right.isSSH && right.currentPath === changedPath) {
+        quietRefreshPane('right');
+      }
+    }).catch(console.error);
+  }
 }
 
 export async function reloadPane(paneId: 'left' | 'right') {
@@ -88,11 +107,32 @@ export async function reloadPane(paneId: 'left' | 'right') {
   }
 }
 
+export async function quietRefreshPane(paneId: 'left' | 'right') {
+  const store = paneId === 'left' ? leftPane : rightPane;
+  const current = get(store);
+  if (!current.currentPath || current.isSSH) return;
+
+  const showHidden = get(showHiddenFiles);
+  const reqId = ++navRequestCounters[paneId];
+  try {
+    const items = await listDirectory(current.currentPath, showHidden);
+    if (reqId !== navRequestCounters[paneId]) return;
+
+    store.update((s) => ({
+      ...s,
+      items,
+    }));
+  } catch (e) {
+    console.warn('Quiet refresh error:', e);
+  }
+}
+
 export async function navigatePane(
   paneId: 'left' | 'right',
   path: string,
   addToHistory = true
 ) {
+  const reqId = ++navRequestCounters[paneId];
   const store = paneId === 'left' ? leftPane : rightPane;
   const current = get(store);
   const showHidden = get(showHiddenFiles);
@@ -108,13 +148,19 @@ export async function navigatePane(
     let resolvedPath = path;
     if (current.isSSH) {
       const res = await sshListDirectory(current.sshHost, path);
+      if (reqId !== navRequestCounters[paneId]) return;
       items = res.items;
       resolvedPath = res.current_path;
     } else {
       items = await listDirectory(path, showHidden);
+      if (reqId !== navRequestCounters[paneId]) return;
+      // Start live file watcher on current folder
+      watchDirectory(path).catch(() => {});
     }
 
     store.update((s) => {
+      if (reqId !== navRequestCounters[paneId]) return s;
+
       let newHistory = s.history;
       let newIndex = s.historyIndex;
 
@@ -142,6 +188,7 @@ export async function navigatePane(
       };
     });
   } catch (err: any) {
+    if (reqId !== navRequestCounters[paneId]) return;
     store.update((s) => ({
       ...s,
       isLoading: false,

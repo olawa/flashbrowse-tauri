@@ -3,6 +3,30 @@ use crate::models::{FileItem, PreviewContent, TerminalOutput};
 use std::path::Path;
 use std::process::Command;
 
+pub fn ssh_base_args() -> Vec<&'static str> {
+    vec![
+        "-o", "ControlMaster=auto",
+        "-o", "ControlPath=/tmp/fb_ssh_%h_%p_%r",
+        "-o", "ControlPersist=15m",
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=15",
+        "-o", "ServerAliveInterval=15",
+        "-o", "ServerAliveCountMax=3",
+        "-o", "StrictHostKeyChecking=accept-new",
+    ]
+}
+
+pub fn scp_base_args() -> Vec<&'static str> {
+    vec![
+        "-o", "ControlMaster=auto",
+        "-o", "ControlPath=/tmp/fb_ssh_%h_%p_%r",
+        "-o", "ControlPersist=15m",
+        "-o", "BatchMode=yes",
+        "-o", "ConnectTimeout=15",
+        "-o", "StrictHostKeyChecking=accept-new",
+    ]
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct SshDirectoryResult {
     pub current_path: String,
@@ -22,16 +46,12 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
             format!("cd '{}' && pwd && ls -la", escaped_path)
         };
 
+        let mut args = ssh_base_args();
+        args.push(&host);
+        args.push(&remote_script);
+
         let output = Command::new("ssh")
-            .args([
-                "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=15",
-                "-o", "ServerAliveInterval=15",
-                "-o", "ServerAliveCountMax=3",
-                "-o", "StrictHostKeyChecking=accept-new",
-                &host,
-                &remote_script,
-            ])
+            .args(&args)
             .output()
             .map_err(|e| format!("Kunde inte starta SSH-klient: {}", e))?;
 
@@ -144,14 +164,13 @@ fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::pa
     let cached_path = cache_dir.join(format!("{:x}_{}", hash, file_name));
 
     let remote_src = format!("{}:'{}'", host, remote_path.replace('\'', "'\\''"));
+    let mut args = scp_base_args();
+    let cached_str = cached_path.to_string_lossy().to_string();
+    args.push(&remote_src);
+    args.push(&cached_str);
+
     let out = Command::new("scp")
-        .args([
-            "-o", "BatchMode=yes",
-            "-o", "ConnectTimeout=15",
-            "-o", "StrictHostKeyChecking=accept-new",
-            &remote_src,
-            &cached_path.to_string_lossy(),
-        ])
+        .args(&args)
         .output()
         .map_err(|e| format!("Kunde inte köra scp för förhandsgranskning: {}", e))?;
 
@@ -206,8 +225,11 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
 
         // Stat remote file to get size and modified date
         let stat_cmd = format!("stat -c '%s %Y' '{}' 2>/dev/null || stat -f '%z %m' '{}' 2>/dev/null", escaped_path, escaped_path);
+        let mut stat_args = ssh_base_args();
+        stat_args.push(&host);
+        stat_args.push(&stat_cmd);
         let stat_out = Command::new("ssh")
-            .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", &host, &stat_cmd])
+            .args(&stat_args)
             .output();
 
         let (file_size_bytes, formatted_size, modified_str) = if let Ok(s) = stat_out {
@@ -224,8 +246,11 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         // 1. Image preview over SSH
         if ["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
             let b64_cmd = format!("base64 '{}' 2>/dev/null | head -c 5000000", escaped_path);
+            let mut img_args = ssh_base_args();
+            img_args.push(&host);
+            img_args.push(&b64_cmd);
             let out = Command::new("ssh")
-                .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", &host, &b64_cmd])
+                .args(&img_args)
                 .output()
                 .map_err(|e| e.to_string())?;
             let b64_clean = String::from_utf8_lossy(&out.stdout).replace(['\n', '\r'], "");
@@ -263,8 +288,11 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
 
         if ext == "svg" {
             let cat_cmd = format!("head -c 262144 '{}' 2>/dev/null", escaped_path);
+            let mut svg_args = ssh_base_args();
+            svg_args.push(&host);
+            svg_args.push(&cat_cmd);
             let out = Command::new("ssh")
-                .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", &host, &cat_cmd])
+                .args(&svg_args)
                 .output()
                 .map_err(|e| e.to_string())?;
             let svg_str = String::from_utf8_lossy(&out.stdout).to_string();
@@ -300,8 +328,11 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
             format!("head -c 262144 '{}' 2>/dev/null", escaped_path)
         };
 
+        let mut read_args = ssh_base_args();
+        read_args.push(&host);
+        read_args.push(&remote_read_cmd);
         let out = Command::new("ssh")
-            .args(["-o", "BatchMode=yes", "-o", "ConnectTimeout=15", &host, &remote_read_cmd])
+            .args(&read_args)
             .output()
             .map_err(|e| format!("SSH fel: {}", e))?;
 
@@ -466,16 +497,12 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
             format!("cd '{}' && {}", escaped_cwd, cmd)
         };
 
+        let mut run_args = ssh_base_args();
+        run_args.push(&host);
+        run_args.push(&remote_script);
+
         let output = Command::new("ssh")
-            .args([
-                "-o", "BatchMode=yes",
-                "-o", "ConnectTimeout=15",
-                "-o", "ServerAliveInterval=15",
-                "-o", "ServerAliveCountMax=3",
-                "-o", "StrictHostKeyChecking=accept-new",
-                &host,
-                &remote_script,
-            ])
+            .args(&run_args)
             .output()
             .map_err(|e| format!("Kunde inte köra SSH-kommando: {}", e))?;
 

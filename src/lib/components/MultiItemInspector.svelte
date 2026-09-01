@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { trashItems, revealInOs, openInDefault, launchRsnap } from '../invoke';
+  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive } from '../invoke';
   import { addMultipleToStash } from '../stores/stash';
   import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
   import { get } from 'svelte/store';
@@ -34,7 +34,25 @@
   let copied = false;
   let stashedDone = false;
   let isTrashing = false;
+  let isZipping = false;
+  let zippedDone = false;
   let filterCategory: string | null = null;
+
+  async function handleCompressAll() {
+    if (items.length === 0 || isZipping) return;
+    isZipping = true;
+    try {
+      const paths = items.map((i) => i.path);
+      await createZipArchive(paths);
+      zippedDone = true;
+      setTimeout(() => (zippedDone = false), 2500);
+      reloadPane($activePaneId);
+    } catch (e: any) {
+      alert(`Kunde inte komprimera filer: ${e}`);
+    } finally {
+      isZipping = false;
+    }
+  }
 
   $: totalCount = items.length;
   $: dirCount = items.filter((i) => i.is_dir).length;
@@ -271,6 +289,25 @@
       {:else}
         <Layers size={13} class="text-amber-400" />
         <span>Stash</span>
+      {/if}
+    </button>
+
+    <!-- Compress All to Zip -->
+    <button
+      class="px-3 py-1.5 rounded-lg bg-orange-950/50 hover:bg-orange-900/70 text-orange-300 border border-orange-800/80 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm {zippedDone ? 'border-emerald-500 text-emerald-300' : ''}"
+      on:click={handleCompressAll}
+      disabled={isZipping}
+      title="Komprimera alla markerade filer till ett .zip-arkiv"
+    >
+      {#if isZipping}
+        <div class="w-3 h-3 border-2 border-orange-400 border-t-transparent rounded-full animate-spin"></div>
+        <span>Zippar...</span>
+      {:else if zippedDone}
+        <Check size={13} class="text-emerald-400" />
+        <span>Zippat!</span>
+      {:else}
+        <Archive size={13} class="text-orange-400" />
+        <span>Komprimera (.zip)</span>
       {/if}
     </button>
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc } from '../invoke';
+  import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc, createZipArchive } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
   import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
@@ -20,6 +20,7 @@
     X,
     ArrowRightLeft,
     Download,
+    Archive,
   } from 'lucide-svelte';
   import { saveRemoteOrLocalItem, downloadDirectory } from '../stores/downloadStore';
 
@@ -34,6 +35,20 @@
   const ext = item.extension.toLowerCase();
   const isBamOrCram = ext === 'bam' || ext === 'cram' || item.name.endsWith('.bam') || item.name.endsWith('.cram');
   const isGenomics = isBamOrCram || ['vcf', 'bcf', 'bed', 'bw', 'bigwig'].includes(ext) || item.name.endsWith('.vcf.gz');
+
+  async function handleCompress() {
+    try {
+      const store = paneId === 'left' ? $leftPane : $rightPane;
+      const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+        ? Array.from(store.selectedPaths)
+        : [item.path];
+      await createZipArchive(paths);
+      await refreshPane(paneId);
+    } catch (e: any) {
+      alert(`Kunde inte komprimera: ${e}`);
+    }
+    onClose();
+  }
 
   async function handleCast() {
     await castToSecondaryInspector(item);
@@ -207,6 +222,19 @@
     <span class="text-[10px] font-mono opacity-70 ml-1 shrink-0">
       {item.is_dir ? 'mapp' : `.${item.extension || 'fil'}`} ({sameTypeCount})
     </span>
+  </button>
+
+  <!-- Compress to Zip -->
+  <button
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-orange-600 hover:text-white text-left transition-colors font-medium text-orange-400 hover:text-white"
+    on:click={handleCompress}
+    title="Komprimera till zip-arkiv"
+  >
+    <div class="flex items-center gap-2 min-w-0">
+      <Archive size={13} class="text-orange-400 shrink-0" />
+      <span class="truncate">Komprimera (.zip)</span>
+    </div>
+    <span class="text-[9px] font-mono opacity-70">Arkiv</span>
   </button>
 
   <div class="h-px my-1 bg-[var(--border)]"></div>

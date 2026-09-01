@@ -1,8 +1,14 @@
 use crate::models::{DirectoryIndexGroup, DirectoryNotes, DirectorySummary, DiskInfo, FileItem};
+use crate::ssh_commands::scp_base_args;
 use chrono::{DateTime, Local};
+use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use sysinfo::Disks;
+use tauri::Emitter;
+
+static WATCHER: Mutex<Option<RecommendedWatcher>> = Mutex::new(None);
 
 pub fn format_byte_size(bytes: u64) -> String {
     const KB: u64 = 1024;
@@ -333,12 +339,10 @@ pub async fn transfer_items(
         // Case 2: Local to Remote (Upload via scp)
         if !source_is_ssh && dest_is_ssh {
             let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
-            let mut args = vec![
-                "-r".to_string(),
-                "-o".to_string(), "BatchMode=yes".to_string(),
-                "-o".to_string(), "ConnectTimeout=15".to_string(),
-                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
-            ];
+            let mut args = vec!["-r".to_string()];
+            for flag in scp_base_args() {
+                args.push(flag.to_string());
+            }
             for p in &source_paths {
                 args.push(p.clone());
             }
@@ -361,12 +365,10 @@ pub async fn transfer_items(
             let dest_local = resolve_path(&dest_dir);
             let dest_str = dest_local.to_string_lossy().to_string();
 
-            let mut args = vec![
-                "-r".to_string(),
-                "-o".to_string(), "BatchMode=yes".to_string(),
-                "-o".to_string(), "ConnectTimeout=15".to_string(),
-                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
-            ];
+            let mut args = vec!["-r".to_string()];
+            for flag in scp_base_args() {
+                args.push(flag.to_string());
+            }
             for p in &source_paths {
                 let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
                 args.push(remote_src);
@@ -388,13 +390,10 @@ pub async fn transfer_items(
         // Case 4: Remote to Remote
         if source_is_ssh && dest_is_ssh {
             let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
-            let mut args = vec![
-                "-3".to_string(),
-                "-r".to_string(),
-                "-o".to_string(), "BatchMode=yes".to_string(),
-                "-o".to_string(), "ConnectTimeout=15".to_string(),
-                "-o".to_string(), "StrictHostKeyChecking=accept-new".to_string(),
-            ];
+            let mut args = vec!["-3".to_string(), "-r".to_string()];
+            for flag in scp_base_args() {
+                args.push(flag.to_string());
+            }
             for p in &source_paths {
                 let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
                 args.push(remote_src);
@@ -417,6 +416,113 @@ pub async fn transfer_items(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub fn watch_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let resolved = resolve_path(&path);
+    if !resolved.is_dir() {
+        return Ok(());
+    }
+
+    let mut lock = WATCHER.lock().map_err(|e| e.to_string())?;
+    *lock = None;
+
+    let app_handle = app.clone();
+    let watched_path_str = resolved.to_string_lossy().to_string();
+
+    let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+        if let Ok(event) = res {
+            if event.kind.is_create() || event.kind.is_remove() || event.kind.is_modify() {
+                let _ = app_handle.emit("directory-changed", &watched_path_str);
+            }
+        }
+    }).map_err(|e| format!("Kunde inte skapa filövervakare: {}", e))?;
+
+    watcher.watch(&resolved, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Kunde inte övervaka katalog: {}", e))?;
+
+    *lock = Some(watcher);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn create_zip_archive(source_paths: Vec<String>, output_zip_path: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if source_paths.is_empty() {
+            return Err("Inga filer valda att komprimera".to_string());
+        }
+
+        let first_src = resolve_path(&source_paths[0]);
+        let parent_dir = first_src.parent().unwrap_or_else(|| Path::new("/"));
+
+        let target_zip = if let Some(ref out) = output_zip_path {
+            resolve_path(out)
+        } else {
+            let base_name = if source_paths.len() == 1 {
+                first_src.file_stem().unwrap_or_default().to_string_lossy().to_string()
+            } else {
+                "Archive".to_string()
+            };
+            let mut candidate = parent_dir.join(format!("{}.zip", base_name));
+            let mut counter = 1;
+            while candidate.exists() {
+                candidate = parent_dir.join(format!("{} {}.zip", base_name, counter));
+                counter += 1;
+            }
+            candidate
+        };
+
+        #[cfg(target_os = "macos")]
+        {
+            if source_paths.len() == 1 {
+                let status = std::process::Command::new("ditto")
+                    .args(["-c", "-k", "--sequesterRsrc", &first_src.to_string_lossy(), &target_zip.to_string_lossy()])
+                    .status()
+                    .map_err(|e| format!("Kunde inte starta ditto: {}", e))?;
+                if !status.success() {
+                    return Err("Komprimering med ditto misslyckades".to_string());
+                }
+            } else {
+                let mut zip_args = vec!["-r".to_string(), target_zip.to_string_lossy().to_string()];
+                for p in &source_paths {
+                    let rel = resolve_path(p);
+                    if let Some(name) = rel.file_name() {
+                        zip_args.push(name.to_string_lossy().to_string());
+                    }
+                }
+                let status = std::process::Command::new("zip")
+                    .current_dir(parent_dir)
+                    .args(&zip_args)
+                    .status()
+                    .map_err(|e| format!("Kunde inte köra zip: {}", e))?;
+                if !status.success() {
+                    return Err("Komprimering med zip misslyckades".to_string());
+                }
+            }
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let file = fs::File::create(&target_zip).map_err(|e| e.to_string())?;
+            let mut zip = zip::ZipWriter::new(file);
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+
+            for p in &source_paths {
+                let resolved = resolve_path(p);
+                if resolved.is_file() {
+                    let name = resolved.file_name().unwrap_or_default().to_string_lossy();
+                    zip.start_file(name, options).map_err(|e| e.to_string())?;
+                    let mut f = fs::File::open(&resolved).map_err(|e| e.to_string())?;
+                    std::io::copy(&mut f, &mut zip).map_err(|e| e.to_string())?;
+                }
+            }
+            zip.finish().map_err(|e| e.to_string())?;
+        }
+
+        Ok(target_zip.to_string_lossy().to_string())
+    }).await.map_err(|e| e.to_string())?
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {

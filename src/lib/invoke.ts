@@ -185,3 +185,15 @@ export async function saveDirectoryNotes(
 ): Promise<DirectoryNotes> {
   return await invoke<DirectoryNotes>('save_directory_notes', { dirPath, content, filename });
 }
+
+export async function createZipArchive(
+  sourcePaths: string[],
+  outputZipPath?: string,
+): Promise<string> {
+  return await invoke<string>('create_zip_archive', { sourcePaths, outputZipPath });
+}
+
+export async function watchDirectory(path: string): Promise<void> {
+  await invoke('watch_directory', { path });
+}
+
