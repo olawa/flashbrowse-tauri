@@ -180,3 +180,22 @@ pub struct DirectoryNotes {
     pub exists: bool,
     pub last_modified: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenomeRefInfo {
+    pub id: String,
+    pub name: String,
+    pub fasta_path: Option<String>,
+    pub fai_path: Option<String>,
+    pub gtf_path: Option<String>,
+    pub is_available: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrackGenomeDetection {
+    pub path: String,
+    pub name: String,
+    pub detected_build: String,
+    pub detected_label: String,
+    pub chr1_len: Option<u64>,
+}

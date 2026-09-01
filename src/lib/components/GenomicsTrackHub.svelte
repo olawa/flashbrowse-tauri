@@ -11,12 +11,16 @@
     removeTrackFromHub,
     clearTracksInHub,
     pollGenomicsStatuses,
+    configuredGenomes,
+    loadGenomes,
+    genomeMismatchInfo,
   } from '../stores/genomicsStore';
   import {
     launchRsnap,
     startRsnapServer,
     stopRsnapServer,
     sendToIgv,
+    saveConfiguredGenome,
   } from '../invoke';
   import {
     Dna,
@@ -31,10 +35,15 @@
     Sparkles,
     Check,
     AlertCircle,
+    AlertTriangle,
     Loader2,
     Layers,
     Activity,
+    Settings,
+    FolderGit2,
+    FileText,
   } from 'lucide-svelte';
+  import type { GenomeRefInfo } from '../types';
 
   let connectToServer = false;
   let serverAddress = 'localhost:5555';
@@ -42,6 +51,8 @@
   let isSendingToIgv = false;
   let igvStatusMsg = '';
   let pollInterval: any = null;
+  let isConfigModalOpen = false;
+  let editingGenome: GenomeRefInfo | null = null;
 
   const quickGenes: { name: string; locus: string; desc: string }[] = [
     { name: 'EGFR', locus: 'chr7:55152000-55153000', desc: 'Exon 19/20' },
@@ -54,6 +65,7 @@
   ];
 
   $: if ($isGenomicsHubOpen) {
+    loadGenomes();
     pollGenomicsStatuses();
     if (!pollInterval) {
       pollInterval = setInterval(pollGenomicsStatuses, 3000);
@@ -69,6 +81,8 @@
     if (pollInterval) clearInterval(pollInterval);
   });
 
+  $: activeGenomeInfo = $configuredGenomes.find((g) => g.id === $selectedGenome) || $configuredGenomes[0];
+
   async function handleLaunchRsnap() {
     if ($stagedTracks.length === 0) {
       alert('Lägg till minst en BAM/CRAM eller VCF-fil att visualisera.');
@@ -80,7 +94,9 @@
       await launchRsnap(
         paths,
         $selectedLocus.trim() || undefined,
-        undefined, // refPath
+        $selectedGenome,
+        activeGenomeInfo?.fasta_path || undefined,
+        activeGenomeInfo?.gtf_path || undefined,
         connectToServer || $isRsnapServerRunning,
         connectToServer ? serverAddress : undefined,
       );
@@ -98,7 +114,7 @@
         isRsnapServerRunning.set(false);
         rsnapServerPid.set(null);
       } else {
-        const info = await startRsnapServer();
+        const info = await startRsnapServer(undefined, $selectedGenome);
         isRsnapServerRunning.set(info.is_running);
         rsnapServerPid.set(info.pid || null);
         connectToServer = true;
@@ -133,6 +149,23 @@
       isSendingToIgv = false;
     }
   }
+
+  function openEditGenome(genome: GenomeRefInfo) {
+    editingGenome = { ...genome };
+    isConfigModalOpen = true;
+  }
+
+  async function handleSaveGenome() {
+    if (!editingGenome) return;
+    try {
+      const updated = await saveConfiguredGenome(editingGenome);
+      configuredGenomes.set(updated);
+      isConfigModalOpen = false;
+      editingGenome = null;
+    } catch (err: any) {
+      alert(`Kunde inte spara genomkonfiguration: ${err}`);
+    }
+  }
 </script>
 
 {#if $isGenomicsHubOpen}
@@ -141,7 +174,7 @@
     on:click={() => isGenomicsHubOpen.set(false)}
   >
     <div
-      class="w-[720px] max-h-[85vh] flex flex-col bg-[#11141b] border border-[#252d3d] rounded-2xl shadow-2xl overflow-hidden font-sans text-slate-200"
+      class="w-[740px] max-h-[90vh] flex flex-col bg-[#11141b] border border-[#252d3d] rounded-2xl shadow-2xl overflow-hidden font-sans text-slate-200"
       on:click|stopPropagation
     >
       <!-- Header -->
@@ -171,6 +204,19 @@
 
       <!-- Main Body Scroll Area -->
       <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <!-- Genom Mismatch Varning -->
+        {#if $genomeMismatchInfo.hasMismatch}
+          <div class="p-3 rounded-xl bg-amber-950/60 border border-amber-600/80 text-amber-200 flex items-start gap-2.5 shadow-md">
+            <AlertTriangle size={18} class="text-amber-400 shrink-0 mt-0.5" />
+            <div class="text-xs space-y-0.5">
+              <div class="font-bold text-amber-300">Varning: Flera olika genomversioner upptäckta bland dina spår!</div>
+              <div class="text-[11.5px] text-amber-200/90 leading-relaxed">
+                Dina valda spår innehåller både <strong>{$genomeMismatchInfo.builds.map((b) => b.toUpperCase()).join(' och ')}</strong>. Att visualisera spår från olika koordinatsystem i samma vy ger felaktiga resultat.
+              </div>
+            </div>
+          </div>
+        {/if}
+
         <!-- 1. Staged Tracks List -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
@@ -211,7 +257,14 @@
                     {/if}
 
                     <div class="flex flex-col min-w-0 flex-1">
-                      <span class="font-medium text-white truncate">{track.name}</span>
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium text-white truncate">{track.name}</span>
+                        {#if track.detected_build && track.detected_build !== 'unknown'}
+                          <span class="px-1.5 py-0.2 rounded font-mono text-[9px] font-bold border {track.detected_build === 'hg38' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'bg-blue-950 text-blue-300 border-blue-800'}">
+                            {track.detected_build.toUpperCase()}
+                          </span>
+                        {/if}
+                      </div>
                       <span class="font-mono text-[10px] text-slate-500 truncate" title={track.path}>{track.path}</span>
                     </div>
                   </div>
@@ -234,42 +287,89 @@
           {/if}
         </div>
 
-        <!-- 2. Locus & Gene Selector -->
+        <!-- 2. Genome & Reference Configuration -->
         <div class="p-3.5 rounded-xl bg-[#151922] border border-[#252d3d] space-y-2.5">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-300">Locus / Genkoordinater:</span>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[11px] text-slate-400 font-medium">Referens:</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Dna size={14} class="text-emerald-400" /> Referensgenom & Gener:
+              </span>
+            </div>
+
+            <div class="flex items-center gap-2">
               <select
                 bind:value={$selectedGenome}
-                class="bg-[#1e2433] text-xs text-white rounded px-2 py-0.5 border border-[#303a4e] focus:border-emerald-500 focus:outline-none font-mono"
+                class="bg-[#1e2433] text-xs text-white rounded px-2.5 py-1 border border-[#303a4e] focus:border-emerald-500 focus:outline-none font-semibold font-mono"
               >
-                <option value="hg38">hg38 / GRCh38</option>
-                <option value="hg19">hg19 / GRCh37 / hs37d5</option>
-                <option value="T2T-CHM13">T2T-CHM13</option>
+                {#each $configuredGenomes as g}
+                  <option value={g.id}>{g.name} {g.is_available ? '✓' : '⚠️'}</option>
+                {/each}
               </select>
+
+              {#if activeGenomeInfo}
+                <button
+                  class="p-1.5 rounded-lg bg-[#1e2433] hover:bg-[#283247] text-slate-300 hover:text-white border border-[#303a4e] transition-colors"
+                  on:click={() => openEditGenome(activeGenomeInfo)}
+                  title="Konfigurera sökvägar till FASTA och GTF"
+                >
+                  <Settings size={13} />
+                </button>
+              {/if}
             </div>
           </div>
 
-          <input
-            type="text"
-            bind:value={$selectedLocus}
-            placeholder="t.ex. chr7:55152000-55153000 eller EGFR"
-            class="w-full bg-[#0c0e14] text-xs text-white px-3 py-2 rounded-lg border border-[#252d3d] focus:border-emerald-400 focus:outline-none font-mono tracking-wide"
-          />
+          <!-- Active Genome Path Details -->
+          {#if activeGenomeInfo}
+            <div class="p-2.5 rounded-lg bg-[#0c0e14] border border-[#202736] space-y-1.5 text-[11px] font-mono">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-400 shrink-0">FASTA (.fa/.fasta):</span>
+                <span class="text-emerald-300 truncate text-right flex-1" title={activeGenomeInfo.fasta_path || 'Ingen'}>
+                  {activeGenomeInfo.fasta_path || '⚠️ Inte konfigurerad'}
+                </span>
+                {#if activeGenomeInfo.fai_path}
+                  <span class="px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-400 text-[9px] font-bold border border-emerald-800 shrink-0">FAI ✓</span>
+                {/if}
+              </div>
 
-          <!-- Quick Gene Chips -->
-          <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-            <span class="text-[10.5px] text-slate-500 font-medium">Snabba gener:</span>
-            {#each quickGenes as g}
-              <button
-                class="px-2 py-0.5 rounded-md bg-[#1d2331] hover:bg-emerald-900/40 text-slate-300 hover:text-emerald-300 text-[10.5px] font-mono border border-[#2e374d] hover:border-emerald-700 transition-colors"
-                on:click={() => selectedLocus.set(g.locus)}
-                title="{g.name} ({g.desc}): {g.locus}"
-              >
-                {g.name}
-              </button>
-            {/each}
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-slate-400 shrink-0">Gener (GTF/GFF/BED):</span>
+                <span class="text-purple-300 truncate text-right flex-1" title={activeGenomeInfo.gtf_path || 'Ingen'}>
+                  {activeGenomeInfo.gtf_path || '⚠️ Ingen gen-annotation'}
+                </span>
+                {#if activeGenomeInfo.gtf_path}
+                  <span class="px-1.5 py-0.2 rounded bg-purple-950 text-purple-400 text-[9px] font-bold border border-purple-800 shrink-0">GTF ✓</span>
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <!-- Locus input -->
+          <div class="space-y-1.5 pt-1">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-300">Locus / Genkoordinater:</span>
+              <span class="text-[10.5px] text-slate-500">t.ex. chr7:55152000-55153000 eller EGFR</span>
+            </div>
+
+            <input
+              type="text"
+              bind:value={$selectedLocus}
+              placeholder="t.ex. chr7:55152000-55153000 eller EGFR"
+              class="w-full bg-[#0c0e14] text-xs text-white px-3 py-2 rounded-lg border border-[#252d3d] focus:border-emerald-400 focus:outline-none font-mono tracking-wide"
+            />
+
+            <!-- Quick Gene Chips -->
+            <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+              <span class="text-[10.5px] text-slate-500 font-medium">Snabba gener:</span>
+              {#each quickGenes as g}
+                <button
+                  class="px-2 py-0.5 rounded-md bg-[#1d2331] hover:bg-emerald-900/40 text-slate-300 hover:text-emerald-300 text-[10.5px] font-mono border border-[#2e374d] hover:border-emerald-700 transition-colors"
+                  on:click={() => selectedLocus.set(g.locus)}
+                  title="{g.name} ({g.desc}): {g.locus}"
+                >
+                  {g.name}
+                </button>
+              {/each}
+            </div>
           </div>
         </div>
 
@@ -369,6 +469,75 @@
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Genome Configuration Sub-Modal -->
+{#if isConfigModalOpen && editingGenome}
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm select-none">
+    <div class="w-[600px] bg-[#171c26] border border-[#2b354c] rounded-2xl shadow-2xl p-5 space-y-4 text-slate-200">
+      <div class="flex items-center justify-between border-b border-[#252d3d] pb-3">
+        <div class="flex items-center gap-2">
+          <Settings size={18} class="text-emerald-400" />
+          <span class="font-bold text-sm text-white">Konfigurera {editingGenome.name}</span>
+        </div>
+        <button
+          class="p-1 rounded-lg text-slate-400 hover:text-white"
+          on:click={() => (isConfigModalOpen = false)}
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div class="space-y-1">
+          <label class="font-semibold text-slate-300">FASTA referenssekvens (.fa / .fasta):</label>
+          <input
+            type="text"
+            bind:value={editingGenome.fasta_path}
+            placeholder="/Users/.../GRCh38.fasta"
+            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+          />
+          <span class="text-[10px] text-slate-500 block">Kräver en matchande .fai indexfil i samma katalog</span>
+        </div>
+
+        <div class="space-y-1">
+          <label class="font-semibold text-slate-300">FAI indexfil (.fai):</label>
+          <input
+            type="text"
+            bind:value={editingGenome.fai_path}
+            placeholder="/Users/.../GRCh38.fasta.fai"
+            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+          />
+        </div>
+
+        <div class="space-y-1">
+          <label class="font-semibold text-slate-300">Gen-annotationer (GTF / GFF / BED):</label>
+          <input
+            type="text"
+            bind:value={editingGenome.gtf_path}
+            placeholder="/Users/.../gencode.v46.annotation.sorted.gtf.gz"
+            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+          />
+          <span class="text-[10px] text-slate-500 block">Om filen slutar på .gtf.gz krävs en .tbi indexfil (skapas med tabix -p gff)</span>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#252d3d]">
+        <button
+          class="px-3 py-1.5 rounded-lg border border-[#303a4e] text-xs hover:bg-[#202738]"
+          on:click={() => (isConfigModalOpen = false)}
+        >
+          Avbryt
+        </button>
+        <button
+          class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow"
+          on:click={handleSaveGenome}
+        >
+          Spara ändringar
+        </button>
       </div>
     </div>
   </div>

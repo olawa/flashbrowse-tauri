@@ -1,7 +1,7 @@
 use crate::fs_commands::{format_byte_size, resolve_path};
 use crate::models::{
-    ArchiveEntry, ArchiveSummary, BamHeaderData, ContigInfo, ProgramInfo, ReadGroupInfo,
-    SamRecord, SamViewResult,
+    ArchiveEntry, ArchiveSummary, BamHeaderData, ContigInfo, GenomeRefInfo, ProgramInfo,
+    ReadGroupInfo, SamRecord, SamViewResult, TrackGenomeDetection,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs::{self, File};
@@ -41,8 +41,237 @@ pub fn find_tool_executable(name: &str) -> Option<PathBuf> {
     None
 }
 
+pub fn get_genomes_config_path() -> PathBuf {
+    crate::fs_commands::dirs_home().join(".config/flashbrowse/genomes.json")
+}
+
+fn save_genomes_to_config(genomes: &[GenomeRefInfo]) -> Result<(), String> {
+    let cfg_path = get_genomes_config_path();
+    if let Some(parent) = cfg_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(genomes).map_err(|e| e.to_string())?;
+    fs::write(cfg_path, json).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn discover_default_genomes() -> Vec<GenomeRefInfo> {
+    let home = crate::fs_commands::dirs_home();
+    let mut genomes = Vec::new();
+
+    // 1. Check GRCh38 / hg38
+    let hg38_fasta_candidates = vec![
+        home.join("ref/genomes/GRCh38-GIABv3/GRCh38_GIABv3_no_alt_analysis_set_maskedGRC_decoys_MAP2K3_KMT2C_KCNJ18.fasta"),
+        home.join("ref/GRCh38.fasta"),
+        home.join("ref/hg38.fasta"),
+        home.join("ref/hg38.fa"),
+        home.join("genomes/hg38/hg38.fa"),
+        home.join(".genome/hg38.fa"),
+    ];
+    let hg38_gtf_candidates = vec![
+        home.join("ref/genomes/GRCh38-GIABv3/gencode.v46.annotation.sorted.gtf.gz"),
+        home.join("ref/genomes/rseqc/hg38_GENCODE.v38.bed"),
+        home.join("ref/gencode.v38.annotation.gtf"),
+        home.join("ref/gencode.v46.annotation.gtf"),
+    ];
+
+    let mut hg38_fasta = None;
+    let mut hg38_fai = None;
+    for cand in hg38_fasta_candidates {
+        if cand.exists() {
+            let fai = PathBuf::from(format!("{}.fai", cand.display()));
+            if fai.exists() {
+                hg38_fai = Some(fai.to_string_lossy().to_string());
+            }
+            hg38_fasta = Some(cand.to_string_lossy().to_string());
+            break;
+        }
+    }
+    let hg38_gtf = hg38_gtf_candidates.into_iter().find(|p| p.exists()).map(|p| p.to_string_lossy().to_string());
+
+    genomes.push(GenomeRefInfo {
+        id: "hg38".to_string(),
+        name: "GRCh38 / hg38".to_string(),
+        fasta_path: hg38_fasta.clone(),
+        fai_path: hg38_fai.clone(),
+        gtf_path: hg38_gtf,
+        is_available: hg38_fasta.is_some() && hg38_fai.is_some(),
+    });
+
+    // 2. Check GRCh37 / hg19
+    let hg19_fasta_candidates = vec![
+        home.join("ref/genomes/hg19_pickett/ref_genome.fa"),
+        home.join("ref/hg19.fasta"),
+        home.join("ref/hg19.fa"),
+        home.join("ref/hs37d5.fa"),
+    ];
+    let hg19_gtf_candidates = vec![
+        home.join("ref/genomes/hg19_pickett/ref_annot.gtf"),
+        home.join("ref/hg19.refGene.gtf"),
+    ];
+
+    let mut hg19_fasta = None;
+    let mut hg19_fai = None;
+    for cand in hg19_fasta_candidates {
+        if cand.exists() {
+            let fai = PathBuf::from(format!("{}.fai", cand.display()));
+            if fai.exists() {
+                hg19_fai = Some(fai.to_string_lossy().to_string());
+            }
+            hg19_fasta = Some(cand.to_string_lossy().to_string());
+            break;
+        }
+    }
+    let hg19_gtf = hg19_gtf_candidates.into_iter().find(|p| p.exists()).map(|p| p.to_string_lossy().to_string());
+
+    genomes.push(GenomeRefInfo {
+        id: "hg19".to_string(),
+        name: "GRCh37 / hg19 / hs37d5".to_string(),
+        fasta_path: hg19_fasta.clone(),
+        fai_path: hg19_fai.clone(),
+        gtf_path: hg19_gtf,
+        is_available: hg19_fasta.is_some() && hg19_fai.is_some(),
+    });
+
+    genomes
+}
+
+#[tauri::command]
+pub fn get_configured_genomes() -> Result<Vec<GenomeRefInfo>, String> {
+    let cfg_path = get_genomes_config_path();
+    if cfg_path.exists() {
+        if let Ok(content) = fs::read_to_string(&cfg_path) {
+            if let Ok(mut list) = serde_json::from_str::<Vec<GenomeRefInfo>>(&content) {
+                // Verify availability
+                for g in &mut list {
+                    let fasta_ok = g.fasta_path.as_ref().map(|p| resolve_path(p).exists()).unwrap_or(false);
+                    let fai_ok = g.fai_path.as_ref().map(|p| resolve_path(p).exists()).unwrap_or(false);
+                    g.is_available = fasta_ok && fai_ok;
+                }
+                return Ok(list);
+            }
+        }
+    }
+
+    let defaults = discover_default_genomes();
+    let _ = save_genomes_to_config(&defaults);
+    Ok(defaults)
+}
+
+#[tauri::command]
+pub fn save_configured_genome(genome: GenomeRefInfo) -> Result<Vec<GenomeRefInfo>, String> {
+    let mut current = get_configured_genomes().unwrap_or_default();
+    if let Some(idx) = current.iter().position(|g| g.id == genome.id) {
+        current[idx] = genome;
+    } else {
+        current.push(genome);
+    }
+    save_genomes_to_config(&current)?;
+    Ok(current)
+}
+
+#[tauri::command]
+pub async fn detect_track_genomes(paths: Vec<String>) -> Result<Vec<TrackGenomeDetection>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut results = Vec::new();
+        let samtools = find_tool_executable("samtools");
+
+        for p in paths {
+            let res = resolve_path(&p);
+            let name = res.file_name().unwrap_or_default().to_string_lossy().to_string();
+            let ext = res.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+
+            if (ext == "bam" || ext == "cram" || ext == "sam") && samtools.is_some() {
+                let out = Command::new(samtools.as_ref().unwrap())
+                    .arg("view")
+                    .arg("-H")
+                    .arg(&res)
+                    .output();
+
+                if let Ok(o) = out {
+                    if o.status.success() {
+                        let header = String::from_utf8_lossy(&o.stdout);
+                        let mut chr1_len = None;
+                        for line in header.lines() {
+                            if line.starts_with("@SQ") {
+                                let mut is_chr1 = false;
+                                let mut len = None;
+                                for part in line.split('\t') {
+                                    if part == "SN:chr1" || part == "SN:1" {
+                                        is_chr1 = true;
+                                    } else if let Some(stripped) = part.strip_prefix("LN:") {
+                                        len = stripped.parse::<u64>().ok();
+                                    }
+                                }
+                                if is_chr1 {
+                                    chr1_len = len;
+                                    break;
+                                }
+                            }
+                        }
+
+                        let (build, label) = match chr1_len {
+                            Some(248_956_422) => ("hg38".to_string(), "GRCh38 / hg38".to_string()),
+                            Some(249_250_621) => ("hg19".to_string(), "GRCh37 / hg19".to_string()),
+                            Some(248_387_328) => ("t2t".to_string(), "T2T-CHM13".to_string()),
+                            Some(195_471_971) => ("mm10".to_string(), "GRCm38 / mm10".to_string()),
+                            Some(195_154_279) => ("mm39".to_string(), "GRCm39 / mm39".to_string()),
+                            Some(l) => ("custom".to_string(), format!("Custom (chr1: {} bp)", l)),
+                            None => ("unknown".to_string(), "Okänt genom".to_string()),
+                        };
+
+                        results.push(TrackGenomeDetection {
+                            path: p,
+                            name,
+                            detected_build: build,
+                            detected_label: label,
+                            chr1_len,
+                        });
+                        continue;
+                    }
+                }
+            }
+
+            // Fallback for VCF/BED or files where header couldn't be parsed
+            let lower = name.to_lowercase();
+            let (build, label) = if lower.contains("hg38") || lower.contains("grch38") {
+                ("hg38".to_string(), "GRCh38 / hg38".to_string())
+            } else if lower.contains("hg19") || lower.contains("grch37") || lower.contains("hs37d5") || lower.contains("b37") {
+                ("hg19".to_string(), "GRCh37 / hg19".to_string())
+            } else {
+                ("unknown".to_string(), "Okänt genom".to_string())
+            };
+
+            results.push(TrackGenomeDetection {
+                path: p,
+                name,
+                detected_build: build,
+                detected_label: label,
+                chr1_len: None,
+            });
+        }
+
+        Ok(results)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Find a matching local reference genome FASTA if available
 pub fn find_matching_reference_file(detected_build: &str) -> Option<String> {
+    let configured = get_configured_genomes().unwrap_or_default();
+    let lower = detected_build.to_lowercase();
+
+    for g in &configured {
+        if (lower.contains("38") && g.id == "hg38") || (lower.contains("19") && g.id == "hg19") || (lower.contains("37") && g.id == "hg19") {
+            if let Some(ref fa) = g.fasta_path {
+                if resolve_path(fa).exists() {
+                    return Some(fa.clone());
+                }
+            }
+        }
+    }
+
     let home = crate::fs_commands::dirs_home();
     let search_roots = vec![
         home.join(".genome"),
@@ -290,7 +519,9 @@ fn format_contig_length(len: u64) -> String {
 pub async fn generate_rsnap_snapshot(
     bam_path: String,
     region: String,
+    genome_id: Option<String>,
     ref_path: Option<String>,
+    gtf_path: Option<String>,
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let rsnap_bin = find_tool_executable("rsnap")
@@ -312,10 +543,28 @@ pub async fn generate_rsnap_snapshot(
         cmd.arg("-p").arg(&region);
         cmd.arg("-o").arg(&temp_out_str);
 
-        if let Some(r) = ref_path {
+        // Resolve reference & GTF
+        let configured = get_configured_genomes().unwrap_or_default();
+        let target_genome = if let Some(gid) = genome_id {
+            configured.iter().find(|g| g.id == gid).cloned()
+        } else {
+            configured.iter().find(|g| g.id == "hg38").or_else(|| configured.first()).cloned()
+        };
+
+        let effective_ref = ref_path.or_else(|| target_genome.as_ref().and_then(|g| g.fasta_path.clone()));
+        let effective_gtf = gtf_path.or_else(|| target_genome.as_ref().and_then(|g| g.gtf_path.clone()));
+
+        if let Some(r) = effective_ref {
             let res_ref = resolve_path(&r);
             if res_ref.exists() {
                 cmd.arg("-r").arg(res_ref.to_string_lossy().to_string());
+            }
+        }
+
+        if let Some(g) = effective_gtf {
+            let res_gtf = resolve_path(&g);
+            if res_gtf.exists() {
+                cmd.arg("-g").arg(res_gtf.to_string_lossy().to_string());
             }
         }
 
@@ -361,6 +610,7 @@ pub struct IgvResponse {
 #[tauri::command]
 pub fn start_rsnap_server(
     bam_dir: Option<String>,
+    genome_id: Option<String>,
     port: Option<u16>,
 ) -> Result<RsnapServerInfo, String> {
     let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
@@ -399,6 +649,28 @@ pub fn start_rsnap_server(
     } else {
         None
     };
+
+    let configured = get_configured_genomes().unwrap_or_default();
+    let target_genome = if let Some(gid) = genome_id {
+        configured.iter().find(|g| g.id == gid).cloned()
+    } else {
+        configured.iter().find(|g| g.id == "hg38").or_else(|| configured.first()).cloned()
+    };
+
+    if let Some(g) = target_genome {
+        if let Some(ref fa) = g.fasta_path {
+            let res_fa = resolve_path(fa);
+            if res_fa.exists() {
+                cmd.arg("-r").arg(res_fa.to_string_lossy().to_string());
+            }
+        }
+        if let Some(ref gtf) = g.gtf_path {
+            let res_gtf = resolve_path(gtf);
+            if res_gtf.exists() {
+                cmd.arg("-g").arg(res_gtf.to_string_lossy().to_string());
+            }
+        }
+    }
 
     let child = cmd.spawn().map_err(|e| format!("Kunde inte starta rsnap server: {}", e))?;
     let pid = child.id();
@@ -457,7 +729,9 @@ pub fn get_rsnap_server_status() -> Result<RsnapServerInfo, String> {
 pub fn launch_rsnap(
     paths: Vec<String>,
     region: Option<String>,
+    genome_id: Option<String>,
     ref_path: Option<String>,
+    gtf_path: Option<String>,
     connect_to_server: Option<bool>,
     server_address: Option<String>,
 ) -> Result<(), String> {
@@ -497,10 +771,28 @@ pub fn launch_rsnap(
         }
     }
 
-    if let Some(rf) = ref_path {
+    // Resolve reference genome FASTA & GTF
+    let configured = get_configured_genomes().unwrap_or_default();
+    let target_genome = if let Some(gid) = genome_id {
+        configured.iter().find(|g| g.id == gid).cloned()
+    } else {
+        configured.iter().find(|g| g.id == "hg38").or_else(|| configured.first()).cloned()
+    };
+
+    let effective_ref = ref_path.or_else(|| target_genome.as_ref().and_then(|g| g.fasta_path.clone()));
+    let effective_gtf = gtf_path.or_else(|| target_genome.as_ref().and_then(|g| g.gtf_path.clone()));
+
+    if let Some(rf) = effective_ref {
         let res_ref = resolve_path(&rf);
         if res_ref.exists() {
             cmd.arg("-r").arg(res_ref.to_string_lossy().to_string());
+        }
+    }
+
+    if let Some(gtf) = effective_gtf {
+        let res_gtf = resolve_path(&gtf);
+        if res_gtf.exists() {
+            cmd.arg("-g").arg(res_gtf.to_string_lossy().to_string());
         }
     }
 

@@ -53,7 +53,10 @@ pub fn run() {
             stop_rsnap_server,
             get_rsnap_server_status,
             send_to_igv,
-            check_igv_status
+            check_igv_status,
+            get_configured_genomes,
+            save_configured_genome,
+            detect_track_genomes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

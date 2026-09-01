@@ -7,6 +7,7 @@ import type {
   DirectorySummary,
   DiskInfo,
   FileItem,
+  GenomeRefInfo,
   IgvResponse,
   PreviewContent,
   RsnapServerInfo,
@@ -14,6 +15,7 @@ import type {
   SearchMatch,
   TabCompletionResult,
   TerminalOutput,
+  TrackGenomeDetection,
 } from './types';
 
 export async function getHomeDirectory(): Promise<string> {
@@ -126,26 +128,34 @@ export async function getBamHeader(path: string): Promise<BamHeaderData> {
 export async function generateRsnapSnapshot(
   bamPath: string,
   region: string,
+  genomeId?: string,
   refPath?: string,
+  gtfPath?: string,
 ): Promise<string> {
   return await invoke<string>('generate_rsnap_snapshot', {
     bamPath,
     region,
+    genomeId,
     refPath,
+    gtfPath,
   });
 }
 
 export async function launchRsnap(
   paths: string[],
   region?: string,
+  genomeId?: string,
   refPath?: string,
+  gtfPath?: string,
   connectToServer?: boolean,
   serverAddress?: string,
 ): Promise<void> {
   await invoke('launch_rsnap', {
     paths,
     region,
+    genomeId,
     refPath,
+    gtfPath,
     connectToServer,
     serverAddress,
   });
@@ -153,9 +163,10 @@ export async function launchRsnap(
 
 export async function startRsnapServer(
   bamDir?: string,
+  genomeId?: string,
   port?: number,
 ): Promise<RsnapServerInfo> {
-  return await invoke<RsnapServerInfo>('start_rsnap_server', { bamDir, port });
+  return await invoke<RsnapServerInfo>('start_rsnap_server', { bamDir, genomeId, port });
 }
 
 export async function stopRsnapServer(): Promise<boolean> {
@@ -164,6 +175,18 @@ export async function stopRsnapServer(): Promise<boolean> {
 
 export async function getRsnapServerStatus(): Promise<RsnapServerInfo> {
   return await invoke<RsnapServerInfo>('get_rsnap_server_status');
+}
+
+export async function getConfiguredGenomes(): Promise<GenomeRefInfo[]> {
+  return await invoke<GenomeRefInfo[]>('get_configured_genomes');
+}
+
+export async function saveConfiguredGenome(genome: GenomeRefInfo): Promise<GenomeRefInfo[]> {
+  return await invoke<GenomeRefInfo[]>('save_configured_genome', { genome });
+}
+
+export async function detectTrackGenomes(paths: string[]): Promise<TrackGenomeDetection[]> {
+  return await invoke<TrackGenomeDetection[]>('detect_track_genomes', { paths });
 }
 
 export async function sendToIgv(

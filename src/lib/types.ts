@@ -194,4 +194,21 @@ export interface IgvResponse {
   message: string;
 }
 
+export interface GenomeRefInfo {
+  id: string;
+  name: string;
+  fasta_path?: string | null;
+  fai_path?: string | null;
+  gtf_path?: string | null;
+  is_available: boolean;
+}
+
+export interface TrackGenomeDetection {
+  path: string;
+  name: string;
+  detected_build: string;
+  detected_label: string;
+  chr1_len?: number | null;
+}
+
 

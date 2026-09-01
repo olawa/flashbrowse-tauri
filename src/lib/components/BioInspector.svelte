@@ -162,10 +162,14 @@
 
   async function handleLaunchViewer() {
     try {
+      const genomeId = bamHeader?.detected_reference?.includes('38') ? 'hg38' :
+                       bamHeader?.detected_reference?.includes('19') || bamHeader?.detected_reference?.includes('37') ? 'hg19' : undefined;
       await launchRsnap(
         [item.path],
         snapshotRegion.trim() || alignRegion.trim() || undefined,
+        genomeId,
         bamHeader?.reference_matched_path,
+        undefined,
         $isRsnapServerRunning,
       );
     } catch (e: any) {
@@ -186,7 +190,8 @@
     isSendingIgv = true;
     try {
       const loc = snapshotRegion.trim() || alignRegion.trim() || undefined;
-      const res = await sendToIgv([item.path], loc, 'hg38', 60151);
+      const genomeId = bamHeader?.detected_reference?.includes('19') || bamHeader?.detected_reference?.includes('37') ? 'hg19' : 'hg38';
+      const res = await sendToIgv([item.path], loc, genomeId, 60151);
       alert(res.message || 'Skickat till IGV!');
     } catch (err: any) {
       alert(`IGV fel: ${err}`);
@@ -200,9 +205,12 @@
     isGeneratingSnapshot = true;
     snapshotError = '';
     try {
+      const genomeId = bamHeader?.detected_reference?.includes('38') ? 'hg38' :
+                       bamHeader?.detected_reference?.includes('19') || bamHeader?.detected_reference?.includes('37') ? 'hg19' : undefined;
       const b64 = await generateRsnapSnapshot(
         item.path,
         snapshotRegion.trim(),
+        genomeId,
         bamHeader?.reference_matched_path
       );
       snapshotB64 = b64;
