@@ -618,6 +618,7 @@
     lastClickTimestamp = now;
 
     // Click Mode Handling
+    clearTimeout(keyboardPreviewTimer);
     if ($clickMode === 'folders-only') {
       if (item.is_dir) {
         navigatePane(paneId, item.path);
@@ -856,6 +857,8 @@
     }
   }
 
+  let keyboardPreviewTimer: any = null;
+
   function selectOffset(offset: number) {
     if (filteredItems.length === 0) return;
     const firstSelected = Array.from(pane.selectedPaths)[0];
@@ -866,9 +869,15 @@
     const nextItem = filteredItems[nextIndex];
     if (nextItem) {
       const store = paneId === 'left' ? leftPane : rightPane;
+      // Instant visual row selection (0 ms)
       store.update((s) => ({ ...s, selectedPaths: new Set([nextItem.path]) }));
-      onSelectPreview(nextItem);
       scrollToItemIndex(nextIndex);
+
+      // Debounced preview loading (~90 ms) to eliminate I/O stutter during fast arrow scrolling
+      clearTimeout(keyboardPreviewTimer);
+      keyboardPreviewTimer = setTimeout(() => {
+        onSelectPreview(nextItem);
+      }, 90);
     }
   }
 

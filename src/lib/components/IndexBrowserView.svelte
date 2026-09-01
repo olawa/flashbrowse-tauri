@@ -76,16 +76,25 @@
     closeIndexView();
   }
 
+  let indexHoverTimer: any = null;
+
   function handleFileMouseEnter(item: FileItem) {
     hoveredPath = item.path;
     const parentDir = item.path.substring(0, item.path.lastIndexOf('/')) || '/';
     activeHighlightedParentDir.set(parentDir);
-    activeHoveredItem.set(item);
-    onSelectPreview(item);
+
+    clearTimeout(indexHoverTimer);
+    indexHoverTimer = setTimeout(() => {
+      if (hoveredPath === item.path) {
+        activeHoveredItem.set(item);
+        onSelectPreview(item);
+      }
+    }, 120);
   }
 
   function handleFileMouseLeave() {
     hoveredPath = null;
+    clearTimeout(indexHoverTimer);
   }
 
   function handleRowWheel(item: FileItem, e: WheelEvent) {
