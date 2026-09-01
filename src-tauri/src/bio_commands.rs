@@ -341,18 +341,136 @@ pub async fn generate_rsnap_snapshot(
     .map_err(|e| e.to_string())?
 }
 
-/// Launch rsnap interactive viewer
+static RSNAP_SERVER_PROCESS: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct RsnapServerInfo {
+    pub is_running: bool,
+    pub pid: Option<u32>,
+    pub port: u16,
+    pub bam_dir: Option<String>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct IgvResponse {
+    pub success: bool,
+    pub message: String,
+}
+
+/// Start rsnap background server
+#[tauri::command]
+pub fn start_rsnap_server(
+    bam_dir: Option<String>,
+    port: Option<u16>,
+) -> Result<RsnapServerInfo, String> {
+    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    if let Some(ref mut child) = *lock {
+        match child.try_wait() {
+            Ok(None) => {
+                // Server is already running
+                return Ok(RsnapServerInfo {
+                    is_running: true,
+                    pid: Some(child.id()),
+                    port: port.unwrap_or(5555),
+                    bam_dir,
+                });
+            }
+            _ => {
+                *lock = None;
+            }
+        }
+    }
+
+    let rsnap_bin = find_tool_executable("rsnap")
+        .ok_or_else(|| "rsnap executable not found in dev/bin or PATH".to_string())?;
+
+    let mut cmd = Command::new(rsnap_bin);
+    cmd.arg("--server");
+
+    let resolved_bam_dir = if let Some(ref d) = bam_dir {
+        let res = resolve_path(d);
+        if res.is_dir() {
+            let s = res.to_string_lossy().to_string();
+            cmd.arg("--bam-dir").arg(&s);
+            Some(s)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let child = cmd.spawn().map_err(|e| format!("Kunde inte starta rsnap server: {}", e))?;
+    let pid = child.id();
+    *lock = Some(child);
+
+    Ok(RsnapServerInfo {
+        is_running: true,
+        pid: Some(pid),
+        port: port.unwrap_or(5555),
+        bam_dir: resolved_bam_dir,
+    })
+}
+
+/// Stop running rsnap background server
+#[tauri::command]
+pub fn stop_rsnap_server() -> Result<bool, String> {
+    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    if let Some(mut child) = lock.take() {
+        let _ = child.kill();
+        let _ = child.wait();
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Query status of rsnap background server
+#[tauri::command]
+pub fn get_rsnap_server_status() -> Result<RsnapServerInfo, String> {
+    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    if let Some(ref mut child) = *lock {
+        match child.try_wait() {
+            Ok(None) => {
+                return Ok(RsnapServerInfo {
+                    is_running: true,
+                    pid: Some(child.id()),
+                    port: 5555,
+                    bam_dir: None,
+                });
+            }
+            _ => {
+                *lock = None;
+            }
+        }
+    }
+    Ok(RsnapServerInfo {
+        is_running: false,
+        pid: None,
+        port: 5555,
+        bam_dir: None,
+    })
+}
+
+/// Launch rsnap interactive viewer (standalone or connecting to server)
 #[tauri::command]
 pub fn launch_rsnap(
     paths: Vec<String>,
     region: Option<String>,
     ref_path: Option<String>,
+    connect_to_server: Option<bool>,
+    server_address: Option<String>,
 ) -> Result<(), String> {
     let rsnap_bin = find_tool_executable("rsnap")
         .ok_or_else(|| "rsnap executable not found in dev/bin or PATH".to_string())?;
 
     let mut cmd = Command::new(rsnap_bin);
     cmd.arg("--viewer");
+
+    if connect_to_server.unwrap_or(false) {
+        let addr = server_address.unwrap_or_else(|| "localhost:5555".to_string());
+        cmd.arg("--remote").arg(addr);
+    }
 
     for p in &paths {
         let res_path = resolve_path(p);
@@ -375,7 +493,7 @@ pub fn launch_rsnap(
 
     if let Some(r) = region {
         if !r.trim().is_empty() {
-            cmd.arg("-p").arg(r);
+            cmd.arg("-p").arg(r.trim());
         }
     }
 
@@ -386,8 +504,94 @@ pub fn launch_rsnap(
         }
     }
 
-    cmd.spawn().map_err(|e| format!("Failed to launch rsnap: {}", e))?;
+    cmd.spawn().map_err(|e| format!("Kunde inte starta rsnap viewer: {}", e))?;
     Ok(())
+}
+
+fn igv_http_request(port: u16, path_and_query: &str) -> Result<String, String> {
+    use std::io::{Read, Write};
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+
+    let addr: SocketAddr = format!("127.0.0.1:{}", port)
+        .parse()
+        .map_err(|e| format!("Invalid address: {}", e))?;
+
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(1500))
+        .map_err(|_| format!("Kunde inte ansluta till IGV på port {}. Kontrollera att IGV är igång och 'Enable port' är aktiverat i IGV Preferences.", port))?;
+
+    stream.set_read_timeout(Some(Duration::from_millis(2000))).ok();
+    stream.set_write_timeout(Some(Duration::from_millis(2000))).ok();
+
+    let request = format!(
+        "GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+        path_and_query, port
+    );
+
+    stream.write_all(request.as_bytes()).map_err(|e| format!("Write failed: {}", e))?;
+
+    let mut response = String::new();
+    let _ = stream.read_to_string(&mut response);
+
+    Ok(response)
+}
+
+/// Send tracks and locus to running IGV desktop instance
+#[tauri::command]
+pub fn send_to_igv(
+    paths: Vec<String>,
+    locus: Option<String>,
+    genome: Option<String>,
+    port: Option<u16>,
+) -> Result<IgvResponse, String> {
+    let igv_port = port.unwrap_or(60151);
+
+    // 1. Optionally switch genome if provided
+    if let Some(ref g) = genome {
+        let trimmed = g.trim();
+        if !trimmed.is_empty() {
+            let encoded_genome = urlencoding::encode(trimmed);
+            let query = format!("/genome?id={}", encoded_genome);
+            let _ = igv_http_request(igv_port, &query);
+        }
+    }
+
+    // 2. Load files
+    let mut loaded_count = 0;
+    for p in &paths {
+        let res = resolve_path(p);
+        let path_str = res.to_string_lossy().to_string();
+        let encoded_path = urlencoding::encode(&path_str);
+        let query = format!("/load?file={}", encoded_path);
+        match igv_http_request(igv_port, &query) {
+            Ok(_) => { loaded_count += 1; }
+            Err(e) => {
+                return Err(format!("IGV fel vid inläsning av {}: {}", p, e));
+            }
+        }
+    }
+
+    // 3. Optionally navigate to locus
+    if let Some(ref loc) = locus {
+        let trimmed = loc.trim();
+        if !trimmed.is_empty() {
+            let encoded_locus = urlencoding::encode(trimmed);
+            let query = format!("/goto?locus={}", encoded_locus);
+            let _ = igv_http_request(igv_port, &query);
+        }
+    }
+
+    Ok(IgvResponse {
+        success: true,
+        message: format!("Skickade {} spår till IGV (port {})", loaded_count, igv_port),
+    })
+}
+
+/// Check if IGV HTTP port is reachable
+#[tauri::command]
+pub fn check_igv_status(port: Option<u16>) -> bool {
+    let igv_port = port.unwrap_or(60151);
+    igv_http_request(igv_port, "/").is_ok() || igv_http_request(igv_port, "/ping").is_ok()
 }
 
 /// Run rs-qc alignment QC and return summary report

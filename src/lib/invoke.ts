@@ -7,7 +7,9 @@ import type {
   DirectorySummary,
   DiskInfo,
   FileItem,
+  IgvResponse,
   PreviewContent,
+  RsnapServerInfo,
   SamViewResult,
   SearchMatch,
   TabCompletionResult,
@@ -137,8 +139,44 @@ export async function launchRsnap(
   paths: string[],
   region?: string,
   refPath?: string,
+  connectToServer?: boolean,
+  serverAddress?: string,
 ): Promise<void> {
-  await invoke('launch_rsnap', { paths, region, refPath });
+  await invoke('launch_rsnap', {
+    paths,
+    region,
+    refPath,
+    connectToServer,
+    serverAddress,
+  });
+}
+
+export async function startRsnapServer(
+  bamDir?: string,
+  port?: number,
+): Promise<RsnapServerInfo> {
+  return await invoke<RsnapServerInfo>('start_rsnap_server', { bamDir, port });
+}
+
+export async function stopRsnapServer(): Promise<boolean> {
+  return await invoke<boolean>('stop_rsnap_server');
+}
+
+export async function getRsnapServerStatus(): Promise<RsnapServerInfo> {
+  return await invoke<RsnapServerInfo>('get_rsnap_server_status');
+}
+
+export async function sendToIgv(
+  paths: string[],
+  locus?: string,
+  genome?: string,
+  port?: number,
+): Promise<IgvResponse> {
+  return await invoke<IgvResponse>('send_to_igv', { paths, locus, genome, port });
+}
+
+export async function checkIgvStatus(port?: number): Promise<boolean> {
+  return await invoke<boolean>('check_igv_status', { port });
 }
 
 export async function runRsQc(bamPath: string): Promise<string> {

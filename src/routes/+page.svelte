@@ -34,7 +34,9 @@
   import Terminal from '$lib/components/Terminal.svelte';
   import StashShelf from '$lib/components/StashShelf.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
+  import GenomicsTrackHub from '$lib/components/GenomicsTrackHub.svelte';
   import { toggleStash } from '$lib/stores/stash';
+  import { isGenomicsHubOpen } from '$lib/stores/genomicsStore';
   import { activeIndexMeta, closeIndexView, refreshCurrentIndex } from '$lib/stores/indexStore';
   import { saveNotification } from '$lib/stores/downloadStore';
   import type { FileItem } from '$lib/types';
@@ -509,6 +511,9 @@
 
 <!-- Command Palette Modal (Cmd+K) -->
 <CommandPalette isOpen={isPaletteOpen} onClose={() => (isPaletteOpen = false)} />
+
+<!-- Genomics Track & Viewer Hub -->
+<GenomicsTrackHub />
 
 <!-- Kids Mode PIN Unlock Modal -->
 {#if isPinModalOpen}

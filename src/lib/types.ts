@@ -182,3 +182,16 @@ export interface SearchMatch {
   relative_path: string;
 }
 
+export interface RsnapServerInfo {
+  is_running: boolean;
+  pid?: number | null;
+  port: number;
+  bam_dir?: string | null;
+}
+
+export interface IgvResponse {
+  success: boolean;
+  message: string;
+}
+
+

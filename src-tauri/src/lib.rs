@@ -48,7 +48,12 @@ pub fn run() {
             save_directory_notes,
             create_zip_archive,
             watch_directory,
-            deep_search
+            deep_search,
+            start_rsnap_server,
+            stop_rsnap_server,
+            get_rsnap_server_status,
+            send_to_igv,
+            check_igv_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

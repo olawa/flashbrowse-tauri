@@ -3,7 +3,8 @@
   import { setTheme } from '../stores/theme';
   import { isDualInspector, isDualPane, showHiddenFiles, navigatePane, activePaneId, leftPane, rightPane } from '../stores/navigation';
   import { isTerminalOpen, toggleTerminal, toggleTerminalDock } from '../stores/terminal';
-  import { getHomeDirectory, deepSearch } from '../invoke';
+  import { isGenomicsHubOpen, addTracksToHub, isRsnapServerRunning } from '../stores/genomicsStore';
+  import { getHomeDirectory, deepSearch, startRsnapServer, stopRsnapServer, launchRsnap, sendToIgv } from '../invoke';
   import type { SearchMatch } from '../types';
   import {
     Search,
@@ -25,6 +26,8 @@
     FileSpreadsheet,
     File,
     Loader2,
+    Radio,
+    Activity,
   } from 'lucide-svelte';
 
   export let isOpen = false;
@@ -50,6 +53,10 @@
   onMount(async () => {
     const home = await getHomeDirectory();
     commands = [
+      { id: 'genomics-hub', title: 'Genomics: Öppna Genomics Track Hub', category: 'Genomics', icon: Sparkles, action: () => isGenomicsHubOpen.set(true) },
+      { id: 'rsnap-viewer', title: 'rsnap: Öppna Desktop Viewer', category: 'Genomics', icon: Dna, action: () => launchRsnap([]) },
+      { id: 'rsnap-server-start', title: 'rsnap: Starta rsnap Server (port 5555)', category: 'Genomics', icon: Server, action: async () => { await startRsnapServer(); isRsnapServerRunning.set(true); } },
+      { id: 'rsnap-server-stop', title: 'rsnap: Stoppa rsnap Server', category: 'Genomics', icon: Server, action: async () => { await stopRsnapServer(); isRsnapServerRunning.set(false); } },
       { id: 'theme-pro', title: 'Theme: Pro Dark (Default)', category: 'Utseende', icon: Sparkles, action: () => setTheme('pro-dark') },
       { id: 'theme-cyber', title: 'Theme: Cyberpunk Neon', category: 'Utseende', icon: Palette, action: () => setTheme('cyberpunk') },
       { id: 'theme-retro', title: 'Theme: Retro Mac 1995', category: 'Utseende', icon: Monitor, action: () => setTheme('retro-mac') },

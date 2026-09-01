@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc, createZipArchive } from '../invoke';
+  import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc, createZipArchive, sendToIgv } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
   import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
   import { castToSecondaryInspector } from '../stores/navigation';
+  import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
   import type { FileItem } from '../types';
   import {
     ExternalLink,
@@ -21,6 +22,8 @@
     ArrowRightLeft,
     Download,
     Archive,
+    Radio,
+    Sparkles,
   } from 'lucide-svelte';
   import { saveRemoteOrLocalItem, downloadDirectory } from '../stores/downloadStore';
 
@@ -102,6 +105,22 @@
     } catch (e: any) {
       alert(`rsnap fel: ${e}`);
     }
+    onClose();
+  }
+
+  async function handleSendToIgv() {
+    try {
+      const res = await sendToIgv([item.path]);
+      alert(res.message || 'Skickat till IGV!');
+    } catch (e: any) {
+      alert(`IGV fel: ${e}`);
+    }
+    onClose();
+  }
+
+  function handleOpenHub() {
+    addTracksToHub([item]);
+    isGenomicsHubOpen.set(true);
     onClose();
   }
 
@@ -254,8 +273,24 @@
       class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
       on:click={handleRsnap}
     >
-      <Dna size={13} />
-      <span>Öppna i rsnap</span>
+      <ExternalLink size={13} />
+      <span>Öppna i rsnap Viewer</span>
+    </button>
+
+    <button
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-blue-600 hover:text-white text-blue-400 font-medium text-left transition-colors"
+      on:click={handleSendToIgv}
+    >
+      <Radio size={13} />
+      <span>Skicka till IGV Desktop</span>
+    </button>
+
+    <button
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[#273144] text-emerald-300 font-medium text-left transition-colors"
+      on:click={handleOpenHub}
+    >
+      <Sparkles size={13} class="text-amber-400" />
+      <span>Öppna i Genomics Hub...</span>
     </button>
     <div class="h-px my-1 bg-[var(--border)]"></div>
   {/if}

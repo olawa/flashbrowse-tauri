@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive } from '../invoke';
+  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive, sendToIgv } from '../invoke';
   import { addMultipleToStash } from '../stores/stash';
   import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
+  import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
   import { get } from 'svelte/store';
   import { saveMultipleItems, downloadDirectory, isSavingFile } from '../stores/downloadStore';
   import type { FileItem } from '../types';
@@ -25,6 +26,8 @@
     Camera,
     ArrowRightLeft,
     Download,
+    Radio,
+    Sparkles,
   } from 'lucide-svelte';
 
   export let items: FileItem[] = [];
@@ -175,12 +178,43 @@
     } catch {}
   }
 
+  $: genomicsItems = items.filter((i) => {
+    if (i.is_dir) return false;
+    const ext = i.extension.toLowerCase();
+    const name = i.name.toLowerCase();
+    return (
+      ext === 'bam' || ext === 'cram' || ext === 'sam' ||
+      ext === 'vcf' || ext === 'bcf' || name.endsWith('.vcf.gz') ||
+      ext === 'bed' || ext === 'bw' || ext === 'bigwig'
+    );
+  });
+
   async function handleOpenRsnap() {
-    if (bamPaths.length === 0) return;
+    if (genomicsItems.length === 0) return;
     try {
-      await launchRsnap(bamPaths.slice(0, 10));
+      await launchRsnap(genomicsItems.map((i) => i.path).slice(0, 10));
     } catch (e) {
       console.warn('Could not launch rsnap:', e);
+    }
+  }
+
+  function handleOpenGenomicsHub() {
+    if (genomicsItems.length === 0) return;
+    addTracksToHub(genomicsItems);
+    isGenomicsHubOpen.set(true);
+  }
+
+  let isSendingIgv = false;
+  async function handleSendGenomicsToIgv() {
+    if (genomicsItems.length === 0) return;
+    isSendingIgv = true;
+    try {
+      const res = await sendToIgv(genomicsItems.map((i) => i.path));
+      alert(res.message || 'Skickat till IGV!');
+    } catch (e: any) {
+      alert(`IGV fel: ${e}`);
+    } finally {
+      isSendingIgv = false;
     }
   }
 
@@ -326,15 +360,34 @@
       {/if}
     </button>
 
-    <!-- rsnap Snapshot launch (if BAMs present) -->
-    {#if bamPaths.length > 0}
+    <!-- Genomics Hub & Viewer Launch (if Genomics tracks present) -->
+    {#if genomicsItems.length > 0}
       <button
-        class="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
         on:click={handleOpenRsnap}
-        title="Öppna markerade BAM-filer i rsnap Snapshot"
+        title="Öppna markerade spår i rsnap Desktop Viewer"
       >
-        <Camera size={13} class="text-emerald-400" />
-        <span>rsnap ({bamPaths.length})</span>
+        <ExternalLink size={13} />
+        <span>rsnap ({genomicsItems.length})</span>
+      </button>
+
+      <button
+        class="px-3 py-1.5 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        on:click={handleSendGenomicsToIgv}
+        disabled={isSendingIgv}
+        title="Skicka markerade spår till IGV desktop (port 60151)"
+      >
+        <Radio size={13} />
+        <span>IGV ({genomicsItems.length})</span>
+      </button>
+
+      <button
+        class="px-3 py-1.5 rounded-lg bg-[#202738] hover:bg-[#2c364c] text-emerald-300 hover:text-white border border-[#323e57] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        on:click={handleOpenGenomicsHub}
+        title="Öppna Genomics Track Hub (hantera spår, server och IGV)"
+      >
+        <Sparkles size={13} class="text-amber-400" />
+        <span>Genomics Hub</span>
       </button>
     {/if}
   </div>

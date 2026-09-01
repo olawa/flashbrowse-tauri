@@ -5,7 +5,15 @@
     generateRsnapSnapshot,
     launchRsnap,
     runRsQc,
+    sendToIgv,
   } from '../invoke';
+  import {
+    addTracksToHub,
+    isGenomicsHubOpen,
+    selectedLocus,
+    isRsnapServerRunning,
+    isIgvConnected,
+  } from '../stores/genomicsStore';
   import type { FileItem, BamHeaderData, SamViewResult, SamRecord } from '../types';
   import {
     Dna,
@@ -22,6 +30,8 @@
     FileText,
     Layers,
     X,
+    Radio,
+    Sparkles,
   } from 'lucide-svelte';
 
   export let item: FileItem;
@@ -155,10 +165,33 @@
       await launchRsnap(
         [item.path],
         snapshotRegion.trim() || alignRegion.trim() || undefined,
-        bamHeader?.reference_matched_path
+        bamHeader?.reference_matched_path,
+        $isRsnapServerRunning,
       );
     } catch (e: any) {
       alert(`Kunde inte starta rsnap: ${e}`);
+    }
+  }
+
+  function handleOpenHub() {
+    addTracksToHub([item]);
+    if (snapshotRegion.trim() || alignRegion.trim()) {
+      selectedLocus.set(snapshotRegion.trim() || alignRegion.trim());
+    }
+    isGenomicsHubOpen.set(true);
+  }
+
+  let isSendingIgv = false;
+  async function handleSendToIgvDirect() {
+    isSendingIgv = true;
+    try {
+      const loc = snapshotRegion.trim() || alignRegion.trim() || undefined;
+      const res = await sendToIgv([item.path], loc, 'hg38', 60151);
+      alert(res.message || 'Skickat till IGV!');
+    } catch (err: any) {
+      alert(`IGV fel: ${err}`);
+    } finally {
+      isSendingIgv = false;
     }
   }
 
@@ -230,15 +263,36 @@
         {/if}
       </div>
 
-      <!-- rsnap Desktop Launch button -->
-      <button
-        class="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shrink-0 transition-colors"
-        on:click={handleLaunchViewer}
-        title="Öppna desktop viewer i rsnap"
-      >
-        <ExternalLink size={12} />
-        <span>rsnap</span>
-      </button>
+      <!-- Action Buttons: rsnap, IGV, Hub -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button
+          class="flex items-center gap-1 px-2 py-1 rounded bg-blue-600/90 hover:bg-blue-500 text-white font-semibold text-xs shadow-md transition-colors"
+          on:click={handleSendToIgvDirect}
+          title="Skicka detta spår till IGV desktop (port 60151)"
+          disabled={isSendingIgv}
+        >
+          <Radio size={12} />
+          <span>IGV</span>
+        </button>
+
+        <button
+          class="flex items-center gap-1 px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-colors"
+          on:click={handleLaunchViewer}
+          title="Öppna desktop viewer i rsnap"
+        >
+          <ExternalLink size={12} />
+          <span>rsnap</span>
+        </button>
+
+        <button
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#202738] hover:bg-[#2c364c] text-emerald-300 hover:text-white font-semibold text-xs border border-[#323e57] shadow transition-colors"
+          on:click={handleOpenHub}
+          title="Öppna Genomics Track Hub (hantera spår, server och IGV)"
+        >
+          <Sparkles size={12} class="text-amber-400" />
+          <span>Hub</span>
+        </button>
+      </div>
     </div>
 
     <!-- Tab Bar -->

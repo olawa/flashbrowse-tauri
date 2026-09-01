@@ -1,6 +1,7 @@
 <script lang="ts">
   import { stashItems, isStashOpen, removeFromStash, clearStash } from '../stores/stash';
-  import { launchRsnap, runRsQc } from '../invoke';
+  import { launchRsnap, runRsQc, sendToIgv } from '../invoke';
+  import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
   import { activePaneId, leftPane, rightPane } from '../stores/navigation';
   import {
     Layers,
@@ -16,6 +17,8 @@
     FileCode,
     Dna,
     Activity,
+    Radio,
+    Sparkles,
   } from 'lucide-svelte';
   import type { FileItem } from '../types';
 
@@ -42,6 +45,23 @@
       await launchRsnap(paths);
     } catch (e: any) {
       alert(`Kunde inte starta rsnap: ${e}`);
+    }
+  }
+
+  function handleOpenGenomicsHub() {
+    if ($stashItems.length === 0) return;
+    addTracksToHub($stashItems);
+    isGenomicsHubOpen.set(true);
+  }
+
+  async function sendStashToIgv() {
+    const paths = $stashItems.map((i) => i.path);
+    if (paths.length === 0) return;
+    try {
+      const res = await sendToIgv(paths);
+      alert(res.message || 'Skickat till IGV!');
+    } catch (e: any) {
+      alert(`IGV fel: ${e}`);
     }
   }
 
@@ -101,7 +121,25 @@
             title="Öppna alla stashed filer i rsnap viewer"
           >
             <Dna size={11} />
-            <span>Öppna i rsnap</span>
+            <span>rsnap</span>
+          </button>
+
+          <button
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-white border border-blue-500/40 text-[11px] font-semibold transition-colors"
+            on:click={sendStashToIgv}
+            title="Skicka stashed spår till IGV desktop"
+          >
+            <Radio size={11} />
+            <span>IGV</span>
+          </button>
+
+          <button
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#2a3449] hover:bg-[#394764] text-emerald-300 hover:text-white border border-[#3e4f71] text-[11px] font-semibold transition-colors"
+            on:click={handleOpenGenomicsHub}
+            title="Öppna Genomics Track Hub med alla stashed spår"
+          >
+            <Sparkles size={11} class="text-amber-400" />
+            <span>Hub</span>
           </button>
 
           <button
@@ -111,7 +149,7 @@
             title="Kör rs-qc align på BAM-fil"
           >
             <Activity size={11} class={isRunningQc ? 'animate-spin' : ''} />
-            <span>{isRunningQc ? 'Kör rs-qc...' : 'Kör rs-qc'}</span>
+            <span>{isRunningQc ? 'Kör rs-qc...' : 'rs-qc'}</span>
           </button>
         {/if}
 
