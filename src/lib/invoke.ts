@@ -9,6 +9,7 @@ import type {
   FileItem,
   PreviewContent,
   SamViewResult,
+  SearchMatch,
   TabCompletionResult,
   TerminalOutput,
 } from './types';
@@ -196,4 +197,13 @@ export async function createZipArchive(
 export async function watchDirectory(path: string): Promise<void> {
   await invoke('watch_directory', { path });
 }
+
+export async function deepSearch(
+  rootPath: string,
+  query: string,
+  maxResults = 80,
+): Promise<SearchMatch[]> {
+  return await invoke<SearchMatch[]>('deep_search', { rootPath, query, maxResults });
+}
+
 

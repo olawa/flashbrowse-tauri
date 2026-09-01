@@ -297,6 +297,34 @@
   let hoverTimer: any = null;
   let hoveredPath: string | null = null;
 
+  // Virtual Scrolling State for extreme smoothness in large directories
+  const ROW_HEIGHT = 28;
+  const OVERSCAN = 14;
+  let scrollTop = 0;
+  let containerHeight = 600;
+
+  $: isVirtual = filteredItems.length > 60;
+  $: startIndex = isVirtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0;
+  $: endIndex = isVirtual ? Math.min(filteredItems.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN) : filteredItems.length;
+  $: visibleItems = filteredItems.slice(startIndex, endIndex);
+  $: totalHeight = filteredItems.length * ROW_HEIGHT;
+  $: offsetY = isVirtual ? startIndex * ROW_HEIGHT : 0;
+
+  function handleTableScroll(e: Event) {
+    const target = e.currentTarget as HTMLElement;
+    scrollTop = target.scrollTop;
+  }
+
+  function scrollToItemIndex(index: number) {
+    if (!tableContainerEl) return;
+    const targetTop = index * ROW_HEIGHT;
+    if (targetTop < tableContainerEl.scrollTop) {
+      tableContainerEl.scrollTop = targetTop;
+    } else if (targetTop + ROW_HEIGHT > tableContainerEl.scrollTop + containerHeight) {
+      tableContainerEl.scrollTop = targetTop + ROW_HEIGHT - containerHeight;
+    }
+  }
+
   // Inline rename state (Finder style delayed click)
   let lastClickedPath: string | null = null;
   let lastClickTimestamp = 0;
@@ -840,6 +868,7 @@
       const store = paneId === 'left' ? leftPane : rightPane;
       store.update((s) => ({ ...s, selectedPaths: new Set([nextItem.path]) }));
       onSelectPreview(nextItem);
+      scrollToItemIndex(nextIndex);
     }
   }
 
@@ -1061,6 +1090,8 @@
     <!-- Pro Table View -->
     <div
       bind:this={tableContainerEl}
+      bind:clientHeight={containerHeight}
+      on:scroll={handleTableScroll}
       on:mousedown={handleContainerMouseDown}
       on:dragover={handleContainerDragOver}
       on:dragleave={handleContainerDragLeave}
@@ -1121,80 +1152,88 @@
       </div>
 
       <!-- Table Rows -->
-      <div class="divide-y divide-[var(--border)]/40">
-        {#each filteredItems as item}
-          {@const isSelected = pane.selectedPaths.has(item.path)}
-          {@const isHovered = hoveredPath === item.path}
-          {@const isRenaming = renamingPath === item.path}
-          {@const isCasting = castingRowPath === item.path}
-          {@const isLargeFile = !item.is_dir && item.size_bytes >= 50_000_000}
-          {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
-
+      {#if filteredItems.length === 0}
+        <div class="p-8 text-center text-[var(--text-muted)]">
+          Empty directory
+        </div>
+      {:else}
+        <div
+          class="relative divide-y divide-[var(--border)]/40"
+          style={isVirtual ? `height: ${totalHeight}px;` : ''}
+        >
           <div
-            data-row-path={item.path}
-            use:registerRow={item.path}
-            draggable="true"
-            on:dragstart={(e) => handleRowDragStart(item, e)}
-            class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
-            on:click={(e) => handleRowClick(item, e)}
-            on:dblclick={() => handleDoubleClick(item)}
-            on:mouseenter={(e) => handleRowMouseEnter(item, e)}
-            on:mouseleave={handleRowMouseLeave}
-            on:wheel={(e) => handleRowWheel(item, e)}
-            on:contextmenu={(e) => handleContextMenu(item, e)}
-            role="row"
-            tabindex="-1"
+            style={isVirtual ? `transform: translateY(${offsetY}px); will-change: transform;` : ''}
+            class="divide-y divide-[var(--border)]/40"
           >
-            <!-- Name Column -->
-            <div class="col-span-8 flex items-center gap-2 min-w-0">
-              <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
-              
-              {#if isRenaming}
-                <input
-                  bind:this={renameInputEl}
-                  type="text"
-                  bind:value={renameInputText}
-                  on:keydown={(e) => {
-                    if (e.key === 'Enter') commitInlineRename();
-                    else if (e.key === 'Escape') cancelInlineRename();
-                  }}
-                  on:blur={commitInlineRename}
-                  class="flex-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-1 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
-                />
-              {:else}
-                <span class="truncate font-sans {item.is_dir ? 'font-semibold' : ''}">{item.name}</span>
-                {#if isCasting}
-                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-black text-[9px] font-bold tracking-wide flex items-center gap-1 animate-bounce shrink-0 ml-1">
-                    <Rocket size={10} /> Kastad!
-                  </span>
-                {/if}
-              {/if}
-            </div>
+            {#each visibleItems as item (item.path)}
+              {@const isSelected = pane.selectedPaths.has(item.path)}
+              {@const isHovered = hoveredPath === item.path}
+              {@const isRenaming = renamingPath === item.path}
+              {@const isCasting = castingRowPath === item.path}
+              {@const isLargeFile = !item.is_dir && item.size_bytes >= 50_000_000}
+              {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
 
-            <!-- Size Column with Visual Bar for >= 50 MB -->
-            <div class="col-span-2 relative text-right font-mono text-[11px] flex items-center justify-end">
-              {#if isLargeFile}
-                <div
-                  class="absolute right-0 h-4 rounded opacity-25 {item.size_bytes >= 1_000_000_000 ? 'bg-[var(--accent)]' : 'bg-cyan-400'}"
-                  style="width: {proportion}%"
-                ></div>
-              {/if}
-              <span class="relative z-10 text-[var(--text-secondary)]">{item.formatted_size}</span>
-            </div>
+              <div
+                data-row-path={item.path}
+                use:registerRow={item.path}
+                draggable="true"
+                on:dragstart={(e) => handleRowDragStart(item, e)}
+                class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
+                on:click={(e) => handleRowClick(item, e)}
+                on:dblclick={() => handleDoubleClick(item)}
+                on:mouseenter={(e) => handleRowMouseEnter(item, e)}
+                on:mouseleave={handleRowMouseLeave}
+                on:wheel={(e) => handleRowWheel(item, e)}
+                on:contextmenu={(e) => handleContextMenu(item, e)}
+                role="row"
+                tabindex="-1"
+              >
+                <!-- Name Column -->
+                <div class="col-span-8 flex items-center gap-2 min-w-0">
+                  <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
+                  
+                  {#if isRenaming}
+                    <input
+                      bind:this={renameInputEl}
+                      type="text"
+                      bind:value={renameInputText}
+                      on:keydown={(e) => {
+                        if (e.key === 'Enter') commitInlineRename();
+                        else if (e.key === 'Escape') cancelInlineRename();
+                      }}
+                      on:blur={commitInlineRename}
+                      class="flex-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-1 py-0.5 rounded border border-[var(--accent)] focus:outline-none"
+                    />
+                  {:else}
+                    <span class="truncate font-sans {item.is_dir ? 'font-semibold' : ''}">{item.name}</span>
+                    {#if isCasting}
+                      <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-black text-[9px] font-bold tracking-wide flex items-center gap-1 animate-bounce shrink-0 ml-1">
+                        <Rocket size={10} /> Kastad!
+                      </span>
+                    {/if}
+                  {/if}
+                </div>
 
-            <!-- Modified Column -->
-            <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate text-right pr-1 font-mono">
-              {item.formatted_modified}
-            </div>
+                <!-- Size Column with Visual Bar for >= 50 MB -->
+                <div class="col-span-2 relative text-right font-mono text-[11px] flex items-center justify-end">
+                  {#if isLargeFile}
+                    <div
+                      class="absolute right-0 h-4 rounded opacity-25 {item.size_bytes >= 1_000_000_000 ? 'bg-[var(--accent)]' : 'bg-cyan-400'}"
+                      style="width: {proportion}%"
+                    ></div>
+                  {/if}
+                  <span class="relative z-10 text-[var(--text-secondary)]">{item.formatted_size}</span>
+                </div>
+
+                <!-- Modified Column -->
+                <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate text-right pr-1 font-mono">
+                  {item.formatted_modified}
+                </div>
+              </div>
+            {/each}
           </div>
-        {/each}
-
-        {#if filteredItems.length === 0}
-          <div class="p-8 text-center text-[var(--text-muted)]">
-            Empty directory
-          </div>
-        {/if}
-      </div>
+        </div>
+      {/if}
     </div>
   {/if}
 </div>

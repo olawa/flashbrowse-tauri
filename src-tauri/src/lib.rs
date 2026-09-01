@@ -47,7 +47,8 @@ pub fn run() {
             get_directory_notes,
             save_directory_notes,
             create_zip_archive,
-            watch_directory
+            watch_directory,
+            deep_search
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

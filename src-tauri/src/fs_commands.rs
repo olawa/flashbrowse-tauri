@@ -953,3 +953,146 @@ pub fn save_directory_notes(dir_path: String, content: String, filename: Option<
     })
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct SearchMatch {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub formatted_size: String,
+    pub relative_path: String,
+}
+
+#[tauri::command]
+pub async fn deep_search(
+    root_path: String,
+    query: String,
+    max_results: Option<usize>,
+) -> Result<Vec<SearchMatch>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let base_root = resolve_path(&root_path);
+        if !base_root.exists() {
+            return Err(format!("Sökvägen finns inte: {}", base_root.display()));
+        }
+
+        let limit = max_results.unwrap_or(80);
+        let q_clean = query.trim().to_lowercase();
+        if q_clean.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let base_root_str = base_root.to_string_lossy().to_string();
+        let mut results = Vec::new();
+
+        #[cfg(target_os = "macos")]
+        {
+            let spotlight_out = std::process::Command::new("mdfind")
+                .args(["-onlyin", &base_root_str, "-name", &query])
+                .output();
+
+            if let Ok(out) = spotlight_out {
+                if out.status.success() {
+                    let out_str = String::from_utf8_lossy(&out.stdout);
+                    for line in out_str.lines().take(limit) {
+                        let p = PathBuf::from(line.trim());
+                        if !p.exists() { continue; }
+                        let is_dir = p.is_dir();
+                        let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                        let meta = p.metadata().ok();
+                        let size_bytes = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                        let formatted_size = if is_dir { "--".to_string() } else { format_byte_size(size_bytes) };
+                        let full_str = p.to_string_lossy().to_string();
+                        let rel = if full_str.starts_with(&base_root_str) {
+                            let trimmed = full_str[base_root_str.len()..].trim_start_matches('/');
+                            if trimmed.is_empty() { "./".to_string() } else { format!("./{}", trimmed) }
+                        } else {
+                            full_str.clone()
+                        };
+
+                        results.push(SearchMatch {
+                            name,
+                            path: full_str,
+                            is_dir,
+                            formatted_size,
+                            relative_path: rel,
+                        });
+                    }
+                }
+            }
+        }
+
+        if results.is_empty() {
+            let walker = walkdir::WalkDir::new(&base_root)
+                .max_depth(10)
+                .follow_links(false)
+                .into_iter();
+
+            for entry in walker.filter_entry(|e| {
+                let name = e.file_name().to_string_lossy();
+                if e.file_type().is_dir() {
+                    let lower = name.to_lowercase();
+                    if name.starts_with('.') && name != "." {
+                        return false;
+                    }
+                    if lower == "node_modules"
+                        || lower == "target"
+                        || lower == "build"
+                        || lower == "dist"
+                        || lower == ".git"
+                        || lower == ".trash"
+                        || lower == "caches"
+                        || lower == ".cache"
+                        || lower == "library"
+                    {
+                        return false;
+                    }
+                }
+                true
+            }).filter_map(|e| e.ok()) {
+                if results.len() >= limit {
+                    break;
+                }
+
+                let p = entry.path();
+                if p == base_root {
+                    continue;
+                }
+
+                let name = entry.file_name().to_string_lossy().to_string();
+                let lower_name = name.to_lowercase();
+
+                let is_match = if q_clean.contains('*') || q_clean.contains('?') {
+                    let glob_pattern = q_clean.replace('*', "").replace('?', "");
+                    lower_name.contains(&glob_pattern)
+                } else {
+                    lower_name.contains(&q_clean)
+                };
+
+                if is_match {
+                    let is_dir = entry.file_type().is_dir();
+                    let meta = entry.metadata().ok();
+                    let size_bytes = meta.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let formatted_size = if is_dir { "--".to_string() } else { format_byte_size(size_bytes) };
+                    let full_str = p.to_string_lossy().to_string();
+                    let rel = if full_str.starts_with(&base_root_str) {
+                        let trimmed = full_str[base_root_str.len()..].trim_start_matches('/');
+                        if trimmed.is_empty() { "./".to_string() } else { format!("./{}", trimmed) }
+                    } else {
+                        full_str.clone()
+                    };
+
+                    results.push(SearchMatch {
+                        name,
+                        path: full_str,
+                        is_dir,
+                        formatted_size,
+                        relative_path: rel,
+                    });
+                }
+            }
+        }
+
+        Ok(results)
+    }).await.map_err(|e| e.to_string())?
+}
+
+

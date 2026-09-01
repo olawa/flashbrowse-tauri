@@ -173,3 +173,12 @@ export interface DirectoryNotes {
   exists: boolean;
   last_modified: string | null;
 }
+
+export interface SearchMatch {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  formatted_size: string;
+  relative_path: string;
+}
+
