@@ -59,67 +59,98 @@
     }
   }
 
-  // Syntax highlighting helper for common programming languages
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  const codeKeywords: Record<string, string[]> = {
+    python: ['def', 'class', 'import', 'from', 'as', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'is', 'not', 'and', 'or', 'try', 'except', 'finally', 'with', 'lambda', 'yield', 'pass', 'break', 'continue', 'None', 'True', 'False', 'self', 'async', 'await'],
+    rust: ['fn', 'let', 'mut', 'pub', 'struct', 'enum', 'impl', 'trait', 'for', 'in', 'if', 'else', 'match', 'return', 'use', 'mod', 'crate', 'self', 'Self', 'async', 'await', 'where', 'type', 'const', 'static', 'ref', 'move', 'true', 'false', 'Some', 'None', 'Ok', 'Err'],
+    javascript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'default', 'from', 'as', 'class', 'extends', 'new', 'this', 'async', 'await', 'try', 'catch', 'finally', 'throw', 'true', 'false', 'null', 'undefined'],
+    typescript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'default', 'from', 'as', 'class', 'extends', 'interface', 'type', 'enum', 'implements', 'new', 'this', 'async', 'await', 'true', 'false', 'null', 'undefined', 'string', 'number', 'boolean', 'any'],
+    shell: ['if', 'then', 'else', 'elif', 'fi', 'for', 'in', 'do', 'done', 'while', 'case', 'esac', 'function', 'return', 'exit', 'export', 'local', 'source', 'echo', 'cd', 'mkdir', 'rm', 'cp', 'mv'],
+    r: ['function', 'return', 'if', 'else', 'for', 'in', 'while', 'repeat', 'break', 'next', 'TRUE', 'FALSE', 'NULL', 'NA', 'library', 'require'],
+    swift: ['func', 'let', 'var', 'class', 'struct', 'enum', 'protocol', 'extension', 'public', 'private', 'fileprivate', 'internal', 'open', 'override', 'import', 'return', 'if', 'else', 'guard', 'switch', 'case', 'default', 'for', 'in', 'while', 'self', 'Self', 'true', 'false', 'nil', 'async', 'await', 'throws', 'try'],
+    c: ['int', 'char', 'float', 'double', 'void', 'long', 'short', 'signed', 'unsigned', 'struct', 'union', 'typedef', 'enum', 'extern', 'static', 'const', 'volatile', 'auto', 'register', 'sizeof', 'if', 'else', 'switch', 'case', 'default', 'for', 'do', 'while', 'break', 'continue', 'return', 'goto', 'NULL'],
+    cpp: ['class', 'public', 'private', 'protected', 'virtual', 'template', 'typename', 'namespace', 'using', 'new', 'delete', 'this', 'friend', 'inline', 'constexpr', 'nullptr', 'bool', 'true', 'false', 'int', 'char', 'void', 'if', 'else', 'for', 'while', 'return', 'include'],
+    go: ['package', 'import', 'func', 'return', 'var', 'type', 'struct', 'interface', 'chan', 'map', 'go', 'select', 'defer', 'if', 'else', 'for', 'range', 'switch', 'case', 'default', 'break', 'continue', 'fallthrough', 'nil', 'true', 'false'],
+    java: ['public', 'private', 'protected', 'class', 'interface', 'enum', 'extends', 'implements', 'new', 'this', 'super', 'void', 'int', 'boolean', 'return', 'if', 'else', 'for', 'while', 'try', 'catch', 'finally', 'throw', 'throws', 'import', 'package', 'static', 'final', 'true', 'false', 'null'],
+    kotlin: ['fun', 'val', 'var', 'class', 'object', 'interface', 'package', 'import', 'return', 'if', 'else', 'when', 'for', 'while', 'is', 'in', 'null', 'true', 'false', 'override', 'private', 'public', 'internal'],
+  };
+
+  // Syntax highlighting helper
   function highlightLine(line: string, lang: string): string {
     if (!line) return '&nbsp;';
 
-    // 1. HTML encode line
-    let escaped = line
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    // If plaintext or non-code format, do not run code token coloring
+    if (!lang || lang === 'plaintext' || lang === 'text' || !codeKeywords[lang]) {
+      const escaped = escapeHtml(line);
+      if (searchQuery.trim()) {
+        const qEscaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const sRegex = new RegExp(`(${qEscaped})`, 'gi');
+        return escaped.replace(sRegex, '<mark class="bg-amber-400 text-black px-0.5 rounded font-bold">$1</mark>');
+      }
+      return escaped;
+    }
 
-    // 2. Comments (Python #, C-style //, SQL --)
-    if (lang === 'python' || lang === 'shell' || lang === 'r' || lang === 'yaml' || lang === 'toml') {
-      const commentIdx = escaped.indexOf('#');
+    // Comments handling
+    if (['python', 'shell', 'r', 'yaml', 'toml'].includes(lang)) {
+      const commentIdx = line.indexOf('#');
       if (commentIdx !== -1) {
-        const before = escaped.slice(0, commentIdx);
-        const comment = escaped.slice(commentIdx);
-        return colorizeTokens(before, lang) + `<span class="text-slate-500 italic">${comment}</span>`;
+        const before = line.slice(0, commentIdx);
+        const comment = line.slice(commentIdx);
+        return colorizeCode(before, lang) + `<span class="text-slate-500 italic">${escapeHtml(comment)}</span>`;
       }
     } else if (['c', 'cpp', 'rust', 'swift', 'go', 'javascript', 'typescript', 'java', 'kotlin', 'svelte'].includes(lang)) {
-      const commentIdx = escaped.indexOf('//');
+      const commentIdx = line.indexOf('//');
       if (commentIdx !== -1) {
-        const before = escaped.slice(0, commentIdx);
-        const comment = escaped.slice(commentIdx);
-        return colorizeTokens(before, lang) + `<span class="text-slate-500 italic">${comment}</span>`;
+        const before = line.slice(0, commentIdx);
+        const comment = line.slice(commentIdx);
+        return colorizeCode(before, lang) + `<span class="text-slate-500 italic">${escapeHtml(comment)}</span>`;
       }
     }
 
-    return colorizeTokens(escaped, lang);
+    return colorizeCode(line, lang);
   }
 
-  function colorizeTokens(text: string, lang: string): string {
-    // Strings in quotes
-    let result = text.replace(/(&quot;.*?&quot;|&#039;.*?&#039;)/g, '<span class="text-emerald-400">$1</span>');
+  function colorizeCode(rawText: string, lang: string): string {
+    // 1. Extract string literals to placeholders
+    const strings: string[] = [];
+    const textWithoutStrings = rawText.replace(/(["'`])(?:(?=(\\?))\2.)*?\1/g, (match) => {
+      const idx = strings.length;
+      strings.push(match);
+      return `___FB_STR_${idx}___`;
+    });
 
-    // Numbers
+    // 2. Escape HTML
+    let result = escapeHtml(textWithoutStrings);
+
+    // 3. Highlight numbers
     result = result.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="text-amber-300">$1</span>');
 
-    // Python / Rust / JS / C keywords
-    const keywords: Record<string, string[]> = {
-      python: ['def', 'class', 'import', 'from', 'as', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'is', 'not', 'and', 'or', 'try', 'except', 'finally', 'with', 'lambda', 'yield', 'pass', 'break', 'continue', 'None', 'True', 'False', 'self', 'async', 'await'],
-      rust: ['fn', 'let', 'mut', 'pub', 'struct', 'enum', 'impl', 'trait', 'for', 'in', 'if', 'else', 'match', 'return', 'use', 'mod', 'crate', 'self', 'Self', 'async', 'await', 'where', 'type', 'const', 'static', 'ref', 'move', 'true', 'false', 'Some', 'None', 'Ok', 'Err'],
-      javascript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'default', 'from', 'as', 'class', 'extends', 'new', 'this', 'async', 'await', 'try', 'catch', 'finally', 'throw', 'true', 'false', 'null', 'undefined'],
-      typescript: ['function', 'const', 'let', 'var', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'default', 'from', 'as', 'class', 'extends', 'interface', 'type', 'enum', 'implements', 'new', 'this', 'async', 'await', 'true', 'false', 'null', 'undefined', 'string', 'number', 'boolean', 'any'],
-      shell: ['if', 'then', 'else', 'elif', 'fi', 'for', 'in', 'do', 'done', 'while', 'case', 'esac', 'function', 'return', 'exit', 'export', 'local', 'source', 'echo', 'cd', 'mkdir', 'rm', 'cp', 'mv'],
-      r: ['function', 'return', 'if', 'else', 'for', 'in', 'while', 'repeat', 'break', 'next', 'TRUE', 'FALSE', 'NULL', 'NA', 'library', 'require'],
-      swift: ['func', 'let', 'var', 'class', 'struct', 'enum', 'protocol', 'extension', 'public', 'private', 'fileprivate', 'internal', 'open', 'override', 'import', 'return', 'if', 'else', 'guard', 'switch', 'case', 'default', 'for', 'in', 'while', 'self', 'Self', 'true', 'false', 'nil', 'async', 'await', 'throws', 'try'],
-    };
+    // 4. Highlight keywords
+    const kwList = codeKeywords[lang];
+    if (kwList && kwList.length > 0) {
+      const kwRegex = new RegExp(`\\b(${kwList.join('|')})\\b`, 'g');
+      result = result.replace(kwRegex, '<span class="text-purple-400 font-bold">$1</span>');
+    }
 
-    const kwList = keywords[lang] || ['function', 'return', 'if', 'else', 'for', 'while', 'import', 'class', 'true', 'false'];
-    const kwRegex = new RegExp(`\\b(${kwList.join('|')})\\b`, 'g');
-    result = result.replace(kwRegex, '<span class="text-purple-400 font-bold">$1</span>');
-
-    // Decorators (@something in Python / TS)
+    // 5. Decorators (@something in Python / TS)
     result = result.replace(/(@[a-zA-Z0-9_.]+)/g, '<span class="text-cyan-300 font-semibold">$1</span>');
 
-    // Function calls (word followed by '(')
+    // 6. Function calls (word followed by '(')
     result = result.replace(/\b([a-zA-Z_][a-zA-Z0-9_]*)(?=\()/g, '<span class="text-blue-400 font-medium">$1</span>');
 
-    // Highlight search matches
+    // 7. Restore strings
+    for (let i = 0; i < strings.length; i++) {
+      const escapedStr = escapeHtml(strings[i]);
+      result = result.replace(`___FB_STR_${i}___`, `<span class="text-emerald-400">${escapedStr}</span>`);
+    }
+
+    // 8. Highlight search matches
     if (searchQuery.trim()) {
       const qEscaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const sRegex = new RegExp(`(${qEscaped})`, 'gi');
