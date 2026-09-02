@@ -80,6 +80,10 @@ export async function openInDefault(path: string): Promise<void> {
   await invoke('open_in_default', { path });
 }
 
+export async function openFileWith(path: string, appName?: string): Promise<void> {
+  await invoke('open_file_with', { path, appName });
+}
+
 export async function revealInOs(path: string): Promise<void> {
   await invoke('reveal_in_os', { path });
 }
@@ -111,6 +115,10 @@ export async function sshGetPreview(host: string, path: string): Promise<Preview
 
 export async function sshRunCommand(host: string, cmd: string, cwd: string): Promise<TerminalOutput> {
   return await invoke<TerminalOutput>('ssh_run_command', { host, cmd, cwd });
+}
+
+export async function sshOpenFileLocally(host: string, remotePath: string, appName?: string): Promise<string> {
+  return await invoke<string>('ssh_open_file_locally', { host, remotePath, appName });
 }
 
 export async function quickLook(path: string): Promise<void> {

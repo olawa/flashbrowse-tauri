@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
+  import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, openFileWith, sshOpenFileLocally, toggleDetachedInspector } from '../invoke';
   import {
     isInspectorDetached,
     castToSecondaryInspector,
@@ -44,6 +44,7 @@
     NotebookPen,
     Download,
     Settings,
+    Code,
   } from 'lucide-svelte';
   import {
     downloadDirectory,
@@ -233,6 +234,27 @@
     }
   }
 
+  let isOpeningLocally = false;
+  async function handleOpenLocally(appName?: string) {
+    if (!item || item.is_dir) return;
+    isOpeningLocally = true;
+    try {
+      if (activePaneState.isSSH) {
+        const host = activePaneState.sshHost;
+        const remotePath = item.path.startsWith('ssh://')
+          ? item.path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
+          : item.path;
+        await sshOpenFileLocally(host, remotePath, appName);
+      } else {
+        await openFileWith(item.path, appName);
+      }
+    } catch (err: any) {
+      alert(`Kunde inte öppna: ${err}`);
+    } finally {
+      isOpeningLocally = false;
+    }
+  }
+
   function truncateMiddle(str: string, maxLen = 32): string {
     if (!str || str.length <= maxLen) return str;
     const half = Math.floor((maxLen - 3) / 2);
@@ -354,6 +376,52 @@
             </div>
           {/if}
         </div>
+
+        <!-- Quick Open Locally Action (Excel / Word / VS Code / Default) -->
+        {#if !item.is_dir}
+          {@const ext = item.extension.toLowerCase()}
+          {@const isTable = ['xlsx', 'xls', 'csv', 'tsv', 'tab', 'ods'].includes(ext) || item.name.endsWith('.csv.gz') || item.name.endsWith('.tsv.gz')}
+          {@const isDoc = ['docx', 'doc', 'rtf', 'odt', 'txt', 'pages', 'pdf'].includes(ext)}
+          {@const isCode = ['py', 'rs', 'sh', 'json', 'yaml', 'yml', 'toml', 'md', 'c', 'cpp', 'h', 'swift', 'js', 'ts', 'r', 'smk'].includes(ext)}
+
+          {#if isTable}
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded border border-emerald-700/60 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 hover:text-white text-[11px] font-semibold transition-all"
+              on:click={() => handleOpenLocally('Microsoft Excel')}
+              title="Öppna direkt i Microsoft Excel lokalt på din Mac"
+            >
+              <Table size={11} class="text-emerald-400" />
+              <span>Excel</span>
+            </button>
+          {:else if isDoc}
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded border border-blue-700/60 bg-blue-950/40 hover:bg-blue-900/60 text-blue-300 hover:text-white text-[11px] font-semibold transition-all"
+              on:click={() => handleOpenLocally('Microsoft Word')}
+              title="Öppna direkt i Microsoft Word lokalt på din Mac"
+            >
+              <FileText size={11} class="text-blue-400" />
+              <span>Word</span>
+            </button>
+          {:else if isCode}
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded border border-sky-700/60 bg-sky-950/40 hover:bg-sky-900/60 text-sky-300 hover:text-white text-[11px] font-semibold transition-all"
+              on:click={() => handleOpenLocally('Visual Studio Code')}
+              title="Öppna i Visual Studio Code lokalt på din Mac"
+            >
+              <Code size={11} class="text-sky-400" />
+              <span>VS Code</span>
+            </button>
+          {:else if activePaneState.isSSH}
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded border border-amber-700/60 bg-amber-950/40 hover:bg-amber-900/60 text-amber-300 hover:text-white text-[11px] font-semibold transition-all"
+              on:click={() => handleOpenLocally(undefined)}
+              title="Ladda ner och öppna med standardprogram på din Mac"
+            >
+              <ExternalLink size={11} class="text-amber-400" />
+              <span>Öppna lokalt</span>
+            </button>
+          {/if}
+        {/if}
 
         <!-- Lock Preview button -->
         <button

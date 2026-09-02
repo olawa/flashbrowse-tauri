@@ -655,6 +655,48 @@ pub fn open_in_default(path: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_file_with(path: &str, app_name: Option<String>) -> Result<(), String> {
+    let resolved = resolve_path(path);
+    let path_str = resolved.to_string_lossy().to_string();
+
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(app) = app_name {
+            if !app.is_empty() && app != "default" {
+                let res = std::process::Command::new("open")
+                    .args(["-a", &app, &path_str])
+                    .spawn();
+                if res.is_err() {
+                    let _ = std::process::Command::new("open")
+                        .arg(&path_str)
+                        .spawn();
+                }
+                return Ok(());
+            }
+        }
+        std::process::Command::new("open")
+            .arg(&path_str)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path_str)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", &path_str])
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn reveal_in_os(path: &str) -> Result<(), String> {
     let resolved = resolve_path(path);
     let path_str = resolved.to_string_lossy().to_string();

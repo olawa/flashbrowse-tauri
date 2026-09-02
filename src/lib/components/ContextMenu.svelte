@@ -1,5 +1,16 @@
 <script lang="ts">
-  import { openInDefault, revealInOs, trashItems, calculateDirSize, launchRsnap, runRsQc, createZipArchive, sendToIgv } from '../invoke';
+  import {
+    openInDefault,
+    openFileWith,
+    sshOpenFileLocally,
+    revealInOs,
+    trashItems,
+    calculateDirSize,
+    launchRsnap,
+    runRsQc,
+    createZipArchive,
+    sendToIgv,
+  } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
   import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
@@ -24,8 +35,13 @@
     Archive,
     Radio,
     Sparkles,
+    Table,
+    FileText,
+    FileCode,
+    Code,
+    ChevronRight,
   } from 'lucide-svelte';
-  import { saveRemoteOrLocalItem, downloadDirectory } from '../stores/downloadStore';
+  import { saveRemoteOrLocalItem, downloadDirectory, saveNotification } from '../stores/downloadStore';
 
   export let item: FileItem;
   export let paneId: 'left' | 'right';
@@ -34,10 +50,61 @@
   export let onClose: () => void;
 
   let qcResultModal = '';
+  let isOpenWithSubmenu = false;
+
+  $: currentPaneState = paneId === 'left' ? $leftPane : $rightPane;
+  $: isSSH = currentPaneState.isSSH || item.path.startsWith('ssh://');
+  $: sshHost = currentPaneState.sshHost || (item.path.startsWith('ssh://') ? item.path.split('/')[2] : '');
+  $: remotePath = item.path.startsWith('ssh://')
+    ? item.path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
+    : item.path;
 
   const ext = item.extension.toLowerCase();
   const isBamOrCram = ext === 'bam' || ext === 'cram' || item.name.endsWith('.bam') || item.name.endsWith('.cram');
   const isGenomics = isBamOrCram || ['vcf', 'bcf', 'bed', 'bw', 'bigwig'].includes(ext) || item.name.endsWith('.vcf.gz');
+
+  const isTable = ['xlsx', 'xls', 'csv', 'tsv', 'tab', 'ods'].includes(ext) || item.name.endsWith('.csv.gz') || item.name.endsWith('.tsv.gz');
+  const isDoc = ['docx', 'doc', 'rtf', 'odt', 'txt', 'pages', 'pdf'].includes(ext);
+  const isCode = ['py', 'rs', 'sh', 'json', 'yaml', 'yml', 'toml', 'md', 'c', 'cpp', 'h', 'swift', 'js', 'ts', 'r', 'smk'].includes(ext);
+
+  async function handleOpenWith(appName?: string) {
+    onClose();
+    if (item.is_dir) {
+      if (!isSSH) {
+        await openFileWith(item.path, appName);
+      }
+      return;
+    }
+
+    if (isSSH) {
+      const appDisplay = appName || 'standardprogram';
+      saveNotification.set({
+        text: `⬇️ Hämtar ${item.name} för att öppna i ${appDisplay}...`,
+        success: true,
+      });
+      try {
+        const localPath = await sshOpenFileLocally(sshHost, remotePath, appName);
+        saveNotification.set({
+          text: `🚀 Öppnade ${item.name} lokalt (${appDisplay})`,
+          path: localPath,
+          success: true,
+        });
+        setTimeout(() => saveNotification.set(null), 4000);
+      } catch (err: any) {
+        saveNotification.set({
+          text: `❌ Kunde inte öppna lokalt: ${err}`,
+          success: false,
+        });
+        setTimeout(() => saveNotification.set(null), 5000);
+      }
+    } else {
+      try {
+        await openFileWith(item.path, appName);
+      } catch (err: any) {
+        alert(`Kunde inte öppna med ${appName || 'standardprogram'}: ${err}`);
+      }
+    }
+  }
 
   async function handleCompress() {
     try {
@@ -59,8 +126,12 @@
   }
 
   async function handleOpen() {
-    await openInDefault(item.path);
-    onClose();
+    if (!item.is_dir && isSSH) {
+      await handleOpenWith(undefined);
+    } else {
+      await openInDefault(item.path);
+      onClose();
+    }
   }
 
   async function handleReveal() {
@@ -360,21 +431,139 @@
 
   <div class="h-px my-1 bg-[var(--border)]"></div>
 
+  {#if !item.is_dir}
+    <!-- Smart primary action depending on file type -->
+    {#if isTable}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400"
+        on:click={() => handleOpenWith('Microsoft Excel')}
+        title="Öppna i Microsoft Excel lokalt på din Mac"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <Table size={13} class="text-emerald-400 shrink-0" />
+          <span class="truncate font-semibold">Öppna i Excel</span>
+        </div>
+        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-700/60 text-emerald-300">
+          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
+        </span>
+      </button>
+    {:else if isDoc}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-left transition-colors font-medium text-blue-400"
+        on:click={() => handleOpenWith('Microsoft Word')}
+        title="Öppna i Microsoft Word lokalt på din Mac"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <FileText size={13} class="text-blue-400 shrink-0" />
+          <span class="truncate font-semibold">Öppna i Word</span>
+        </div>
+        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-950/80 border border-blue-700/60 text-blue-300">
+          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
+        </span>
+      </button>
+    {:else if isCode}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400"
+        on:click={() => handleOpenWith('Visual Studio Code')}
+        title="Öppna i Visual Studio Code lokalt på din Mac"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <Code size={13} class="text-sky-400 shrink-0" />
+          <span class="truncate font-semibold">Öppna i VS Code</span>
+        </div>
+        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300">
+          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
+        </span>
+      </button>
+    {/if}
+
+    <!-- Open with submenu -->
+    <div class="relative">
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-200"
+        on:click={() => (isOpenWithSubmenu = !isOpenWithSubmenu)}
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <ExternalLink size={13} class="text-amber-400 shrink-0" />
+          <span>Öppna lokalt med...</span>
+        </div>
+        <ChevronRight size={12} class="text-slate-400 {isOpenWithSubmenu ? 'rotate-90' : ''} transition-transform" />
+      </button>
+
+      {#if isOpenWithSubmenu}
+        <div class="bg-[var(--bg-panel)] border-y border-[var(--border)] py-1 pl-4 pr-2 text-[11px] flex flex-col gap-0.5">
+          <button
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors"
+            on:click={() => handleOpenWith('Microsoft Excel')}
+          >
+            <div class="flex items-center gap-2">
+              <Table size={12} />
+              <span>Microsoft Excel</span>
+            </div>
+            <span class="text-[9px] font-mono opacity-70">Excel</span>
+          </button>
+          <button
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors"
+            on:click={() => handleOpenWith('Microsoft Word')}
+          >
+            <div class="flex items-center gap-2">
+              <FileText size={12} />
+              <span>Microsoft Word</span>
+            </div>
+            <span class="text-[9px] font-mono opacity-70">Word</span>
+          </button>
+          <button
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-sky-400 text-left transition-colors"
+            on:click={() => handleOpenWith('Visual Studio Code')}
+          >
+            <div class="flex items-center gap-2">
+              <Code size={12} />
+              <span>Visual Studio Code</span>
+            </div>
+            <span class="text-[9px] font-mono opacity-70">VSCode</span>
+          </button>
+          <button
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors"
+            on:click={() => handleOpenWith('TextEdit')}
+          >
+            <div class="flex items-center gap-2">
+              <FileText size={12} />
+              <span>TextEdit</span>
+            </div>
+            <span class="text-[9px] font-mono opacity-70">Editor</span>
+          </button>
+          <button
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors"
+            on:click={() => handleOpenWith(undefined)}
+          >
+            <div class="flex items-center gap-2">
+              <ExternalLink size={12} />
+              <span>Standardprogram</span>
+            </div>
+            <span class="text-[9px] font-mono opacity-70">Default</span>
+          </button>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
   <button
     class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
     on:click={handleOpen}
   >
     <ExternalLink size={13} />
-    <span>Open</span>
+    <span>{isSSH && !item.is_dir ? 'Öppna lokalt (Standard)' : 'Öppna'}</span>
   </button>
 
-  <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
-    on:click={handleReveal}
-  >
-    <FolderOpen size={13} />
-    <span>Reveal in Finder</span>
-  </button>
+  {#if !isSSH}
+    <button
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+      on:click={handleReveal}
+    >
+      <FolderOpen size={13} />
+      <span>Reveal in Finder</span>
+    </button>
+  {/if}
 
   <button
     class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"

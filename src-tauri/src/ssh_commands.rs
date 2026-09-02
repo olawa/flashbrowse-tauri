@@ -520,3 +520,68 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
     .await
     .map_err(|e| e.to_string())?
 }
+
+#[tauri::command]
+pub async fn ssh_open_file_locally(
+    host: String,
+    remote_path: String,
+    app_name: Option<String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let cache_dir = std::env::temp_dir().join("flashbrowse_ssh_cache");
+        let _ = std::fs::create_dir_all(&cache_dir);
+
+        let safe_name = Path::new(&remote_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("file");
+
+        let host_short = host.split('.').next().unwrap_or(&host);
+        let local_target = cache_dir.join(format!("{}_{}", host_short, safe_name));
+        let local_str = local_target.to_string_lossy().to_string();
+
+        let mut args = vec!["-r".to_string()];
+        for flag in scp_base_args() {
+            args.push(flag.to_string());
+        }
+        let remote_src = format!("{}:'{}'", host, remote_path.replace('\'', "'\\''"));
+        args.push(remote_src);
+        args.push(local_str.clone());
+
+        let out = Command::new("scp")
+            .args(&args)
+            .output()
+            .map_err(|e| format!("Kunde inte starta scp för nedladdning: {}", e))?;
+
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            return Err(format!("Nedladdning misslyckades: {}", err));
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            if let Some(ref app) = app_name {
+                if !app.is_empty() && app != "default" {
+                    let res = Command::new("open")
+                        .args(["-a", app, &local_str])
+                        .spawn();
+                    if res.is_err() {
+                        let _ = Command::new("open").arg(&local_str).spawn();
+                    }
+                } else {
+                    let _ = Command::new("open").arg(&local_str).spawn();
+                }
+            } else {
+                let _ = Command::new("open").arg(&local_str).spawn();
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = Command::new("xdg-open").arg(&local_str).spawn();
+        }
+
+        Ok(local_str)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
