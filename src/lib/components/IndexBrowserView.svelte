@@ -55,6 +55,24 @@
   let hoveredPath: string | null = null;
   let isRootMenuOpen = false;
 
+  // Virtual Scrolling for instant 60 FPS in massive indexes (10,000+ files)
+  const ROW_HEIGHT = 38;
+  const OVERSCAN = 15;
+  let scrollTop = 0;
+  let containerHeight = 600;
+
+  $: isVirtual = $activeIndexFilteredItems.length > 50;
+  $: startIndex = isVirtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0;
+  $: endIndex = isVirtual ? Math.min($activeIndexFilteredItems.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN) : $activeIndexFilteredItems.length;
+  $: visibleItems = $activeIndexFilteredItems.slice(startIndex, endIndex);
+  $: totalHeight = $activeIndexFilteredItems.length * ROW_HEIGHT;
+  $: offsetY = isVirtual ? startIndex * ROW_HEIGHT : 0;
+
+  function handleFilesScroll(e: Event) {
+    const target = e.currentTarget as HTMLElement;
+    scrollTop = target.scrollTop;
+  }
+
   $: totalFolders = $indexedGroups.length;
   $: selectedFolderCount = $selectedDirectories.size === 0 ? totalFolders : $selectedDirectories.size;
   $: isAllSelected = $selectedDirectories.size === totalFolders && totalFolders > 0;
@@ -328,47 +346,62 @@
           <div class="col-span-2 text-right pr-1">Ändrad</div>
         </div>
 
-        <!-- Files List -->
-        <div class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/40 font-mono text-xs">
-          {#each $activeIndexFilteredItems as item}
-            {@const isHovered = hoveredPath === item.path}
-            <div
-              class="grid grid-cols-12 gap-2 px-3 py-1.5 items-center cursor-pointer transition-colors {isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-primary)]'}"
-              on:click={() => handleFileClick(item)}
-              on:dblclick={() => handleFileDblClick(item)}
-              on:mouseenter={() => handleFileMouseEnter(item)}
-              on:mouseleave={handleFileMouseLeave}
-              on:wheel={(e) => handleRowWheel(item, e)}
-              role="row"
-              tabindex="-1"
-            >
-              <!-- Name Column with directory path -->
-              <div class="col-span-8 flex items-center gap-2 min-w-0">
-                <svelte:component this={getFileIcon(item)} size={14} class="{$activeIndexMeta.colorClass} shrink-0" />
-                <div class="flex flex-col min-w-0 flex-1">
-                  <span class="truncate font-sans font-medium">{item.name}</span>
-                  <span class="text-[10px] text-[var(--text-muted)] font-mono truncate" title={item.path}>
-                    {item.path.replace($indexRootPath, '.')}
-                  </span>
-                </div>
-              </div>
-
-              <!-- Size -->
-              <div class="col-span-2 text-right text-[var(--text-secondary)] font-mono text-[11px]">
-                {item.formatted_size}
-              </div>
-
-              <!-- Modified -->
-              <div class="col-span-2 text-right pr-1 text-[var(--text-muted)] font-mono text-[11px] truncate">
-                {item.formatted_modified}
-              </div>
-            </div>
-          {/each}
-
+        <!-- Files List with Virtual DOM Windowing -->
+        <div
+          bind:clientHeight={containerHeight}
+          on:scroll={handleFilesScroll}
+          class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/40 font-mono text-xs relative"
+        >
           {#if $activeIndexFilteredItems.length === 0 && !$isIndexScanning}
             <div class="p-12 text-center text-[var(--text-muted)] flex flex-col items-center justify-center space-y-2">
               <Folder size={32} class="opacity-20" />
               <span>Inga matchande filer i valda mappar.</span>
+            </div>
+          {:else}
+            <div
+              class="relative"
+              style={isVirtual ? `height: ${totalHeight}px;` : ''}
+            >
+              <div
+                style={isVirtual ? `transform: translateY(${offsetY}px); will-change: transform;` : ''}
+                class="divide-y divide-[var(--border)]/40"
+              >
+                {#each visibleItems as item (item.path)}
+                  {@const isHovered = hoveredPath === item.path}
+                  <div
+                    class="grid grid-cols-12 gap-2 px-3 h-[38px] max-h-[38px] box-border items-center cursor-pointer transition-colors duration-100 {isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-primary)]'}"
+                    style="height: {ROW_HEIGHT}px;"
+                    on:click={() => handleFileClick(item)}
+                    on:dblclick={() => handleFileDblClick(item)}
+                    on:mouseenter={() => handleFileMouseEnter(item)}
+                    on:mouseleave={handleFileMouseLeave}
+                    on:wheel={(e) => handleRowWheel(item, e)}
+                    role="row"
+                    tabindex="-1"
+                  >
+                    <!-- Name Column with directory path -->
+                    <div class="col-span-8 flex items-center gap-2 min-w-0">
+                      <svelte:component this={getFileIcon(item)} size={14} class="{$activeIndexMeta.colorClass} shrink-0" />
+                      <div class="flex flex-col min-w-0 flex-1 leading-tight">
+                        <span class="truncate font-sans font-medium text-xs">{item.name}</span>
+                        <span class="text-[10px] text-[var(--text-muted)] font-mono truncate" title={item.path}>
+                          {item.path.replace($indexRootPath, '.')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Size -->
+                    <div class="col-span-2 text-right text-[var(--text-secondary)] font-mono text-[11px]">
+                      {item.formatted_size}
+                    </div>
+
+                    <!-- Modified -->
+                    <div class="col-span-2 text-right pr-1 text-[var(--text-muted)] font-mono text-[11px] truncate">
+                      {item.formatted_modified}
+                    </div>
+                  </div>
+                {/each}
+              </div>
             </div>
           {/if}
         </div>

@@ -315,13 +315,16 @@
     scrollTop = target.scrollTop;
   }
 
+  const HEADER_HEIGHT = 29;
+
   function scrollToItemIndex(index: number) {
     if (!tableContainerEl) return;
     const targetTop = index * ROW_HEIGHT;
+    // Keep item fully visible, accounting for sticky header
     if (targetTop < tableContainerEl.scrollTop) {
       tableContainerEl.scrollTop = targetTop;
-    } else if (targetTop + ROW_HEIGHT > tableContainerEl.scrollTop + containerHeight) {
-      tableContainerEl.scrollTop = targetTop + ROW_HEIGHT - containerHeight;
+    } else if (targetTop + ROW_HEIGHT > tableContainerEl.scrollTop + containerHeight - HEADER_HEIGHT) {
+      tableContainerEl.scrollTop = targetTop + ROW_HEIGHT - containerHeight + HEADER_HEIGHT;
     }
   }
 
@@ -408,6 +411,19 @@
         const newSelected = new Set(
           moveEvent.metaKey || moveEvent.ctrlKey || moveEvent.shiftKey ? pane.selectedPaths : []
         );
+
+        // Mathematical row calculation: O(1) efficiency across tens of thousands of virtualized rows
+        const relTop = selTop - HEADER_HEIGHT;
+        const relBottom = selBottom - HEADER_HEIGHT;
+        if (relBottom >= 0 && relTop <= totalHeight) {
+          const mathStartIdx = Math.max(0, Math.floor(relTop / ROW_HEIGHT));
+          const mathEndIdx = Math.min(filteredItems.length - 1, Math.floor(relBottom / ROW_HEIGHT));
+          for (let i = mathStartIdx; i <= mathEndIdx; i++) {
+            if (filteredItems[i]) {
+              newSelected.add(filteredItems[i].path);
+            }
+          }
+        }
 
         rowElements.forEach((el, path) => {
           const r = el.getBoundingClientRect();
@@ -1055,8 +1071,9 @@
 
           <!-- Inline Expanded Files List Under Group -->
           {#if isExpanded}
+            {@const displayItems = group.items.length > 80 ? group.items.slice(0, 80) : group.items}
             <div class="border-t border-[#202738] bg-[#0c0e14] max-h-80 overflow-y-auto divide-y divide-[#1c2230]/60 text-[11px] font-mono select-none">
-              {#each group.items as item}
+              {#each displayItems as item}
                 {@const isSelected = pane.selectedPaths.has(item.path)}
                 {@const isRowHovered = hoveredPath === item.path}
                 {@const isCasting = castingRowPath === item.path}
@@ -1090,6 +1107,12 @@
                   </div>
                 </div>
               {/each}
+
+              {#if group.items.length > 80}
+                <div class="p-2 text-center text-slate-500 text-[10px] bg-[#11141b]/80 border-t border-[#1c2230]">
+                  Visar de första 80 av {group.count} filer (byt till tabellvy för att bläddra i alla med virtuell rullning)
+                </div>
+              {/if}
             </div>
           {/if}
         </div>
@@ -1187,7 +1210,8 @@
                 use:registerRow={item.path}
                 draggable="true"
                 on:dragstart={(e) => handleRowDragStart(item, e)}
-                class="grid grid-cols-12 gap-2 px-3 py-1 items-center cursor-pointer transition-all duration-300 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
+                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
+                style="height: {ROW_HEIGHT}px;"
                 on:click={(e) => handleRowClick(item, e)}
                 on:dblclick={() => handleDoubleClick(item)}
                 on:mouseenter={(e) => handleRowMouseEnter(item, e)}
