@@ -147,8 +147,13 @@
   {:else}
     <div
       class="flex items-center gap-1 overflow-x-auto whitespace-nowrap flex-1 py-0.5 cursor-pointer rounded px-1 hover:bg-[var(--bg-hover)]/40 transition-colors min-w-0"
-      on:dblclick={startEditing}
-      title="Dubbelklicka för att skriva sökväg manuellt"
+      on:click={(e) => {
+        const target = e.target as HTMLElement;
+        if (target === e.currentTarget || target.tagName === 'DIV' || target.classList.contains('breadcrumb-space')) {
+          startEditing();
+        }
+      }}
+      title="Klicka för att skriva eller klistra in sökväg"
       role="button"
       tabindex="-1"
     >
@@ -265,12 +270,12 @@
 
       <!-- Edit icon button on right edge of breadcrumb -->
       <button
-        class="ml-1 p-0.5 rounded text-slate-500 hover:text-white hover:bg-[var(--bg-hover)] shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+        class="ml-1 p-0.5 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] shrink-0 opacity-70 hover:opacity-100 transition-opacity"
         on:click={(e) => {
           e.stopPropagation();
           startEditing();
         }}
-        title="Redigera sökväg"
+        title="Redigera sökväg direkt (eller klicka på listen)"
       >
         <Edit3 size={11} />
       </button>
