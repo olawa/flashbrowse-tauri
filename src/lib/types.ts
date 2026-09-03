@@ -211,4 +211,9 @@ export interface TrackGenomeDetection {
   chr1_len?: number | null;
 }
 
-
+export interface SubdirNode {
+  name: string;
+  path: string;
+  children: SubdirNode[];
+  has_more: boolean;
+}

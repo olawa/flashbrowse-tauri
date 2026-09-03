@@ -180,6 +180,77 @@ pub fn list_directory(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, St
     Ok(items)
 }
 
+// ─── Hover Dir Tree ───────────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, Clone)]
+pub struct SubdirNode {
+    pub name: String,
+    pub path: String,
+    pub children: Vec<SubdirNode>,
+    pub has_more: bool, // true if there were more subdirs than max_per_level
+}
+
+fn build_subdir_tree(dir: &Path, depth: u8, max_depth: u8, max_per_level: usize) -> Vec<SubdirNode> {
+    if depth > max_depth {
+        return vec![];
+    }
+
+    let read_dir = match fs::read_dir(dir) {
+        Ok(rd) => rd,
+        Err(_) => return vec![],
+    };
+
+    let mut dirs: Vec<(String, PathBuf)> = read_dir
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let is_hidden = name.starts_with('.');
+            if is_hidden { return false; }
+            e.file_type().map(|t| t.is_dir()).unwrap_or(false)
+        })
+        .map(|e| (e.file_name().to_string_lossy().to_string(), e.path()))
+        .collect();
+
+    dirs.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+
+    let has_more = dirs.len() > max_per_level;
+    let slice = dirs.into_iter().take(max_per_level);
+
+    slice
+        .map(|(name, path)| {
+            let children = if depth < max_depth {
+                build_subdir_tree(&path, depth + 1, max_depth, max_per_level)
+            } else {
+                vec![]
+            };
+            SubdirNode {
+                name,
+                path: path.to_string_lossy().to_string(),
+                children,
+                has_more: false,
+            }
+        })
+        .collect::<Vec<_>>()
+        .into_iter()
+        .enumerate()
+        .map(|(i, mut node)| {
+            // Mark the last node at this level if has_more
+            if has_more && i == max_per_level - 1 {
+                node.has_more = true;
+            }
+            node
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn get_subdirs_tree(path: &str, max_depth: u8, max_per_level: usize) -> Vec<SubdirNode> {
+    let resolved = resolve_path(path);
+    let effective_depth = max_depth.min(4); // hard cap at 4 levels
+    let effective_per_level = max_per_level.min(20); // hard cap at 20
+    build_subdir_tree(&resolved, 1, effective_depth, effective_per_level)
+}
+
 #[tauri::command]
 pub fn get_disk_info(path: &str) -> Result<DiskInfo, String> {
     let check_path = PathBuf::from(if path.is_empty() { "/" } else { path });

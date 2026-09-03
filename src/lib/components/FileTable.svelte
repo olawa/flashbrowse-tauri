@@ -23,6 +23,7 @@
   import { isKidsMode } from '../stores/theme';
   import { openInDefault, quickLook, renameItem, trashItems } from '../invoke';
   import ContextMenu from './ContextMenu.svelte';
+  import HoverDirTree from './HoverDirTree.svelte';
   import type { FileItem } from '../types';
   import {
     Folder,
@@ -296,6 +297,12 @@
   // Hover preview state
   let hoverTimer: any = null;
   let hoveredPath: string | null = null;
+
+  // Hover Dir Tree state
+  let hoverTreeTimer: any = null;
+  let hoverTreeItem: FileItem | null = null;
+  let hoverTreeAnchorX = 0;
+  let hoverTreeAnchorY = 0;
 
   // Virtual Scrolling State for extreme smoothness in large directories
   const ROW_HEIGHT = 28;
@@ -682,11 +689,41 @@
         }
       }, 150);
     }
+
+    // Hover Dir Tree: start 500ms timer for directories
+    if (item.is_dir) {
+      clearTimeout(hoverTreeTimer);
+      hoverTreeTimer = setTimeout(() => {
+        if (hoveredPath === item.path) {
+          // Get anchor position from the row element
+          const rowEl = e?.currentTarget as HTMLElement | null;
+          if (rowEl) {
+            const rect = rowEl.getBoundingClientRect();
+            hoverTreeAnchorX = rect.right + 4;
+            hoverTreeAnchorY = rect.top;
+          }
+          hoverTreeItem = item;
+        }
+      }, 500);
+    } else {
+      // Not a directory: close any open tree
+      if (hoverTreeItem && hoverTreeItem.path !== item.path) {
+        hoverTreeItem = null;
+      }
+      clearTimeout(hoverTreeTimer);
+    }
   }
 
   function handleRowMouseLeave() {
     hoveredPath = null;
     clearTimeout(hoverTimer);
+    clearTimeout(hoverTreeTimer);
+    // Don't close hoverTreeItem here — mouse might be moving into the tooltip
+  }
+
+  function closeHoverTree() {
+    hoverTreeItem = null;
+    clearTimeout(hoverTreeTimer);
   }
 
   // MARK: - Inline Rename
@@ -1278,5 +1315,18 @@
     x={contextMenuPos.x}
     y={contextMenuPos.y}
     onClose={closeContextMenu}
+  />
+{/if}
+
+{#if hoverTreeItem}
+  <HoverDirTree
+    path={hoverTreeItem.path}
+    anchorX={hoverTreeAnchorX}
+    anchorY={hoverTreeAnchorY}
+    onNavigate={(p) => {
+      closeHoverTree();
+      navigatePane(paneId, p);
+    }}
+    onClose={closeHoverTree}
   />
 {/if}

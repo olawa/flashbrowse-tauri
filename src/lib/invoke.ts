@@ -275,4 +275,10 @@ export async function deepSearch(
   return await invoke<SearchMatch[]>('deep_search', { rootPath, query, maxResults });
 }
 
-
+export async function getSubdirsTree(
+  path: string,
+  maxDepth = 3,
+  maxPerLevel = 8,
+): Promise<import('./types').SubdirNode[]> {
+  return await invoke('get_subdirs_tree', { path, maxDepth, maxPerLevel });
+}

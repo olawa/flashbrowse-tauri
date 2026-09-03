@@ -58,7 +58,8 @@ pub fn run() {
             check_igv_status,
             get_configured_genomes,
             save_configured_genome,
-            detect_track_genomes
+            detect_track_genomes,
+            get_subdirs_tree
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
