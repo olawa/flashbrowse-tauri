@@ -300,6 +300,7 @@
 
   // Hover Dir Tree state
   let hoverTreeTimer: any = null;
+  let hoverTreeCloseTimer: any = null;
   let hoverTreeItem: FileItem | null = null;
   let hoverTreeAnchorX = 0;
   let hoverTreeAnchorY = 0;
@@ -690,9 +691,10 @@
       }, 150);
     }
 
-    // Hover Dir Tree: start 500ms timer for directories
+    // Hover Dir Tree: start 1000ms timer for directories
     if (item.is_dir) {
       clearTimeout(hoverTreeTimer);
+      clearTimeout(hoverTreeCloseTimer);
       hoverTreeTimer = setTimeout(() => {
         if (hoveredPath === item.path) {
           // Get anchor position from the row element
@@ -704,7 +706,7 @@
           }
           hoverTreeItem = item;
         }
-      }, 500);
+      }, 1000);
     } else {
       // Not a directory: close any open tree
       if (hoverTreeItem && hoverTreeItem.path !== item.path) {
@@ -718,12 +720,20 @@
     hoveredPath = null;
     clearTimeout(hoverTimer);
     clearTimeout(hoverTreeTimer);
-    // Don't close hoverTreeItem here — mouse might be moving into the tooltip
+    // Grace period: close tree after 150ms unless mouse entered tooltip
+    hoverTreeCloseTimer = setTimeout(() => {
+      hoverTreeItem = null;
+    }, 150);
+  }
+
+  function cancelHoverTreeClose() {
+    clearTimeout(hoverTreeCloseTimer);
   }
 
   function closeHoverTree() {
-    hoverTreeItem = null;
     clearTimeout(hoverTreeTimer);
+    clearTimeout(hoverTreeCloseTimer);
+    hoverTreeItem = null;
   }
 
   // MARK: - Inline Rename
@@ -1328,5 +1338,6 @@
       navigatePane(paneId, p);
     }}
     onClose={closeHoverTree}
+    cancelClose={cancelHoverTreeClose}
   />
 {/if}

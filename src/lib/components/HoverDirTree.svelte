@@ -54,6 +54,8 @@
     onNavigate(p);
   }
 
+  export let cancelClose: () => void = () => {};
+
   let tooltipStyle = '';
   $: {
     const GAP = 4;
@@ -64,6 +66,10 @@
     } else {
       tooltipStyle = `left: ${anchorX}px; top: ${anchorY}px;`;
     }
+  }
+
+  function handleMouseEnter() {
+    cancelClose();
   }
 
   function handleMouseLeave(e: MouseEvent) {
@@ -78,6 +84,7 @@
   bind:this={tooltipEl}
   class="fixed z-[9999] w-56 rounded-lg border border-[var(--border)] bg-[var(--bg-surface)] shadow-2xl shadow-black/40 backdrop-blur-sm text-xs select-none overflow-visible"
   style={tooltipStyle}
+  on:mouseenter={handleMouseEnter}
   on:mouseleave={handleMouseLeave}
   role="tree"
 >
