@@ -121,7 +121,7 @@ pub fn list_directory(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, St
         let metadata = fs::metadata(&entry_path).or_else(|_| symlink_metadata.as_ref().map(|m| m.clone()));
 
         let is_symlink = entry.file_type().map(|t| t.is_symlink()).unwrap_or(false);
-        let is_dir = entry.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        let is_dir = metadata.as_ref().map(|m| m.is_dir()).unwrap_or_else(|_| entry.file_type().map(|t| t.is_dir()).unwrap_or(false));
 
         let meta_ref = metadata.as_ref().ok();
         let size_bytes = meta_ref.map(|m| m.len()).unwrap_or(0);

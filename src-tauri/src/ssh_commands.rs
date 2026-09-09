@@ -37,13 +37,13 @@ pub struct SshDirectoryResult {
 pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirectoryResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let remote_script = if path.is_empty() || path == "~" {
-            "cd ~ && pwd && ls -la".to_string()
+            "cd ~ && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true".to_string()
         } else if path.starts_with("~/") {
             let rest = &path[2..].replace('\'', "'\\''");
-            format!("cd \"${{HOME}}/{}\" && pwd && ls -la", rest)
+            format!("cd \"${{HOME}}/{}\" && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", rest)
         } else {
             let escaped_path = path.replace('\'', "'\\''");
-            format!("cd '{}' && pwd && ls -la", escaped_path)
+            format!("cd '{}' && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", escaped_path)
         };
 
         let mut args = ssh_base_args();
@@ -66,7 +66,20 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
         }
 
         let stdout_str = String::from_utf8_lossy(&output.stdout);
-        let mut lines = stdout_str.lines();
+        let parts_out: Vec<&str> = stdout_str.split("\n___SYMLINK_DIRS___\n").collect();
+        let ls_out = parts_out[0];
+        let mut symlink_dirs = std::collections::HashSet::new();
+        if parts_out.len() > 1 {
+            for line in parts_out[1].lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    let clean = trimmed.trim_start_matches("./");
+                    symlink_dirs.insert(clean.to_string());
+                }
+            }
+        }
+
+        let mut lines = ls_out.lines();
 
         // First line is canonical pwd from remote server
         let current_pwd = lines.next().unwrap_or("~").trim().to_string();
@@ -85,8 +98,27 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
             }
 
             let permissions = parts[0].to_string();
-            let is_dir = permissions.starts_with('d');
-            let is_symlink = permissions.starts_with('l');
+            let mut is_dir = permissions.starts_with('d');
+            let mut is_symlink = permissions.starts_with('l');
+
+            let raw_name = parts[8..].join(" ");
+
+            if raw_name == "." || raw_name == ".." {
+                continue;
+            }
+
+            let mut file_name = raw_name.clone();
+
+            if is_symlink || raw_name.contains(" -> ") {
+                is_symlink = true;
+                if let Some((link, target)) = raw_name.split_once(" -> ") {
+                    file_name = link.trim().to_string();
+                    let target_trimmed = target.trim();
+                    if target_trimmed.ends_with('/') || symlink_dirs.contains(&file_name) {
+                        is_dir = true;
+                    }
+                }
+            }
 
             let size_bytes: u64 = parts[4].parse().unwrap_or(0);
             let formatted_size = if is_dir {
@@ -96,27 +128,21 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
             };
 
             let date_str = format!("{} {} {}", parts[5], parts[6], parts[7]);
-            let name = parts[8..].join(" ");
-
-            if name == "." || name == ".." {
-                continue;
-            }
-
-            let is_hidden = name.starts_with('.');
+            let is_hidden = file_name.starts_with('.');
             let item_path = if current_pwd.ends_with('/') {
-                format!("{}{}", current_pwd, name)
+                format!("{}{}", current_pwd, file_name)
             } else {
-                format!("{}/{}", current_pwd, name)
+                format!("{}/{}", current_pwd, file_name)
             };
 
             let extension = if is_dir {
                 "folder".to_string()
             } else {
-                name.split('.').last().unwrap_or("").to_lowercase()
+                file_name.split('.').last().unwrap_or("").to_lowercase()
             };
 
             items.push(FileItem {
-                name,
+                name: raw_name,
                 path: item_path,
                 is_dir,
                 is_symlink,
