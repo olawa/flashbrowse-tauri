@@ -683,16 +683,21 @@
     }
 
     if ($smartHoverPreview) {
-      hoverTimer = setTimeout(() => {
-        if (hoveredPath === item.path && !$isInspectorLocked) {
-          activeHoveredItem.set(item);
-          onSelectPreview(item);
-        }
-      }, 150);
+      // For SSH panes: skip preview on directories to avoid blocking the SSH connection
+      // (sshGetPreview serializes over the same SSH multiplexed channel as navigation)
+      const skipPreview = pane.isSSH && item.is_dir;
+      if (!skipPreview) {
+        hoverTimer = setTimeout(() => {
+          if (hoveredPath === item.path && !$isInspectorLocked) {
+            activeHoveredItem.set(item);
+            onSelectPreview(item);
+          }
+        }, 150);
+      }
     }
 
-    // Hover Dir Tree: start 1000ms timer for directories
-    if (item.is_dir) {
+    // Hover Dir Tree: only for LOCAL directories (get_subdirs_tree reads local fs only)
+    if (item.is_dir && !pane.isSSH) {
       clearTimeout(hoverTreeTimer);
       clearTimeout(hoverTreeCloseTimer);
       hoverTreeTimer = setTimeout(() => {
