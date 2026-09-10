@@ -4,7 +4,7 @@
   import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
   import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
   import { get } from 'svelte/store';
-  import { saveMultipleItems, downloadDirectory, isSavingFile } from '../stores/downloadStore';
+  import { saveMultipleItems, downloadDirectory, isSavingFile, getSSHServerFolderName } from '../stores/downloadStore';
   import type { FileItem } from '../types';
   import {
     Files,
@@ -121,6 +121,14 @@
   $: bamPaths = items
     .filter((i) => !i.is_dir && (i.extension === 'bam' || i.extension === 'cram' || i.name.endsWith('.bam') || i.name.endsWith('.cram')))
     .map((i) => i.path);
+
+  $: activePane = $activePaneId === 'left' ? $leftPane : $rightPane;
+  $: isSSH = activePane.isSSH;
+  $: sshFolderName = isSSH && activePane.sshHost ? getSSHServerFolderName(activePane.sshHost) : '';
+  $: downloadTargetLabel = isSSH && sshFolderName ? `Downloads/${sshFolderName}` : 'Mac';
+  $: downloadButtonTitle = isSSH && sshFolderName
+    ? `Spara alla markerade filer permanent till Downloads/${sshFolderName}`
+    : `Spara permanent lokal kopia av alla markerade filer till ${$downloadDirectory || '~/Downloads'}`;
 
   let isSavedAll = false;
 
@@ -272,7 +280,7 @@
       class="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm {isSavedAll ? 'bg-emerald-600 text-white' : ''}"
       on:click={handleSaveAllToDownloads}
       disabled={$isSavingFile}
-      title="Spara permanent lokal kopia av alla markerade filer till {$downloadDirectory || '~/Downloads'}"
+      title={downloadButtonTitle}
     >
       {#if $isSavingFile}
         <div class="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
@@ -282,7 +290,7 @@
         <span>Sparade alla!</span>
       {:else}
         <Download size={13} class="text-emerald-400" />
-        <span>Spara alla till Mac ({totalCount})</span>
+        <span>Spara alla till {downloadTargetLabel} ({totalCount})</span>
       {/if}
     </button>
 

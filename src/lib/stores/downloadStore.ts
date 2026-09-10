@@ -29,17 +29,37 @@ export function setDownloadDirectory(path: string) {
   }
 }
 
+export function getSSHServerFolderName(sshHost: string): string {
+  const clean = (sshHost || 'remote').trim().replace(/[/\\:]/g, '_');
+  return clean || 'remote';
+}
+
+export function getSSHDownloadDirectory(sshHost: string, baseDir?: string): string {
+  const base = baseDir || get(downloadDirectory) || '~/Downloads';
+  const folder = getSSHServerFolderName(sshHost);
+  return `${base}/${folder}`;
+}
+
 export async function saveRemoteOrLocalItem(
   sourceIsSSH: boolean,
   sshHost: string,
   sourcePath: string,
   targetDirOverride?: string
 ): Promise<{ success: boolean; message: string; targetPath: string }> {
-  let targetDir = targetDirOverride || get(downloadDirectory);
-  if (!targetDir) {
+  let baseDir = get(downloadDirectory);
+  if (!baseDir) {
     const home = await getHomeDirectory();
-    targetDir = `${home}/Downloads`;
-    downloadDirectory.set(targetDir);
+    baseDir = `${home}/Downloads`;
+    downloadDirectory.set(baseDir);
+  }
+
+  let targetDir = targetDirOverride;
+  if (!targetDir) {
+    if (sourceIsSSH && sshHost) {
+      targetDir = getSSHDownloadDirectory(sshHost, baseDir);
+    } else {
+      targetDir = baseDir;
+    }
   }
 
   const fileName = sourcePath.split('/').pop() || 'file';
@@ -83,11 +103,20 @@ export async function saveMultipleItems(
 ): Promise<{ success: boolean; message: string }> {
   if (sourcePaths.length === 0) return { success: false, message: 'Inga filer' };
 
-  let targetDir = targetDirOverride || get(downloadDirectory);
-  if (!targetDir) {
+  let baseDir = get(downloadDirectory);
+  if (!baseDir) {
     const home = await getHomeDirectory();
-    targetDir = `${home}/Downloads`;
-    downloadDirectory.set(targetDir);
+    baseDir = `${home}/Downloads`;
+    downloadDirectory.set(baseDir);
+  }
+
+  let targetDir = targetDirOverride;
+  if (!targetDir) {
+    if (sourceIsSSH && sshHost) {
+      targetDir = getSSHDownloadDirectory(sshHost, baseDir);
+    } else {
+      targetDir = baseDir;
+    }
   }
 
   isSavingFile.set(true);

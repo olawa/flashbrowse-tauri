@@ -434,6 +434,9 @@ pub async fn transfer_items(
         // Case 3: Remote to Local (Download via scp)
         if source_is_ssh && !dest_is_ssh {
             let dest_local = resolve_path(&dest_dir);
+            if let Err(e) = std::fs::create_dir_all(&dest_local) {
+                return Err(format!("Kunde inte skapa målmapp {}: {}", dest_local.display(), e));
+            }
             let dest_str = dest_local.to_string_lossy().to_string();
 
             let mut args = vec!["-r".to_string()];

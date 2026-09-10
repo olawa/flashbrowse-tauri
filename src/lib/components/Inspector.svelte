@@ -52,6 +52,7 @@
     saveRemoteOrLocalItem,
     setDownloadDirectory,
     initDownloadStore,
+    getSSHServerFolderName,
   } from '../stores/downloadStore';
 
   export let item: FileItem | null = null;
@@ -78,6 +79,13 @@
   let currentTab: 'preview' | 'notes' | 'ai' = 'preview';
 
   $: activePaneState = $activePaneId === 'left' ? $leftPane : $rightPane;
+  $: sshFolderName = activePaneState.isSSH && activePaneState.sshHost ? getSSHServerFolderName(activePaneState.sshHost) : '';
+  $: downloadTargetTitle = sshFolderName 
+    ? `Spara permanent till Downloads/${sshFolderName}` 
+    : `Spara permanent lokal kopia till ${$downloadDirectory || '~/Downloads'}`;
+  $: saveButtonLabel = activePaneState.isSSH 
+    ? (sshFolderName ? `till ${sshFolderName}` : 'till Mac') 
+    : 'kopia';
   $: selectedItems = activePaneState.items.filter((i) => activePaneState.selectedPaths.has(i.path));
   $: isMultiSelecting = selectedItems.length > 1 && !$isInspectorLocked && !$activeHoveredItem;
 
@@ -318,7 +326,7 @@
             class="flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-semibold transition-all {isSaveSuccess ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm' : 'bg-cyan-950/40 hover:bg-cyan-900/60 text-cyan-300 border-cyan-800/80 hover:text-white'}"
             on:click={handleSavePermanent}
             disabled={$isSavingFile}
-            title="Spara permanent lokal kopia till {$downloadDirectory || '~/Downloads'}"
+            title={downloadTargetTitle}
           >
             {#if $isSavingFile}
               <div class="w-2.5 h-2.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
@@ -328,7 +336,7 @@
               <span>Sparad!</span>
             {:else}
               <Download size={11} class="text-cyan-400" />
-              <span>Spara {activePaneState.isSSH ? 'till Mac' : 'kopia'}</span>
+              <span>Spara {saveButtonLabel}</span>
             {/if}
           </button>
 

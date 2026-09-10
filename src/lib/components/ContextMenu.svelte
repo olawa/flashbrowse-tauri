@@ -41,7 +41,7 @@
     Code,
     ChevronRight,
   } from 'lucide-svelte';
-  import { saveRemoteOrLocalItem, downloadDirectory, saveNotification } from '../stores/downloadStore';
+  import { saveRemoteOrLocalItem, downloadDirectory, saveNotification, getSSHServerFolderName } from '../stores/downloadStore';
 
   export let item: FileItem;
   export let paneId: 'left' | 'right';
@@ -288,6 +288,12 @@
     await saveRemoteOrLocalItem(store.isSSH, store.sshHost, item.path);
     onClose();
   }
+
+  $: sshFolderName = currentPaneState.isSSH && currentPaneState.sshHost ? getSSHServerFolderName(currentPaneState.sshHost) : '';
+  $: downloadButtonLabel = sshFolderName ? `Downloads/${sshFolderName}` : 'Downloads';
+  $: downloadButtonTitle = sshFolderName 
+    ? `Spara permanent till Downloads/${sshFolderName}` 
+    : `Spara permanent lokal kopia till ${$downloadDirectory || '~/Downloads'}`;
 </script>
 
 <div
@@ -299,11 +305,11 @@
   <button
     class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400"
     on:click={handleSaveToDownloads}
-    title="Spara permanent lokal kopia till {$downloadDirectory || '~/Downloads'}"
+    title={downloadButtonTitle}
   >
     <div class="flex items-center gap-2 min-w-0">
       <Download size={13} class="text-emerald-400 shrink-0" />
-      <span class="truncate">Spara till Downloads</span>
+      <span class="truncate">Spara till {downloadButtonLabel}</span>
     </div>
     <span class="text-[9px] font-mono opacity-70">Lokal</span>
   </button>
