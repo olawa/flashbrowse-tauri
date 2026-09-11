@@ -21,6 +21,8 @@
     Edit3,
     Check,
     Laptop,
+    Clipboard,
+    Copy,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
@@ -46,8 +48,50 @@
     } catch {}
   }
 
-  function startEditing() {
+  let isContextMenuOpen = false;
+  let contextMenuX = 0;
+  let contextMenuY = 0;
+
+  function cleanPathString(input: string): string {
+    let str = input.trim();
+    if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+      str = str.slice(1, -1);
+    }
+    if (str.startsWith('file://')) {
+      str = str.replace('file://', '');
+      try {
+        str = decodeURIComponent(str);
+      } catch {}
+    }
+    return str.trim();
+  }
+
+  function startEditing(prefillFromClipboard = false) {
     loadSavedServers();
+    if (prefillFromClipboard) {
+      navigator.clipboard.readText().then((text) => {
+        const cleaned = cleanPathString(text);
+        if (cleaned.startsWith('/') || cleaned.startsWith('~')) {
+          editPathText = cleaned;
+        } else {
+          editPathText = pane.currentPath;
+        }
+        isEditingPath = true;
+        tick().then(() => {
+          pathInputEl?.focus();
+          pathInputEl?.select();
+        });
+      }).catch(() => {
+        editPathText = pane.currentPath;
+        isEditingPath = true;
+        tick().then(() => {
+          pathInputEl?.focus();
+          pathInputEl?.select();
+        });
+      });
+      return;
+    }
+
     editPathText = pane.currentPath;
     isEditingPath = true;
     tick().then(() => {
@@ -59,10 +103,51 @@
   function commitPath() {
     if (!isEditingPath) return;
     isEditingPath = false;
-    const trimmed = editPathText.trim();
-    if (trimmed && trimmed !== pane.currentPath) {
-      navigatePane(paneId, trimmed);
+    const cleaned = cleanPathString(editPathText);
+    if (cleaned && cleaned !== pane.currentPath) {
+      navigatePane(paneId, cleaned);
     }
+  }
+
+  async function pastePathAndGo() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const cleaned = cleanPathString(text);
+      if (cleaned) {
+        navigatePane(paneId, cleaned);
+      }
+    } catch (err) {
+      console.error('Kunde inte läsa från urklipp:', err);
+    }
+  }
+
+  async function pasteIntoInput() {
+    try {
+      const text = await navigator.clipboard.readText();
+      const cleaned = cleanPathString(text);
+      if (cleaned) {
+        editPathText = cleaned;
+        pathInputEl?.focus();
+      }
+    } catch (err) {
+      console.error('Kunde inte klistra in:', err);
+    }
+  }
+
+  async function copyCurrentPath() {
+    try {
+      await navigator.clipboard.writeText(pane.currentPath);
+    } catch (err) {
+      console.error('Kunde inte kopiera sökväg:', err);
+    }
+  }
+
+  function handleContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    contextMenuX = e.clientX;
+    contextMenuY = e.clientY;
+    isContextMenuOpen = true;
   }
 
   function cancelEditing() {
@@ -89,7 +174,23 @@
   }
 </script>
 
-<svelte:window on:click={() => (isServerMenuOpen = false)} />
+<svelte:window
+  on:click={() => {
+    isServerMenuOpen = false;
+    isContextMenuOpen = false;
+  }}
+  on:keydown={(e) => {
+    if (paneId === $activePaneId && !isEditingPath) {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        startEditing();
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        pastePathAndGo();
+      }
+    }
+  }}
+/>
 
 <div class="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-xs text-[var(--text-secondary)] select-none relative z-20">
   <!-- History Controls -->
@@ -137,7 +238,16 @@
         class="flex-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-2 py-0.5 rounded border border-[var(--accent)] font-mono focus:outline-none shadow-inner"
       />
       <button
+        class="p-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-white border border-[var(--border)]"
+        on:mousedown|preventDefault
+        on:click={pasteIntoInput}
+        title="Klistra in från urklipp"
+      >
+        <Clipboard size={12} />
+      </button>
+      <button
         class="p-1 rounded bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)]"
+        on:mousedown|preventDefault
         on:click={commitPath}
         title="Gå till sökväg (Enter)"
       >
@@ -153,7 +263,8 @@
           startEditing();
         }
       }}
-      title="Klicka för att skriva eller klistra in sökväg"
+      on:contextmenu={handleContextMenu}
+      title="Klicka för att skriva eller klistra in sökväg (Högerklicka för meny)"
       role="button"
       tabindex="-1"
     >
@@ -286,8 +397,16 @@
   <div class="flex items-center gap-1.5 ml-auto shrink-0">
     <button
       class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)]"
-      on:click={startEditing}
-      title="Skriv in sökväg manuellt"
+      on:click={pastePathAndGo}
+      title="Klistra in sökväg från urklipp och gå dit direkt (⌘⇧G)"
+    >
+      <Clipboard size={12} />
+    </button>
+
+    <button
+      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)]"
+      on:click={() => startEditing()}
+      title="Redigera sökväg manuellt (⌘L)"
     >
       <Edit3 size={12} />
     </button>
@@ -302,3 +421,56 @@
     </button>
   </div>
 </div>
+
+{#if isContextMenuOpen}
+  <div
+    class="fixed z-50 w-52 py-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-md shadow-2xl text-xs text-[var(--text-primary)] select-none backdrop-blur-md"
+    style="top: {contextMenuY}px; left: {contextMenuX}px;"
+    on:click|stopPropagation
+    role="menu"
+    tabindex="-1"
+  >
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      on:click={() => {
+        isContextMenuOpen = false;
+        pastePathAndGo();
+      }}
+    >
+      <div class="flex items-center gap-2">
+        <Clipboard size={13} class="text-emerald-400" />
+        <span>Klistra in sökväg</span>
+      </div>
+      <kbd class="text-[9px] font-mono opacity-70">⌘⇧G</kbd>
+    </button>
+
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      on:click={() => {
+        isContextMenuOpen = false;
+        copyCurrentPath();
+      }}
+    >
+      <div class="flex items-center gap-2">
+        <Copy size={13} class="text-blue-400" />
+        <span>Kopiera sökväg</span>
+      </div>
+    </button>
+
+    <div class="h-px bg-[var(--border)] my-1"></div>
+
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      on:click={() => {
+        isContextMenuOpen = false;
+        startEditing();
+      }}
+    >
+      <div class="flex items-center gap-2">
+        <Edit3 size={13} class="text-slate-400" />
+        <span>Redigera sökväg</span>
+      </div>
+      <kbd class="text-[9px] font-mono opacity-70">⌘L</kbd>
+    </button>
+  </div>
+{/if}
