@@ -35,7 +35,10 @@ function getCacheKey(root: string, categoryId: string): string {
   return `flashbrowse_idx_cache_v1_${root}_${categoryId}`;
 }
 
+let currentScanId = 0;
+
 export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forceRefresh = false) {
+  const scanId = ++currentScanId;
   activeIndexMeta.set(meta);
   indexSearchQuery.set('');
 
@@ -55,6 +58,7 @@ export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forc
       if (cached) {
         const parsed: DirectoryIndexGroup[] = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
+          if (scanId !== currentScanId || !get(activeIndexMeta)) return;
           indexedGroups.set(parsed);
           selectedDirectories.set(new Set(parsed.map((g) => g.directory_path)));
           isIndexScanning.set(false);
@@ -70,6 +74,7 @@ export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forc
   isIndexScanning.set(true);
   try {
     const groups = await scanDirectoryIndex(targetRoot, meta.extensions, 8);
+    if (scanId !== currentScanId || !get(activeIndexMeta)) return;
     indexedGroups.set(groups);
     selectedDirectories.set(new Set(groups.map((g) => g.directory_path)));
 
@@ -81,10 +86,14 @@ export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forc
     }
   } catch (err) {
     console.error('Failed to scan index:', err);
-    indexedGroups.set([]);
-    selectedDirectories.set(new Set());
+    if (scanId === currentScanId) {
+      indexedGroups.set([]);
+      selectedDirectories.set(new Set());
+    }
   } finally {
-    isIndexScanning.set(false);
+    if (scanId === currentScanId) {
+      isIndexScanning.set(false);
+    }
   }
 }
 
@@ -97,11 +106,13 @@ export async function refreshCurrentIndex() {
 }
 
 export function closeIndexView() {
+  currentScanId++;
   activeIndexMeta.set(null);
   indexedGroups.set([]);
   selectedDirectories.set(new Set());
   indexSearchQuery.set('');
   activeHighlightedParentDir.set(null);
+  isIndexScanning.set(false);
 }
 
 export function selectAllIndexDirs() {

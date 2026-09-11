@@ -254,22 +254,58 @@
 
     <!-- Index Hub (Filtypsindexering) -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Filtypsindex (Hub)</span>
+      <div class="px-2 flex items-center justify-between">
+        <span class="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Filtypsindex (Hub)</span>
+        {#if $activeIndexMeta}
+          <button
+            class="text-[10px] text-[var(--accent)] hover:underline font-semibold flex items-center gap-0.5"
+            on:click={closeIndexView}
+            title="Stäng index och återgå till fillista (Esc)"
+          >
+            <span>Stäng</span>
+            <XIcon size={10} />
+          </button>
+        {/if}
+      </div>
+
+      {#if $activeIndexMeta}
+        <div class="mt-1.5 mb-1 p-2 rounded-lg bg-[var(--accent)]/15 border border-[var(--accent)]/40 flex items-center justify-between gap-1.5 shadow-sm">
+          <div class="flex items-center gap-1.5 text-xs text-[var(--accent)] font-semibold truncate">
+            <span class="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse shrink-0"></span>
+            <span class="truncate">{$activeIndexMeta.name}</span>
+          </div>
+          <button
+            class="px-2 py-0.5 rounded bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] text-[10.5px] font-bold shrink-0 shadow-sm transition-all cursor-pointer"
+            on:click={closeIndexView}
+            title="Stäng index och återgå till vanlig fillista (Esc)"
+          >
+            Avsluta ✕
+          </button>
+        </div>
+      {/if}
+
       <div class="mt-1 space-y-0.5">
         {#each indexCategories as cat}
           {@const isActive = $activeIndexMeta?.id === cat.id}
           <button
             class="w-full flex items-center justify-between px-2 py-1.5 rounded text-left transition-colors group {isActive ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-semibold border border-[var(--accent)]/40' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
             on:click={() => handleCategoryClick(cat)}
-            title="Öppna rekursivt filtypsindex för {cat.label}"
+            title={isActive ? 'Klicka för att stänga index (Esc)' : `Öppna rekursivt filtypsindex för ${cat.label}`}
           >
             <div class="flex items-center gap-2 truncate">
               <svelte:component this={cat.icon} size={14} class="{cat.color} shrink-0" />
               <span class="truncate {isActive ? 'text-[var(--accent)]' : 'group-hover:text-white'}">{cat.label}</span>
             </div>
-            <span class="text-[9.5px] font-mono px-1 py-0.2 rounded {isActive ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[#191d26] text-slate-400 group-hover:text-slate-200 border border-[#262d3d]'}">
-              {cat.badge}
-            </span>
+            {#if isActive}
+              <span class="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-[var(--accent)] text-white font-bold flex items-center gap-0.5">
+                <span>{cat.badge}</span>
+                <XIcon size={9} />
+              </span>
+            {:else}
+              <span class="text-[9.5px] font-mono px-1 py-0.2 rounded bg-[#191d26] text-slate-400 group-hover:text-slate-200 border border-[#262d3d]">
+                {cat.badge}
+              </span>
+            {/if}
           </button>
         {/each}
       </div>

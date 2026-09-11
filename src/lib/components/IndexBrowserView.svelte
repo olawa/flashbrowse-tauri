@@ -48,12 +48,26 @@
     Sparkles,
     Rocket,
     RefreshCw,
+    ArrowLeft,
   } from 'lucide-svelte';
 
   export let onSelectPreview: (item: FileItem) => void = () => {};
 
   let hoveredPath: string | null = null;
   let isRootMenuOpen = false;
+
+  function handleWindowKeyDown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeIndexView();
+    }
+  }
+
+  function jumpToFolder(dirPath: string) {
+    const target = $activePaneId || 'left';
+    navigatePane(target, dirPath);
+    closeIndexView();
+  }
 
   // Virtual Scrolling for instant 60 FPS in massive indexes (10,000+ files)
   const ROW_HEIGHT = 38;
@@ -88,9 +102,10 @@
   }
 
   function handleFileDblClick(item: FileItem) {
-    // Open in default app or navigate left pane to its folder
+    // Navigate active pane to its folder and close index
     const parentDir = item.path.substring(0, item.path.lastIndexOf('/')) || '/';
-    navigatePane('left', parentDir);
+    const target = $activePaneId || 'left';
+    navigatePane(target, parentDir);
     closeIndexView();
   }
 
@@ -144,25 +159,38 @@
   }
 </script>
 
+<svelte:window on:keydown={handleWindowKeyDown} />
+
 {#if $activeIndexMeta}
   <div class="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-base)] text-[var(--text-primary)] select-none overflow-hidden font-sans">
     <!-- Top Hub Header -->
-    <div class="px-4 py-2.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between gap-3 shrink-0">
-      <div class="flex items-center gap-3 min-w-0">
+    <div class="px-3 sm:px-4 py-2 bg-[var(--bg-surface)] border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2.5 shrink-0 z-10">
+      <div class="flex items-center gap-2.5 min-w-0 flex-wrap sm:flex-nowrap">
+        <!-- Prominent Back / Close Button -->
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer"
+          on:click={closeIndexView}
+          title="Tillbaka till fillistan (Esc)"
+        >
+          <ArrowLeft size={14} />
+          <span>Tillbaka</span>
+          <kbd class="px-1.5 py-0.2 rounded bg-black/25 text-[10px] font-mono opacity-80 hidden sm:inline">Esc</kbd>
+        </button>
+
         <!-- Index Category Badge -->
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-panel)] border border-[var(--border)] {$activeIndexMeta.colorClass} font-bold text-xs">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-panel)] border border-[var(--border)] {$activeIndexMeta.colorClass} font-bold text-xs shrink-0">
           <span>{$activeIndexMeta.name}</span>
           <span class="px-1 py-0.2 rounded bg-black/40 text-[10px] font-mono">{$activeIndexMeta.badge}</span>
         </div>
 
         <!-- Root Directory Selector Dropdown -->
-        <div class="relative">
+        <div class="relative shrink-0">
           <button
             class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-[var(--text-secondary)] hover:text-white transition-colors"
             on:click={() => (isRootMenuOpen = !isRootMenuOpen)}
           >
             <FolderTree size={12} class="text-[var(--accent)]" />
-            <span class="font-mono text-[11px] truncate max-w-[200px]" title={$indexRootPath}>
+            <span class="font-mono text-[11px] truncate max-w-[150px] sm:max-w-[200px]" title={$indexRootPath}>
               {$indexRootPath.split('/').pop() || '~'}
             </span>
             <ChevronDown size={11} />
@@ -203,12 +231,12 @@
         </div>
 
         <!-- Files & Folders Count -->
-        <span class="text-xs text-[var(--text-muted)] font-mono hidden md:inline">
+        <span class="text-xs text-[var(--text-muted)] font-mono hidden lg:inline">
           • {$activeIndexFilteredItems.length} filer i {selectedFolderCount} av {totalFolders} mappar
         </span>
 
         {#if $isIndexScanning}
-          <div class="flex items-center gap-1 text-amber-400 text-xs font-mono animate-pulse">
+          <div class="flex items-center gap-1 text-amber-400 text-xs font-mono animate-pulse shrink-0">
             <Loader2 size={12} class="animate-spin" />
             <span>Skannar...</span>
           </div>
@@ -216,7 +244,7 @@
       </div>
 
       <!-- Actions & Search -->
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="flex items-center gap-2 shrink-0 ml-auto">
         <!-- Search filter inside index -->
         <div class="relative flex items-center">
           <Search size={11} class="absolute left-2 text-slate-500" />
@@ -224,14 +252,33 @@
             type="text"
             placeholder="Filtrera index..."
             bind:value={$indexSearchQuery}
-            class="pl-6 pr-2 py-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded-md border border-[var(--border)] focus:outline-none focus:border-[var(--accent)] w-36 sm:w-48 font-mono"
+            on:keydown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                if ($indexSearchQuery) {
+                  $indexSearchQuery = '';
+                } else {
+                  closeIndexView();
+                }
+              }
+            }}
+            class="pl-6 pr-6 py-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] rounded-md border border-[var(--border)] focus:outline-none focus:border-[var(--accent)] w-32 sm:w-44 font-mono"
           />
+          {#if $indexSearchQuery}
+            <button
+              class="absolute right-1.5 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+              on:click={() => ($indexSearchQuery = '')}
+              title="Rensa filter"
+            >
+              <X size={11} />
+            </button>
+          {/if}
         </div>
 
         <!-- BAM rsnap action button -->
         {#if $activeIndexMeta.id === 'bam' && $activeIndexFilteredItems.length > 0}
           <button
-            class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-colors"
+            class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-colors cursor-pointer"
             on:click={openAllInRsnap}
             title="Öppna markerade BAM-filer i rsnap viewer"
           >
@@ -242,7 +289,7 @@
 
         <!-- Refresh Index Button -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
           on:click={refreshCurrentIndex}
           disabled={$isIndexScanning}
           title="Läs om och uppdatera indexet från disk"
@@ -253,12 +300,12 @@
 
         <!-- Close Index Button -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
           on:click={closeIndexView}
           title="Stäng index och återgå till vanlig fillista (Esc)"
         >
           <X size={12} />
-          <span class="hidden sm:inline">Stäng index</span>
+          <span class="hidden sm:inline">Stäng</span>
         </button>
       </div>
     </div>
@@ -293,8 +340,10 @@
             {@const isSelected = $selectedDirectories.size === 0 || $selectedDirectories.has(group.directory_path)}
             {@const isParentOfActive = $activeHighlightedParentDir === group.directory_path}
             <div
-              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
+              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
               on:click={(e) => handleFolderClick(group, e)}
+              on:dblclick={() => jumpToFolder(group.directory_path)}
+              title="Klicka för att filtrera, dubbelklicka för att öppna i fillistan"
               role="button"
               tabindex="-1"
             >
@@ -312,6 +361,14 @@
                     {group.directory_name}
                   </span>
                   <div class="flex items-center gap-1 shrink-0">
+                    <button
+                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--accent)] hover:text-white text-slate-400 transition-all cursor-pointer"
+                      on:click|stopPropagation={() => jumpToFolder(group.directory_path)}
+                      title="Öppna mappen '{group.directory_name}' i vanliga filbläddraren och stäng index"
+                    >
+                      <FolderOpen size={12} />
+                    </button>
+
                     {#if isParentOfActive}
                       <span class="px-1.5 py-0.2 rounded bg-[var(--accent)] text-white text-[9px] font-bold tracking-wide">
                         Aktiv
@@ -369,7 +426,7 @@
                 {#each visibleItems as item (item.path)}
                   {@const isHovered = hoveredPath === item.path}
                   <div
-                    class="grid grid-cols-12 gap-2 px-3 h-[38px] max-h-[38px] box-border items-center cursor-pointer transition-colors duration-100 {isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-primary)]'}"
+                    class="grid grid-cols-12 gap-2 px-3 h-[38px] max-h-[38px] box-border items-center cursor-pointer transition-colors duration-100 group {isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-primary)]'}"
                     style="height: {ROW_HEIGHT}px;"
                     on:click={() => handleFileClick(item)}
                     on:dblclick={() => handleFileDblClick(item)}
@@ -387,6 +444,24 @@
                         <span class="text-[10px] text-[var(--text-muted)] font-mono truncate" title={item.path}>
                           {item.path.replace($indexRootPath, '.')}
                         </span>
+                      </div>
+
+                      <!-- Action buttons on hover -->
+                      <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 ml-1">
+                        <button
+                          class="p-1 rounded hover:bg-[var(--accent)] hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          on:click|stopPropagation={() => handleFileDblClick(item)}
+                          title="Öppna mappen i fillistan och stäng index"
+                        >
+                          <FolderOpen size={12} />
+                        </button>
+                        <button
+                          class="p-1 rounded hover:bg-[var(--bg-panel)] hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          on:click|stopPropagation={() => revealInOs(item.path)}
+                          title="Visa i Finder"
+                        >
+                          <ExternalLink size={12} />
+                        </button>
                       </div>
                     </div>
 
