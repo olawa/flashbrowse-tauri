@@ -38,8 +38,33 @@ export async function trashItems(paths: string[]): Promise<void> {
   await invoke('trash_items', { paths });
 }
 
-export async function copyItems(paths: string[], destinationDir: string): Promise<void> {
-  await invoke('copy_items', { paths, destinationDir });
+/**
+ * How the backend should treat a destination that already exists.
+ * 'fail' (default) never destroys anything; 'rename' is Finder's "Keep Both".
+ */
+export type ConflictStrategy = 'fail' | 'rename' | 'overwrite';
+
+/** Error prefix the backend uses when a transfer stopped because targets exist. */
+export const CONFLICT_ERROR_PREFIX = 'CONFLICT:';
+
+/** Names of the colliding files, or null when the error is something else. */
+export function parseConflictError(err: unknown): string[] | null {
+  const msg = typeof err === 'string' ? err : (err as any)?.message ?? String(err);
+  const idx = msg.indexOf(CONFLICT_ERROR_PREFIX);
+  if (idx === -1) return null;
+  return msg
+    .slice(idx + CONFLICT_ERROR_PREFIX.length)
+    .split('\n')
+    .map((n: string) => n.trim())
+    .filter(Boolean);
+}
+
+export async function copyItems(
+  paths: string[],
+  destinationDir: string,
+  onConflict: ConflictStrategy = 'fail',
+): Promise<void> {
+  await invoke('copy_items', { paths, destinationDir, onConflict });
 }
 
 export async function transferItems(
@@ -49,6 +74,7 @@ export async function transferItems(
   destIsSsh: boolean,
   destSshHost: string,
   destDir: string,
+  onConflict: ConflictStrategy = 'fail',
 ): Promise<string> {
   return await invoke<string>('transfer_items', {
     sourceIsSsh,
@@ -57,11 +83,16 @@ export async function transferItems(
     destIsSsh,
     destSshHost,
     destDir,
+    onConflict,
   });
 }
 
-export async function moveItems(paths: string[], destinationDir: string): Promise<void> {
-  await invoke('move_items', { paths, destinationDir });
+export async function moveItems(
+  paths: string[],
+  destinationDir: string,
+  onConflict: ConflictStrategy = 'fail',
+): Promise<void> {
+  await invoke('move_items', { paths, destinationDir, onConflict });
 }
 
 export async function createDirectory(parent: string, name: string): Promise<string> {

@@ -33,7 +33,7 @@ pub fn scp_base_args() -> Vec<&'static str> {
 /// that reaches the remote shell unquoted is executed by it. Remote directory names
 /// are attacker-controlled on shared systems, so this must be used for every path
 /// interpolated into a remote script.
-fn sh_quote(s: &str) -> String {
+pub fn sh_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 

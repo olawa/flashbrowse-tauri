@@ -1,5 +1,5 @@
 import { writable, get } from 'svelte/store';
-import { listDirectory, getHomeDirectory, sshListDirectory, transferItems, watchDirectory } from '../invoke';
+import { listDirectory, getHomeDirectory, sshListDirectory, transferItems, watchDirectory, parseConflictError, type ConflictStrategy } from '../invoke';
 import { listen } from '@tauri-apps/api/event';
 import type { FileItem } from '../types';
 
@@ -287,15 +287,41 @@ export async function transferBetweenPanes(
   isTransferring.set(true);
   transferStatus.set(`Överför ${paths.length} objekt...`);
 
-  try {
-    const resultMsg = await transferItems(
+  const run = async (onConflict: ConflictStrategy) =>
+    await transferItems(
       fromState.isSSH,
       fromState.sshHost,
       paths,
       toState.isSSH,
       toState.sshHost,
-      toState.currentPath
+      toState.currentPath,
+      onConflict
     );
+
+  try {
+    let resultMsg: string;
+    try {
+      resultMsg = await run('fail');
+    } catch (err: any) {
+      // The backend refuses to overwrite; let the user decide instead of
+      // silently destroying files that are already in the destination.
+      const conflicts = parseConflictError(err);
+      if (!conflicts) throw err;
+
+      const shown = conflicts.slice(0, 8).join('\n');
+      const more = conflicts.length > 8 ? `\n…och ${conflicts.length - 8} till` : '';
+      const keepBoth = confirm(
+        `${conflicts.length} objekt finns redan i målmappen:\n\n${shown}${more}\n\n` +
+          'OK = behåll båda (kopiorna döps om)\nAvbryt = avbryt överföringen'
+      );
+      if (!keepBoth) {
+        transferStatus.set('Överföring avbruten');
+        setTimeout(() => transferStatus.set(null), 3000);
+        return;
+      }
+      resultMsg = await run('rename');
+    }
+
     transferStatus.set(resultMsg);
     setTimeout(() => transferStatus.set(null), 3000);
     await reloadPane(toPaneId);

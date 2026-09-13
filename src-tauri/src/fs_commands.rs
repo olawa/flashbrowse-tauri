@@ -333,6 +333,105 @@ pub async fn calculate_dir_size(path: String) -> Result<DirectorySummary, String
     .map_err(|e| e.to_string())?
 }
 
+/// How to handle a destination that already exists.
+///
+/// The default is `Fail`: a file manager must never destroy a file the user
+/// cannot see. `Rename` is Finder's "Keep Both"; `Overwrite` is only reachable
+/// when the user has explicitly asked for it.
+#[derive(Clone, Copy, PartialEq)]
+pub enum ConflictStrategy {
+    Fail,
+    Rename,
+    Overwrite,
+}
+
+impl ConflictStrategy {
+    fn parse(value: Option<String>) -> Self {
+        match value.as_deref() {
+            Some("rename") => ConflictStrategy::Rename,
+            Some("overwrite") => ConflictStrategy::Overwrite,
+            _ => ConflictStrategy::Fail,
+        }
+    }
+}
+
+/// Prefix that lets the frontend recognise a conflict and offer a choice
+/// instead of showing a raw error.
+pub const CONFLICT_ERROR_PREFIX: &str = "CONFLICT:";
+
+/// Check every target up front so a transfer either starts cleanly or touches
+/// nothing at all - failing halfway through leaves the user with a partial copy
+/// and no idea which files made it.
+fn check_conflicts(targets: &[PathBuf], strategy: ConflictStrategy) -> Result<(), String> {
+    if strategy != ConflictStrategy::Fail {
+        return Ok(());
+    }
+    let existing: Vec<String> = targets
+        .iter()
+        .filter(|t| t.symlink_metadata().is_ok())
+        .map(|t| t.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default())
+        .collect();
+
+    if existing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("{}{}", CONFLICT_ERROR_PREFIX, existing.join("\n")))
+    }
+}
+
+/// Finder-style "Keep Both": data.tsv -> "data 2.tsv" -> "data 3.tsv".
+fn unique_target(target: &Path) -> PathBuf {
+    if target.symlink_metadata().is_err() {
+        return target.to_path_buf();
+    }
+    let parent = target.parent().unwrap_or(Path::new("."));
+    let stem = target.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let ext = target.extension().map(|e| e.to_string_lossy().to_string());
+
+    for n in 2..10_000 {
+        let name = match &ext {
+            Some(e) => format!("{} {}.{}", stem, n, e),
+            None => format!("{} {}", stem, n),
+        };
+        let candidate = parent.join(name);
+        if candidate.symlink_metadata().is_err() {
+            return candidate;
+        }
+    }
+    target.to_path_buf()
+}
+
+/// Resolve the final target for one source item, or `None` when an existing
+/// target should be left alone.
+fn target_for(dest: &Path, src: &Path, strategy: ConflictStrategy) -> Option<PathBuf> {
+    let file_name = src.file_name()?;
+    let target = dest.join(file_name);
+    match strategy {
+        ConflictStrategy::Rename => Some(unique_target(&target)),
+        _ => Some(target),
+    }
+}
+
+/// Move that also works across filesystems. `fs::rename` fails with EXDEV when
+/// source and destination are on different volumes, which is the normal case
+/// when moving data off an external drive or a mounted share.
+fn move_path(src: &Path, target: &Path) -> Result<(), String> {
+    match fs::rename(src, target) {
+        Ok(()) => Ok(()),
+        Err(e) if e.raw_os_error() == Some(18) => {
+            // EXDEV: copy to the other volume, then remove the source.
+            if src.is_dir() {
+                copy_dir_recursive(src, target).map_err(|e| e.to_string())?;
+                fs::remove_dir_all(src).map_err(|e| e.to_string())
+            } else {
+                fs::copy(src, target).map_err(|e| e.to_string())?;
+                fs::remove_file(src).map_err(|e| e.to_string())
+            }
+        }
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[tauri::command]
 pub async fn trash_items(paths: Vec<String>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -349,22 +448,34 @@ pub async fn trash_items(paths: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn copy_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
+pub async fn copy_items(
+    paths: Vec<String>,
+    destination_dir: String,
+    on_conflict: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dest = resolve_path(&destination_dir);
         if !dest.is_dir() {
             return Err("Destination is not a directory".to_string());
         }
+        let strategy = ConflictStrategy::parse(on_conflict);
 
-        for p in paths {
-            let src = resolve_path(&p);
-            if let Some(file_name) = src.file_name() {
-                let target = dest.join(file_name);
-                if src.is_dir() {
-                    copy_dir_recursive(&src, &target).map_err(|e| e.to_string())?;
-                } else {
-                    fs::copy(&src, &target).map_err(|e| format!("Failed to copy {}: {}", p, e))?;
-                }
+        let sources: Vec<PathBuf> = paths.iter().map(|p| resolve_path(p)).collect();
+        let planned: Vec<PathBuf> = sources
+            .iter()
+            .filter_map(|src| target_for(&dest, src, ConflictStrategy::Fail))
+            .collect();
+        check_conflicts(&planned, strategy)?;
+
+        for src in sources {
+            let Some(target) = target_for(&dest, &src, strategy) else {
+                continue;
+            };
+            if src.is_dir() {
+                copy_dir_recursive(&src, &target).map_err(|e| e.to_string())?;
+            } else {
+                fs::copy(&src, &target)
+                    .map_err(|e| format!("Failed to copy {}: {}", src.display(), e))?;
             }
         }
         Ok(())
@@ -381,6 +492,7 @@ pub async fn transfer_items(
     dest_is_ssh: bool,
     dest_ssh_host: String,
     dest_dir: String,
+    on_conflict: Option<String>,
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if source_paths.is_empty() {
@@ -393,18 +505,29 @@ pub async fn transfer_items(
             if !dest.is_dir() {
                 return Err(format!("Målmappen finns inte lokalt: {}", dest_dir));
             }
-            for p in &source_paths {
-                let src = resolve_path(p);
-                if let Some(file_name) = src.file_name() {
-                    let target = dest.join(file_name);
-                    if src.is_dir() {
-                        copy_dir_recursive(&src, &target).map_err(|e| e.to_string())?;
-                    } else {
-                        fs::copy(&src, &target).map_err(|e| format!("Kunde inte kopiera {}: {}", p, e))?;
-                    }
+            let strategy = ConflictStrategy::parse(on_conflict);
+
+            let sources: Vec<PathBuf> = source_paths.iter().map(|p| resolve_path(p)).collect();
+            let planned: Vec<PathBuf> = sources
+                .iter()
+                .filter_map(|src| target_for(&dest, src, ConflictStrategy::Fail))
+                .collect();
+            check_conflicts(&planned, strategy)?;
+
+            let mut copied = 0usize;
+            for src in &sources {
+                let Some(target) = target_for(&dest, src, strategy) else {
+                    continue;
+                };
+                if src.is_dir() {
+                    copy_dir_recursive(src, &target).map_err(|e| e.to_string())?;
+                } else {
+                    fs::copy(src, &target)
+                        .map_err(|e| format!("Kunde inte kopiera {}: {}", src.display(), e))?;
                 }
+                copied += 1;
             }
-            return Ok(format!("Kopierade {} objekt lokalt", source_paths.len()));
+            return Ok(format!("Kopierade {} objekt lokalt", copied));
         }
 
         // Case 2: Local to Remote (Upload via scp)
@@ -437,26 +560,51 @@ pub async fn transfer_items(
             if let Err(e) = std::fs::create_dir_all(&dest_local) {
                 return Err(format!("Kunde inte skapa målmapp {}: {}", dest_local.display(), e));
             }
-            let dest_str = dest_local.to_string_lossy().to_string();
 
-            let mut args = vec!["-r".to_string()];
-            for flag in scp_base_args() {
-                args.push(flag.to_string());
-            }
-            for p in &source_paths {
-                let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
-                args.push(remote_src);
-            }
-            args.push(dest_str);
+            // scp happily overwrites whatever it lands on, so the local targets
+            // are resolved here rather than left to scp.
+            let strategy = ConflictStrategy::parse(on_conflict);
+            let planned: Vec<PathBuf> = source_paths
+                .iter()
+                .filter_map(|p| Path::new(p).file_name().map(|n| dest_local.join(n)))
+                .collect();
+            check_conflicts(&planned, strategy)?;
 
-            let out = std::process::Command::new("scp")
-                .args(&args)
-                .output()
-                .map_err(|e| format!("Kunde inte starta scp för nedladdning: {}", e))?;
+            let run_scp = |args: Vec<String>| -> Result<(), String> {
+                let out = std::process::Command::new("scp")
+                    .args(&args)
+                    .output()
+                    .map_err(|e| format!("Kunde inte starta scp för nedladdning: {}", e))?;
+                if !out.status.success() {
+                    let err = String::from_utf8_lossy(&out.stderr);
+                    return Err(format!("Nedladdning misslyckades: {}", err));
+                }
+                Ok(())
+            };
 
-            if !out.status.success() {
-                let err = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("Nedladdning misslyckades: {}", err));
+            let base_args: Vec<String> = std::iter::once("-r".to_string())
+                .chain(scp_base_args().iter().map(|f| f.to_string()))
+                .collect();
+
+            if strategy == ConflictStrategy::Rename {
+                // One scp per file so each can land on its own numbered name.
+                for p in &source_paths {
+                    let Some(name) = Path::new(p).file_name() else {
+                        continue;
+                    };
+                    let target = unique_target(&dest_local.join(name));
+                    let mut args = base_args.clone();
+                    args.push(format!("{}:{}", source_ssh_host, crate::ssh_commands::sh_quote(p)));
+                    args.push(target.to_string_lossy().to_string());
+                    run_scp(args)?;
+                }
+            } else {
+                let mut args = base_args.clone();
+                for p in &source_paths {
+                    args.push(format!("{}:{}", source_ssh_host, crate::ssh_commands::sh_quote(p)));
+                }
+                args.push(dest_local.to_string_lossy().to_string());
+                run_scp(args)?;
             }
             return Ok(format!("Laddade ner {} objekt från {}", source_paths.len(), source_ssh_host));
         }
@@ -656,19 +804,30 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 #[tauri::command]
-pub async fn move_items(paths: Vec<String>, destination_dir: String) -> Result<(), String> {
+pub async fn move_items(
+    paths: Vec<String>,
+    destination_dir: String,
+    on_conflict: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         let dest = resolve_path(&destination_dir);
         if !dest.is_dir() {
             return Err("Destination is not a directory".to_string());
         }
+        let strategy = ConflictStrategy::parse(on_conflict);
 
-        for p in paths {
-            let src = resolve_path(&p);
-            if let Some(file_name) = src.file_name() {
-                let target = dest.join(file_name);
-                fs::rename(&src, &target).map_err(|e| format!("Failed to move {}: {}", p, e))?;
-            }
+        let sources: Vec<PathBuf> = paths.iter().map(|p| resolve_path(p)).collect();
+        let planned: Vec<PathBuf> = sources
+            .iter()
+            .filter_map(|src| target_for(&dest, src, ConflictStrategy::Fail))
+            .collect();
+        check_conflicts(&planned, strategy)?;
+
+        for src in sources {
+            let Some(target) = target_for(&dest, &src, strategy) else {
+                continue;
+            };
+            move_path(&src, &target).map_err(|e| format!("Failed to move {}: {}", src.display(), e))?;
         }
         Ok(())
     })
@@ -676,25 +835,55 @@ pub async fn move_items(paths: Vec<String>, destination_dir: String) -> Result<(
     .map_err(|e| e.to_string())?
 }
 
+/// A new name must stay inside its folder: "../secrets" or "a/b" would move the
+/// item somewhere the user never pointed at.
+fn validate_file_name(name: &str) -> Result<(), String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err("Namnet får inte vara tomt".to_string());
+    }
+    if trimmed == "." || trimmed == ".." || trimmed.contains('/') || trimmed.contains('\\') {
+        return Err(format!("Ogiltigt namn: {}", name));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn create_directory(parent: &str, name: &str) -> Result<String, String> {
+    validate_file_name(name)?;
     let new_path = resolve_path(parent).join(name);
+    if new_path.symlink_metadata().is_ok() {
+        return Err(format!("{} finns redan", name));
+    }
     fs::create_dir_all(&new_path).map_err(|e| format!("Failed to create folder: {}", e))?;
     Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn create_file(parent: &str, name: &str) -> Result<String, String> {
+    validate_file_name(name)?;
     let new_path = resolve_path(parent).join(name);
-    fs::File::create(&new_path).map_err(|e| format!("Failed to create file: {}", e))?;
+    // create_new so an existing file is never truncated.
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&new_path)
+        .map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => format!("{} finns redan", name),
+            _ => format!("Failed to create file: {}", e),
+        })?;
     Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 pub fn rename_item(path: &str, new_name: &str) -> Result<String, String> {
+    validate_file_name(new_name)?;
     let old_path = resolve_path(path);
     let parent = old_path.parent().ok_or("Invalid parent directory")?;
     let new_path = parent.join(new_name);
+    if new_path != old_path && new_path.symlink_metadata().is_ok() {
+        return Err(format!("{} finns redan i mappen", new_name));
+    }
     fs::rename(&old_path, &new_path).map_err(|e| format!("Failed to rename: {}", e))?;
     Ok(new_path.to_string_lossy().to_string())
 }
@@ -1224,3 +1413,70 @@ pub async fn deep_search(
 }
 
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("fb_fs_test_{}_{}", tag, std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
+
+    #[test]
+    fn keep_both_numbers_copies_without_touching_the_original() {
+        let dir = temp_dir("keepboth");
+        let original = dir.join("data.tsv");
+        fs::write(&original, b"original").unwrap();
+
+        let first = unique_target(&original);
+        assert_eq!(first.file_name().unwrap(), "data 2.tsv");
+        fs::write(&first, b"copy").unwrap();
+
+        let second = unique_target(&original);
+        assert_eq!(second.file_name().unwrap(), "data 3.tsv");
+        assert_eq!(fs::read(&original).unwrap(), b"original");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn conflicts_are_reported_before_anything_is_written() {
+        let dir = temp_dir("conflict");
+        let existing = dir.join("keep.bam");
+        fs::write(&existing, b"precious").unwrap();
+
+        let err = check_conflicts(&[existing.clone()], ConflictStrategy::Fail)
+            .expect_err("should report the conflict");
+        assert!(err.starts_with(CONFLICT_ERROR_PREFIX));
+        assert!(err.contains("keep.bam"));
+
+        // The other strategies leave the decision to the caller.
+        assert!(check_conflicts(&[existing.clone()], ConflictStrategy::Rename).is_ok());
+        assert_eq!(fs::read(&existing).unwrap(), b"precious");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn names_cannot_escape_their_folder() {
+        assert!(validate_file_name("report.md").is_ok());
+        assert!(validate_file_name("../secrets").is_err());
+        assert!(validate_file_name("a/b").is_err());
+        assert!(validate_file_name("  ").is_err());
+    }
+
+    #[test]
+    fn creating_a_file_never_truncates_an_existing_one() {
+        let dir = temp_dir("create");
+        fs::write(dir.join("notes.txt"), b"keep me").unwrap();
+
+        let err = create_file(&dir.to_string_lossy(), "notes.txt").expect_err("should refuse");
+        assert!(err.contains("finns redan"));
+        assert_eq!(fs::read(dir.join("notes.txt")).unwrap(), b"keep me");
+
+        fs::remove_dir_all(&dir).ok();
+    }
+}

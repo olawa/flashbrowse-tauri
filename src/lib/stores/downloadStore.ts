@@ -67,13 +67,15 @@ export async function saveRemoteOrLocalItem(
 
   isSavingFile.set(true);
   try {
+    // Downloads behave like a browser: never overwrite, add a numbered copy.
     const msg = await transferItems(
       sourceIsSSH,
       sshHost,
       [sourcePath],
       false,
       '',
-      targetDir
+      targetDir,
+      'rename'
     );
 
     saveNotification.set({
@@ -127,7 +129,8 @@ export async function saveMultipleItems(
       sourcePaths,
       false,
       '',
-      targetDir
+      targetDir,
+      'rename'
     );
 
     saveNotification.set({
