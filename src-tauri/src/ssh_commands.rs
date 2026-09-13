@@ -27,6 +27,29 @@ pub fn scp_base_args() -> Vec<&'static str> {
     ]
 }
 
+/// Quote a string for safe use as a single POSIX shell word.
+///
+/// Everything sent to a remote host runs through `ssh host "<script>"`, so any path
+/// that reaches the remote shell unquoted is executed by it. Remote directory names
+/// are attacker-controlled on shared systems, so this must be used for every path
+/// interpolated into a remote script.
+fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// Quote a path that may start with `~` so tilde expansion still happens remotely.
+/// `~/'my dir'` expands the tilde and keeps the rest literal, which is what we want;
+/// quoting the tilde itself (`'~/my dir'`) would look for a directory named "~".
+fn sh_quote_path(path: &str) -> String {
+    if path == "~" {
+        "~".to_string()
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        format!("~/{}", sh_quote(rest))
+    } else {
+        sh_quote(path)
+    }
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct SshDirectoryResult {
     pub current_path: String,
@@ -36,15 +59,8 @@ pub struct SshDirectoryResult {
 #[tauri::command]
 pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirectoryResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let remote_script = if path.is_empty() || path == "~" {
-            "cd ~ && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true".to_string()
-        } else if path.starts_with("~/") {
-            let rest = &path[2..].replace('\'', "'\\''");
-            format!("cd \"${{HOME}}/{}\" && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", rest)
-        } else {
-            let escaped_path = path.replace('\'', "'\\''");
-            format!("cd '{}' && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", escaped_path)
-        };
+        let target = if path.is_empty() { "~" } else { &path };
+        let remote_script = format!("cd {} && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", sh_quote_path(target));
 
         let mut args = ssh_base_args();
         args.push(&host);
@@ -189,7 +205,7 @@ fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::pa
 
     let cached_path = cache_dir.join(format!("{:x}_{}", hash, file_name));
 
-    let remote_src = format!("{}:'{}'", host, remote_path.replace('\'', "'\\''"));
+    let remote_src = format!("{}:{}", host, sh_quote(remote_path));
     let mut args = scp_base_args();
     let cached_str = cached_path.to_string_lossy().to_string();
     args.push(&remote_src);
@@ -237,7 +253,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
     }
 
     tauri::async_runtime::spawn_blocking(move || {
-        let escaped_path = path.replace('\'', "'\\''");
+        let quoted_path = sh_quote(&path);
         let ext = Path::new(&path)
             .extension()
             .map(|e| e.to_string_lossy().to_lowercase())
@@ -250,7 +266,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         let is_gz = ext == "gz" || ext == "bgz" || filename.ends_with(".vcf.gz") || filename.ends_with(".fastq.gz") || filename.ends_with(".tsv.gz") || filename.ends_with(".csv.gz");
 
         // Stat remote file to get size and modified date
-        let stat_cmd = format!("stat -c '%s %Y' '{}' 2>/dev/null || stat -f '%z %m' '{}' 2>/dev/null", escaped_path, escaped_path);
+        let stat_cmd = format!("stat -c '%s %Y' {} 2>/dev/null || stat -f '%z %m' {} 2>/dev/null", quoted_path, quoted_path);
         let mut stat_args = ssh_base_args();
         stat_args.push(&host);
         stat_args.push(&stat_cmd);
@@ -271,7 +287,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
 
         // 1. Image preview over SSH
         if ["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
-            let b64_cmd = format!("base64 '{}' 2>/dev/null | head -c 5000000", escaped_path);
+            let b64_cmd = format!("base64 {} 2>/dev/null | head -c 5000000", quoted_path);
             let mut img_args = ssh_base_args();
             img_args.push(&host);
             img_args.push(&b64_cmd);
@@ -313,7 +329,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         }
 
         if ext == "svg" {
-            let cat_cmd = format!("head -c 262144 '{}' 2>/dev/null", escaped_path);
+            let cat_cmd = format!("head -c 262144 {} 2>/dev/null", quoted_path);
             let mut svg_args = ssh_base_args();
             svg_args.push(&host);
             svg_args.push(&cat_cmd);
@@ -349,9 +365,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
 
         // 2. Text / Code / GZ decompression
         let remote_read_cmd = if is_gz {
-            format!("gzip -dc '{}' 2>/dev/null | head -c 262144 || zcat '{}' 2>/dev/null | head -c 262144", escaped_path, escaped_path)
+            format!("gzip -dc {} 2>/dev/null | head -c 262144 || zcat {} 2>/dev/null | head -c 262144", quoted_path, quoted_path)
         } else {
-            format!("head -c 262144 '{}' 2>/dev/null", escaped_path)
+            format!("head -c 262144 {} 2>/dev/null", quoted_path)
         };
 
         let mut read_args = ssh_base_args();
@@ -513,15 +529,10 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
 #[tauri::command]
 pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<TerminalOutput, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let remote_script = if cwd.is_empty() || cwd == "~" {
-            format!("cd ~ && {}", cmd)
-        } else if cwd.starts_with("~/") {
-            let rest = &cwd[2..].replace('\'', "'\\''");
-            format!("cd \"${{HOME}}/{}\" && {}", rest, cmd)
-        } else {
-            let escaped_cwd = cwd.replace('\'', "'\\''");
-            format!("cd '{}' && {}", escaped_cwd, cmd)
-        };
+        // `cmd` is typed by the user in the terminal, so it is deliberately not quoted.
+        // `cwd` comes from browsing and must never be able to inject.
+        let target = if cwd.is_empty() { "~" } else { &cwd };
+        let remote_script = format!("cd {} && {}", sh_quote_path(target), cmd);
 
         let mut run_args = ssh_base_args();
         run_args.push(&host);
@@ -570,7 +581,7 @@ pub async fn ssh_open_file_locally(
         for flag in scp_base_args() {
             args.push(flag.to_string());
         }
-        let remote_src = format!("{}:'{}'", host, remote_path.replace('\'', "'\\''"));
+        let remote_src = format!("{}:{}", host, sh_quote(&remote_path));
         args.push(remote_src);
         args.push(local_str.clone());
 
@@ -610,4 +621,44 @@ pub async fn ssh_open_file_locally(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sh_quote, sh_quote_path};
+    use std::process::Command;
+
+    /// Run `cd <quoted> && pwd` through a real shell and return what it printed.
+    fn shell_cd(quoted: &str) -> String {
+        let out = Command::new("sh")
+            .arg("-c")
+            .arg(format!("cd {} && pwd", quoted))
+            .output()
+            .expect("sh");
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    #[test]
+    fn quotes_metacharacters_literally() {
+        assert_eq!(sh_quote("plain"), "'plain'");
+        assert_eq!(sh_quote("it's"), "'it'\\''s'");
+        assert_eq!(sh_quote("$(whoami)"), "'$(whoami)'");
+    }
+
+    #[test]
+    fn tilde_expands_but_the_rest_stays_literal() {
+        assert_eq!(sh_quote_path("~"), "~");
+        assert_eq!(sh_quote_path("~/my dir"), "~/'my dir'");
+        assert_eq!(sh_quote_path("/tmp/a b"), "'/tmp/a b'");
+    }
+
+    #[test]
+    fn command_substitution_in_a_path_is_not_executed() {
+        let dir = std::env::temp_dir().join("fb_ssh_quote_test/$(touch pwned)");
+        std::fs::create_dir_all(&dir).expect("create test dir");
+        let pwd = shell_cd(&sh_quote(&dir.to_string_lossy()));
+        assert_eq!(pwd, dir.to_string_lossy());
+        assert!(!std::path::Path::new("pwned").exists());
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
 }
