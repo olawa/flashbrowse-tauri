@@ -1,5 +1,5 @@
 use crate::models::{DirectoryIndexGroup, DirectoryNotes, DirectorySummary, DiskInfo, FileItem};
-use crate::ssh_commands::scp_base_args;
+use crate::ssh_commands::{scp_base_args, sh_quote};
 use chrono::{DateTime, Local};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::fs;
@@ -555,7 +555,7 @@ pub async fn transfer_items(
 
         // Case 2: Local to Remote (Upload via scp)
         if !source_is_ssh && dest_is_ssh {
-            let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
+            let target_remote = format!("{}:{}", dest_ssh_host, sh_quote(&dest_dir));
             let mut args = vec!["-r".to_string()];
             args.extend(scp_base_args());
             for p in &source_paths {
@@ -615,14 +615,14 @@ pub async fn transfer_items(
                     };
                     let target = unique_target(&dest_local.join(name));
                     let mut args = base_args.clone();
-                    args.push(format!("{}:{}", source_ssh_host, crate::ssh_commands::sh_quote(p)));
+                    args.push(format!("{}:{}", source_ssh_host, sh_quote(p)));
                     args.push(target.to_string_lossy().to_string());
                     run_scp(args)?;
                 }
             } else {
                 let mut args = base_args.clone();
                 for p in &source_paths {
-                    args.push(format!("{}:{}", source_ssh_host, crate::ssh_commands::sh_quote(p)));
+                    args.push(format!("{}:{}", source_ssh_host, sh_quote(p)));
                 }
                 args.push(dest_local.to_string_lossy().to_string());
                 run_scp(args)?;
@@ -632,11 +632,11 @@ pub async fn transfer_items(
 
         // Case 4: Remote to Remote
         if source_is_ssh && dest_is_ssh {
-            let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
+            let target_remote = format!("{}:{}", dest_ssh_host, sh_quote(&dest_dir));
             let mut args = vec!["-3".to_string(), "-r".to_string()];
             args.extend(scp_base_args());
             for p in &source_paths {
-                let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
+                let remote_src = format!("{}:{}", source_ssh_host, sh_quote(p));
                 args.push(remote_src);
             }
             args.push(target_remote);

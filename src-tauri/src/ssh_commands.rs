@@ -23,6 +23,12 @@ fn control_path_option() -> String {
     format!("ControlPath={}/%C", dir.to_string_lossy())
 }
 
+/// Standard ssh options, terminated by `--`.
+///
+/// The trailing `--` is not cosmetic: without it a host string beginning with a
+/// dash is parsed as an option, so a "host" of `-oProxyCommand=<anything>` makes
+/// ssh run that command locally. Every call site appends the host after these
+/// arguments, so ending the list with `--` makes that impossible to forget.
 pub fn ssh_base_args() -> Vec<String> {
     vec![
         "-o".into(), "ControlMaster=auto".into(),
@@ -33,9 +39,12 @@ pub fn ssh_base_args() -> Vec<String> {
         "-o".into(), "ServerAliveInterval=15".into(),
         "-o".into(), "ServerAliveCountMax=3".into(),
         "-o".into(), "StrictHostKeyChecking=accept-new".into(),
+        "--".into(),
     ]
 }
 
+/// Standard scp options, terminated by `--`. See [`ssh_base_args`]: the same
+/// applies to scp, and to any local path that happens to start with a dash.
 pub fn scp_base_args() -> Vec<String> {
     vec![
         "-o".into(), "ControlMaster=auto".into(),
@@ -44,6 +53,7 @@ pub fn scp_base_args() -> Vec<String> {
         "-o".into(), "BatchMode=yes".into(),
         "-o".into(), "ConnectTimeout=15".into(),
         "-o".into(), "StrictHostKeyChecking=accept-new".into(),
+        "--".into(),
     ]
 }
 
