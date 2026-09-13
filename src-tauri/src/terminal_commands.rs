@@ -1,8 +1,10 @@
 use crate::fs_commands::{dirs_home, resolve_path};
 use crate::models::{TabCompletionResult, TerminalOutput};
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 const COMMON_COMMANDS: &[&str] = &[
     "cd", "ls", "pwd", "mkdir", "rmdir", "cp", "mv", "rm", "touch", "cat", "less", "more", "head", "tail",
@@ -14,6 +16,130 @@ const COMMON_COMMANDS: &[&str] = &[
     "nano", "vim", "vi", "emacs", "code", "zsh", "bash", "sh", "brew", "cargo", "rustc", "swift", "swiftc",
     "make", "cmake", "docker", "singularity", "apptainer", "slurm", "sbatch", "squeue", "scancel",
 ];
+
+/// The terminal collects output and shows it when the command finishes, so a
+/// command that never exits - `tail -f`, something waiting on stdin, a hung
+/// network mount - would leave the pane stuck with no way to cancel. The limit
+/// is generous enough for real work (sorting a BAM, an alignment run) while
+/// still ending a hang.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(600);
+
+/// Output beyond this is dropped rather than buffered into the UI. `find /` or a
+/// tool looping on errors can produce gigabytes.
+const MAX_OUTPUT_BYTES: usize = 2 * 1024 * 1024;
+
+/// Read a stream to EOF, keeping at most MAX_OUTPUT_BYTES.
+///
+/// Reading continues past the cap (discarding the rest) so the child never
+/// blocks on a full pipe - that would hang the command we are trying to bound.
+fn read_capped<R: Read + Send + 'static>(mut stream: R) -> std::thread::JoinHandle<(String, bool)> {
+    std::thread::spawn(move || {
+        let mut kept: Vec<u8> = Vec::new();
+        let mut chunk = [0u8; 8192];
+        let mut truncated = false;
+
+        loop {
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    let room = MAX_OUTPUT_BYTES.saturating_sub(kept.len());
+                    if room == 0 {
+                        truncated = true;
+                    } else {
+                        let take = n.min(room);
+                        kept.extend_from_slice(&chunk[..take]);
+                        if take < n {
+                            truncated = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        (String::from_utf8_lossy(&kept).to_string(), truncated)
+    })
+}
+
+/// Run one shell command with a wall-clock bound and a cap on collected output.
+fn run_shell(
+    trimmed: &str,
+    working_dir: &PathBuf,
+    timeout: Duration,
+) -> Result<TerminalOutput, String> {
+    #[cfg(not(target_os = "windows"))]
+    let mut command = Command::new("sh");
+    #[cfg(not(target_os = "windows"))]
+    command.arg("-c").arg(trimmed);
+
+    #[cfg(target_os = "windows")]
+    let mut command = Command::new("cmd");
+    #[cfg(target_os = "windows")]
+    command.args(["/c", trimmed]);
+
+    // stdin is closed: an interactive command fails immediately instead of
+    // waiting forever for input the terminal pane cannot provide.
+    let mut child = command
+        .current_dir(&working_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+    let stdout_reader = child.stdout.take().map(read_capped);
+    let stderr_reader = child.stderr.take().map(read_capped);
+
+    let started = Instant::now();
+    let mut timed_out = false;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Some(status),
+            Ok(None) => {
+                if started.elapsed() >= timeout {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    timed_out = true;
+                    break None;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(format!("Failed to wait for command: {}", e)),
+        }
+    };
+
+    let (mut stdout, stdout_truncated) = stdout_reader
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+    let (mut stderr, stderr_truncated) = stderr_reader
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+
+    if stdout_truncated {
+        stdout.push_str(&format!(
+            "\n[Utdata klippt vid {} MB]\n",
+            MAX_OUTPUT_BYTES / (1024 * 1024)
+        ));
+    }
+    if stderr_truncated {
+        stderr.push_str(&format!(
+            "\n[Felutdata klippt vid {} MB]\n",
+            MAX_OUTPUT_BYTES / (1024 * 1024)
+        ));
+    }
+    if timed_out {
+        stderr.push_str(&format!(
+            "\n[Kommandot avbröts efter {} sekunder]\n",
+            timeout.as_secs()
+        ));
+    }
+
+    Ok(TerminalOutput {
+        stdout,
+        stderr,
+        exit_code: status.and_then(|s| s.code()).unwrap_or(-1),
+        new_cwd: None,
+    })
+}
 
 #[tauri::command]
 pub async fn run_command(cmd: String, cwd: String) -> Result<TerminalOutput, String> {
@@ -75,35 +201,8 @@ pub async fn run_command(cmd: String, cwd: String) -> Result<TerminalOutput, Str
             }
         }
 
-        // 2. Handle generic interactive user shell execution
-        #[cfg(not(target_os = "windows"))]
-        let output_res = Command::new("sh")
-            .arg("-c")
-            .arg(trimmed)
-            .current_dir(&working_dir)
-            .output();
-
-        #[cfg(target_os = "windows")]
-        let output_res = Command::new("cmd")
-            .args(["/c", trimmed])
-            .current_dir(&working_dir)
-            .output();
-
-        match output_res {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout).to_string();
-                let stderr = String::from_utf8_lossy(&out.stderr).to_string();
-                let exit_code = out.status.code().unwrap_or(-1);
-
-                Ok(TerminalOutput {
-                    stdout,
-                    stderr,
-                    exit_code,
-                    new_cwd: None,
-                })
-            }
-            Err(e) => Err(format!("Failed to execute command: {}", e)),
-        }
+        // 2. Generic shell execution, bounded in time and output size
+        run_shell(trimmed, &working_dir, COMMAND_TIMEOUT)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -327,4 +426,43 @@ fn escape_shell_chars(str: &str) -> String {
         .replace(')', "\\)")
         .replace('&', "\\&")
         .replace(';', "\\;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cwd() -> PathBuf {
+        std::env::temp_dir()
+    }
+
+    #[test]
+    fn a_command_that_never_exits_is_killed() {
+        let started = Instant::now();
+        let out = run_shell("sleep 30", &cwd(), Duration::from_millis(300)).expect("run");
+        assert!(started.elapsed() < Duration::from_secs(5), "should not wait for the child");
+        assert!(out.stderr.contains("avbröts"), "stderr was: {}", out.stderr);
+    }
+
+    #[test]
+    fn output_is_capped_without_blocking_the_child() {
+        // Writes far more than the cap; the child must still be able to finish.
+        let script = format!(
+            "i=0; while [ $i -lt {} ]; do printf '%0.sx' $(seq 1 1000); i=$((i+1)); done; echo done",
+            (MAX_OUTPUT_BYTES / 1000) + 500
+        );
+        let out = run_shell(&script, &cwd(), Duration::from_secs(60)).expect("run");
+        assert_eq!(out.exit_code, 0, "the child should exit normally");
+        assert!(out.stdout.contains("klippt"), "expected a truncation notice");
+        assert!(out.stdout.len() < MAX_OUTPUT_BYTES + 1024);
+    }
+
+    #[test]
+    fn stdin_is_closed_so_interactive_commands_do_not_hang() {
+        let started = Instant::now();
+        let out = run_shell("cat", &cwd(), Duration::from_secs(30)).expect("run");
+        assert!(started.elapsed() < Duration::from_secs(5));
+        assert_eq!(out.exit_code, 0);
+        assert!(out.stdout.is_empty());
+    }
 }
