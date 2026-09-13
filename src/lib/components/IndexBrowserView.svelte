@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import {
     activeIndexMeta,
     indexRootPath,
@@ -110,6 +110,14 @@
   }
 
   let indexHoverTimer: any = null;
+  let indexHoverReleaseTimer: any = null;
+
+  onDestroy(() => {
+    clearTimeout(indexHoverTimer);
+    clearTimeout(indexHoverReleaseTimer);
+    // Leaving the index view must not keep the Inspector pinned to a hovered file.
+    activeHoveredItem.set(null);
+  });
 
   function handleFileMouseEnter(item: FileItem) {
     hoveredPath = item.path;
@@ -128,6 +136,12 @@
   function handleFileMouseLeave() {
     hoveredPath = null;
     clearTimeout(indexHoverTimer);
+    // Release the Inspector back to the selected item, otherwise the last hovered
+    // file stays pinned there after the index view is closed.
+    clearTimeout(indexHoverReleaseTimer);
+    indexHoverReleaseTimer = setTimeout(() => {
+      if (hoveredPath === null) activeHoveredItem.set(null);
+    }, 120);
   }
 
   function handleRowWheel(item: FileItem, e: WheelEvent) {

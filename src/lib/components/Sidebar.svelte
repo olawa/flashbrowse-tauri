@@ -194,7 +194,7 @@
   <div class="flex-1 overflow-y-auto p-2 space-y-4">
     <!-- Favorites -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Favorites</span>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Favoriter</span>
       <div class="mt-1 space-y-0.5">
         {#if homeDir}
           <button
@@ -202,7 +202,7 @@
             on:click={() => jumpTo(homeDir)}
           >
             <Home size={14} class="text-[var(--accent)]" />
-            <span>Home</span>
+            <span>Hem</span>
           </button>
 
           <button
@@ -210,7 +210,7 @@
             on:click={() => jumpTo(`${homeDir}/Desktop`)}
           >
             <Monitor size={14} class="text-blue-400" />
-            <span>Desktop</span>
+            <span>Skrivbord</span>
           </button>
 
           <button
@@ -218,7 +218,7 @@
             on:click={() => jumpTo(`${homeDir}/Downloads`)}
           >
             <Download size={14} class="text-green-400" />
-            <span>Downloads</span>
+            <span>Hämtade filer</span>
           </button>
 
           <button
@@ -226,7 +226,7 @@
             on:click={() => jumpTo(`${homeDir}/Documents`)}
           >
             <FileText size={14} class="text-yellow-400" />
-            <span>Documents</span>
+            <span>Dokument</span>
           </button>
         {/if}
 
@@ -235,7 +235,7 @@
           on:click={() => jumpTo(devProjectsDir || '/')}
         >
           <FolderGit2 size={14} class="text-purple-400" />
-          <span>Projects</span>
+          <span>Projekt</span>
         </button>
 
         <button
@@ -313,7 +313,7 @@
 
     <!-- Stash Shelf -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Staging</span>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Samlingsfack</span>
       <div class="mt-1 space-y-0.5">
         <button
           class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left {$stashItems.length > 0 ? 'text-[var(--accent)] font-semibold' : 'text-[var(--text-secondary)]'}"
@@ -404,7 +404,7 @@
 
     <!-- Themes & Skins -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Theme & Skins</span>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Teman</span>
       <div class="mt-1 space-y-0.5">
         {#each themes as t}
           <button
@@ -425,7 +425,7 @@
 
     <!-- Options & Behavior -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Behavior</span>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Beteende</span>
       <div class="mt-1 space-y-0.5">
         <button
           class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
@@ -446,10 +446,10 @@
         >
           <div class="flex items-center gap-2">
             <Zap size={14} class={$smartHoverPreview ? 'text-amber-400' : ''} />
-            <span>Hover Preview</span>
+            <span>Förhandsvisa vid hovring</span>
           </div>
           <span class="text-[9px] px-1 rounded bg-[var(--border)] font-mono">
-            {$smartHoverPreview ? 'ON' : 'OFF'}
+            {$smartHoverPreview ? 'PÅ' : 'AV'}
           </span>
         </button>
 
@@ -459,10 +459,10 @@
         >
           {#if $showHiddenFiles}
             <EyeOff size={14} class="text-[var(--accent)]" />
-            <span>Hide Dotfiles</span>
+            <span>Dölj dolda filer</span>
           {:else}
             <Eye size={14} />
-            <span>Show Dotfiles</span>
+            <span>Visa dolda filer</span>
           {/if}
         </button>
       </div>

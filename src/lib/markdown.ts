@@ -1,82 +1,98 @@
 /**
- * Lightweight, fast Markdown to HTML parser for Flashbrowse previewer
+ * GitHub-flavored Markdown -> sanitized HTML for the Flashbrowse previewer.
+ *
+ * Uses `marked` (GFM: tables, task lists, autolinks, strikethrough) and
+ * sanitizes the result with DOMPurify. Styling lives in `.fb-md` in app.css
+ * so tables, badges and images render the way GitHub shows them.
  */
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
+marked.setOptions({
+  gfm: true,
+  breaks: false,
+});
+
+const ALLOWED_PROTOCOLS = /^(https?:|mailto:|tel:|data:image\/(png|jpe?g|gif|webp|svg\+xml);)/i;
+
+function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  // Relative links inside a repo README are safe (they resolve to nothing clickable).
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return true;
+  return ALLOWED_PROTOCOLS.test(trimmed);
+}
+
+let hooksInstalled = false;
+function installHooks() {
+  if (hooksInstalled || typeof window === 'undefined') return;
+  hooksInstalled = true;
+  DOMPurify.addHook('afterSanitizeAttributes', (node: any) => {
+    if (node.tagName === 'A') {
+      const href = node.getAttribute('href') || '';
+      if (!isSafeUrl(href)) {
+        node.removeAttribute('href');
+      } else {
+        node.setAttribute('target', '_blank');
+        node.setAttribute('rel', 'noopener noreferrer');
+      }
+    }
+    if (node.tagName === 'IMG') {
+      const src = node.getAttribute('src') || '';
+      if (!isSafeUrl(src)) node.remove();
+      else node.setAttribute('loading', 'lazy');
+    }
+  });
+}
+
+// Svelte re-evaluates `{@html renderMarkdown(...)}` on every reactive update of the
+// surrounding component. Parsing a 10 kB README is only ~1.5 ms, but sanitizing builds
+// a DOM tree each time, so cache the last few documents: large files (notebooks, logs,
+// generated reports) otherwise re-parse on every hover and scroll.
+const CACHE_LIMIT = 8;
+const cache = new Map<string, string>();
+
+function cached(md: string, render: () => string): string {
+  const hit = cache.get(md);
+  if (hit !== undefined) {
+    // refresh LRU position
+    cache.delete(md);
+    cache.set(md, hit);
+    return hit;
+  }
+  const html = render();
+  cache.set(md, html);
+  if (cache.size > CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
+  return html;
+}
+
 export function renderMarkdown(md: string): string {
   if (!md) return '';
+  return cached(md, () => renderMarkdownUncached(md));
+}
 
-  let html = md;
+function renderMarkdownUncached(md: string): string {
 
-  // Escape basic HTML entities in text outside code
-  const codeBlocks: string[] = [];
-  html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_match, lang, code) => {
-    const escaped = escapeHtml(code);
-    const index = codeBlocks.length;
-    codeBlocks.push(
-      `<div class="my-2 rounded-lg bg-[#0e1015] border border-[#252d3d] overflow-hidden"><div class="px-3 py-1 bg-[#161a24] text-slate-400 text-[10px] font-mono border-b border-[#252d3d] uppercase">${lang || 'code'}</div><pre class="p-3 text-[11px] font-mono text-emerald-300 overflow-x-auto m-0"><code>${escaped}</code></pre></div>`
-    );
-    return `<!--CODE_BLOCK_${index}-->`;
+  let html: string;
+  try {
+    html = marked.parse(md, { async: false }) as string;
+  } catch {
+    return `<div class="fb-md"><pre>${escapeHtml(md)}</pre></div>`;
+  }
+
+  if (typeof window === 'undefined') {
+    // SSR / non-DOM contexts: no sanitizer available, fall back to escaped source.
+    return `<div class="fb-md"><pre>${escapeHtml(md)}</pre></div>`;
+  }
+
+  installHooks();
+  const clean = DOMPurify.sanitize(html, {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe', 'script'],
+    FORBID_ATTR: ['style', 'srcset'],
+    ADD_ATTR: ['target', 'rel', 'align', 'loading'],
   });
 
-  const inlineCodes: string[] = [];
-  html = html.replace(/`([^`]+)`/g, (_match, code) => {
-    const escaped = escapeHtml(code);
-    const index = inlineCodes.length;
-    inlineCodes.push(
-      `<code class="px-1.5 py-0.5 rounded bg-[#1c2230] text-[#e85422] font-mono text-[11px] border border-[#2d374d]">${escaped}</code>`
-    );
-    return `<!--INLINE_CODE_${index}-->`;
-  });
-
-  // Headers (# H1, ## H2, ### H3, etc.)
-  html = html.replace(/^######\s+(.*)$/gm, '<h6 class="text-xs font-bold text-slate-300 mt-3 mb-1">$1</h6>');
-  html = html.replace(/^#####\s+(.*)$/gm, '<h5 class="text-xs font-bold text-slate-200 mt-3 mb-1">$1</h5>');
-  html = html.replace(/^####\s+(.*)$/gm, '<h4 class="text-sm font-bold text-slate-200 mt-3 mb-1.5">$1</h4>');
-  html = html.replace(/^###\s+(.*)$/gm, '<h3 class="text-sm font-bold text-amber-400 mt-4 mb-1.5 pb-1 border-b border-slate-800">$1</h3>');
-  html = html.replace(/^##\s+(.*)$/gm, '<h2 class="text-base font-bold text-[var(--accent)] mt-4 mb-2 pb-1 border-b border-[#252d3d]">$1</h2>');
-  html = html.replace(/^#\s+(.*)$/gm, '<h1 class="text-lg font-black text-white mt-4 mb-2 pb-1 border-b border-[#252d3d]">$1</h1>');
-
-  // Blockquotes
-  html = html.replace(/^>\s+(.*)$/gm, '<blockquote class="border-l-2 border-[var(--accent)] pl-3 my-2 text-slate-400 italic text-[11px] bg-[#141720]/50 py-1 rounded-r">$1</blockquote>');
-
-  // Horizontal rules
-  html = html.replace(/^---$/gm, '<hr class="border-[#252d3d] my-3" />');
-
-  // Bold & Italic
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong class="font-bold text-white">$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em class="italic text-slate-300">$1</em>');
-
-  // Checkboxes
-  html = html.replace(/^- \[x\]\s+(.*)$/gm, '<div class="flex items-center gap-2 text-[11px] text-emerald-400 my-0.5"><span class="w-3.5 h-3.5 rounded bg-emerald-950 border border-emerald-700 flex items-center justify-center text-[9px] font-bold">✓</span><span>$1</span></div>');
-  html = html.replace(/^- \[ \]\s+(.*)$/gm, '<div class="flex items-center gap-2 text-[11px] text-slate-400 my-0.5"><span class="w-3.5 h-3.5 rounded bg-slate-900 border border-slate-700"></span><span>$1</span></div>');
-
-  // Bullet Lists
-  html = html.replace(/^- (.*)$/gm, '<li class="ml-4 list-disc text-slate-300 my-0.5 text-[11px]">$1</li>');
-
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-[var(--accent)] hover:underline inline-flex items-center gap-0.5">$1 ↗</a>');
-
-  // Paragraphs
-  html = html
-    .split('\n\n')
-    .map((p) => {
-      const trimmed = p.trim();
-      if (!trimmed) return '';
-      if (trimmed.startsWith('<h') || trimmed.startsWith('<div') || trimmed.startsWith('<blockquote') || trimmed.startsWith('<hr') || trimmed.startsWith('<li')) {
-        return trimmed;
-      }
-      return `<p class="my-1.5 leading-relaxed text-slate-300 text-[11px]">${trimmed.replace(/\n/g, '<br />')}</p>`;
-    })
-    .join('\n');
-
-  // Restore code blocks and inline code
-  codeBlocks.forEach((block, i) => {
-    html = html.replace(`<!--CODE_BLOCK_${i}-->`, block);
-  });
-  inlineCodes.forEach((code, i) => {
-    html = html.replace(`<!--INLINE_CODE_${i}-->`, code);
-  });
-
-  return html;
+  return `<div class="fb-md">${clean}</div>`;
 }
 
 function escapeHtml(str: string): string {

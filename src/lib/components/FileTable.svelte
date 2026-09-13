@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import {
     leftPane,
     rightPane,
@@ -297,6 +297,15 @@
   // Hover preview state
   let hoverTimer: any = null;
   let hoveredPath: string | null = null;
+  let hoverReleaseTimer: any = null;
+
+  // Navigating away must not leave the Inspector pinned to a file from the old folder.
+  let lastSeenPath = '';
+  $: if (pane.currentPath !== lastSeenPath) {
+    lastSeenPath = pane.currentPath;
+    hoveredPath = null;
+    if (!$isInspectorLocked) activeHoveredItem.set(null);
+  }
 
   // Hover Dir Tree state
   let hoverTreeTimer: any = null;
@@ -587,6 +596,10 @@
   // MARK: - Single / Double Click & Shift / Cmd Multi-Selection
   function handleRowClick(item: FileItem, event: MouseEvent) {
     activePaneId.set(paneId);
+    // An explicit click wins over any pending hover preview
+    clearTimeout(hoverTimer);
+    clearTimeout(hoverReleaseTimer);
+    if (!$isInspectorLocked) activeHoveredItem.set(null);
     const store = paneId === 'left' ? leftPane : rightPane;
     const now = Date.now();
     const timeSinceLastClick = now - lastClickTimestamp;
@@ -729,6 +742,30 @@
     hoverTreeCloseTimer = setTimeout(() => {
       hoverTreeItem = null;
     }, 150);
+    releaseHoverPreview();
+  }
+
+  /**
+   * Hand the Inspector back to the selected item once the pointer leaves the rows.
+   * Without this the last hovered file stays pinned in the Inspector forever, which
+   * makes navigation, filtering and selection look like they have no effect.
+   * The delay lets the pointer travel between adjacent rows without flicker.
+   */
+  onDestroy(() => {
+    clearTimeout(hoverTimer);
+    clearTimeout(hoverTreeTimer);
+    clearTimeout(hoverTreeCloseTimer);
+    clearTimeout(hoverReleaseTimer);
+    clearTimeout(keyboardPreviewTimer);
+  });
+
+  function releaseHoverPreview() {
+    clearTimeout(hoverReleaseTimer);
+    hoverReleaseTimer = setTimeout(() => {
+      if (hoveredPath === null && !$isInspectorLocked) {
+        activeHoveredItem.set(null);
+      }
+    }, 120);
   }
 
   function cancelHoverTreeClose() {
@@ -833,6 +870,17 @@
   // MARK: - Keyboard Handling (Space for QuickLook, Arrows, Enter, Cmd+Backspace for Trash, Cmd+A for Select All, Cmd+Up for GoUp)
   async function handleKeyDown(e: KeyboardEvent) {
     if (renamingPath) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input, textarea, select, [contenteditable="true"]')) {
+      if (e.key === 'Escape' && target.matches('input[aria-label="Filtrera filer"]')) {
+        e.preventDefault();
+        e.stopPropagation();
+        filterText = '';
+        const store = paneId === 'left' ? leftPane : rightPane;
+        store.update((s) => ({ ...s, filterQuery: '' }));
+      }
+      return;
+    }
 
     // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / Cmd + [ / Cmd + ] / Cmd + Alt + ArrowLeft/Right / Ctrl + Tab: Switch active pane focus
     if (
@@ -965,6 +1013,7 @@
 <div
   tabindex="0"
   class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
+  on:mouseleave={handleRowMouseLeave}
   on:mousedown={() => activePaneId.set(paneId)}
   on:wheel|passive={handleWheel}
   on:keydown={handleKeyDown}
@@ -972,17 +1021,19 @@
   aria-label="File table for {paneId} pane"
 >
   <!-- Search / Quick Filter & View Mode Bar -->
-  <div class="px-2.5 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex items-center justify-between gap-2 shrink-0">
-    <div class="relative flex-1 flex items-center">
+  <div class="px-2.5 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex flex-wrap items-center justify-between gap-2 shrink-0">
+    <div class="relative flex-1 min-w-0 flex items-center">
       <Search size={13} class="text-[var(--text-muted)] absolute left-2 pointer-events-none" />
       <input
         type="text"
-        bind:value={filterText}
-        on:input={() => {
+        value={filterText}
+        aria-label="Filtrera filer"
+        on:input={(event) => {
+          filterText = event.currentTarget.value;
           const store = paneId === 'left' ? leftPane : rightPane;
           store.update((s) => ({ ...s, filterQuery: filterText }));
         }}
-        placeholder="Filter... (e.g. *.png, test, rs)"
+        placeholder="Filtrera… (t.ex. *.png, test)"
         class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] pl-7 pr-6 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none placeholder:text-[var(--text-muted)] font-mono"
       />
       {#if filterText}
@@ -1143,18 +1194,18 @@
                   tabindex="-1"
                 >
                   <!-- Name with icon -->
-                  <div class="col-span-8 flex items-center gap-2 min-w-0">
+                  <div class="col-span-7 flex items-center gap-2 min-w-0">
                     <svelte:component this={getFileIcon(item)} size={13} class="{getIconColor(item)} shrink-0" />
                     <span class="truncate">{item.name}</span>
                   </div>
 
                   <!-- Size -->
-                  <div class="col-span-2 text-right text-slate-400 text-[10.5px]">
+                  <div class="col-span-2 text-right text-slate-400 text-[11px]">
                     {item.formatted_size}
                   </div>
 
                   <!-- Modified -->
-                  <div class="col-span-2 text-right text-slate-500 text-[10.5px] truncate">
+                  <div class="col-span-3 text-right text-slate-500 text-[11px] truncate tabular-nums" title={item.formatted_modified}>
                     {item.formatted_modified}
                   </div>
                 </div>
@@ -1200,9 +1251,9 @@
       {/if}
 
       <!-- Table Header -->
-      <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] font-sans font-semibold text-[11px] sticky top-0 z-10">
+      <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-[var(--text-muted)] font-sans font-semibold text-[11.5px] sticky top-0 z-10">
         <button
-          class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors"
+          class="col-span-7 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors min-w-0"
           on:click={() => sortPaneItems(paneId, 'name')}
           title="Sortera efter namn"
         >
@@ -1224,7 +1275,7 @@
         </button>
 
         <button
-          class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
+          class="col-span-3 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
           on:click={() => sortPaneItems(paneId, 'modified')}
           title="Sortera efter ändringsdatum"
         >
@@ -1274,7 +1325,7 @@
                 tabindex="-1"
               >
                 <!-- Name Column -->
-                <div class="col-span-8 flex items-center gap-2 min-w-0">
+                <div class="col-span-7 flex items-center gap-2 min-w-0">
                   <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
                   
                   {#if isRenaming}
@@ -1300,7 +1351,7 @@
                 </div>
 
                 <!-- Size Column with Visual Bar for >= 50 MB -->
-                <div class="col-span-2 relative text-right font-mono text-[11px] flex items-center justify-end">
+                <div class="col-span-2 relative text-right font-mono text-[11.5px] flex items-center justify-end">
                   {#if isLargeFile}
                     <div
                       class="absolute right-0 h-4 rounded opacity-25 {item.size_bytes >= 1_000_000_000 ? 'bg-[var(--accent)]' : 'bg-cyan-400'}"
@@ -1311,7 +1362,7 @@
                 </div>
 
                 <!-- Modified Column -->
-                <div class="col-span-2 text-[var(--text-muted)] text-[11px] truncate text-right pr-1 font-mono">
+                <div class="col-span-3 text-[var(--text-secondary)] text-[11.5px] truncate text-right pr-1 font-mono tabular-nums whitespace-nowrap" title={item.formatted_modified}>
                   {item.formatted_modified}
                 </div>
               </div>

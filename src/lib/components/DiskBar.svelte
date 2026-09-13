@@ -28,9 +28,9 @@
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center gap-1 font-medium text-[var(--text-primary)]">
         <HardDrive size={12} class="text-[var(--accent)]" />
-        <span>Disk Usage</span>
+        <span>Diskutrymme</span>
       </div>
-      <span>{disk.formatted_available} free</span>
+      <span>{disk.formatted_available} ledigt</span>
     </div>
     
     <!-- Progress bar -->
@@ -42,12 +42,12 @@
     </div>
     
     <div class="flex justify-between mt-1 text-[10px] text-[var(--text-muted)]">
-      <span>{disk.formatted_used} used</span>
-      <span>{disk.formatted_total} total</span>
+      <span>{disk.formatted_used} använt</span>
+      <span>{disk.formatted_total} totalt</span>
     </div>
   {:else if error}
     <span class="text-red-400">{error}</span>
   {:else}
-    <span class="opacity-50">Loading disk info...</span>
+    <span class="opacity-50">Läser diskutrymme…</span>
   {/if}
 </div>

@@ -181,7 +181,7 @@
   }}
   on:keydown={(e) => {
     if (paneId === $activePaneId && !isEditingPath) {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'l' || e.key === 'L')) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && (e.key === 'l' || e.key === 'L')) {
         e.preventDefault();
         startEditing();
       } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {

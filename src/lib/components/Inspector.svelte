@@ -272,7 +272,7 @@
 
 <div class="w-full h-full flex flex-col bg-[var(--bg-surface)] text-xs select-none relative overflow-hidden">
   <!-- Inspector Header -->
-  <div class="flex items-start justify-between px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2 shrink-0">
+  <div class="flex flex-col items-stretch px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2 shrink-0">
     <div class="flex flex-col min-w-0 flex-1">
       <div class="flex items-center gap-1.5">
         <span class="text-[10px] font-bold tracking-wider text-[var(--accent)] uppercase">{titlePrefix}</span>
@@ -284,12 +284,12 @@
         <span class="text-[var(--text-muted)]">•</span>
         <span class="text-[10px] text-[var(--text-secondary)] font-mono">{item?.extension ? item.extension.toUpperCase() : item?.is_dir ? 'MAPP' : ''}</span>
       </div>
-      <span class="font-bold text-xs text-[var(--text-primary)] break-all leading-snug select-text mt-0.5" title={item?.path}>
+      <span class="font-bold text-xs text-[var(--text-primary)] truncate leading-snug select-text mt-0.5" title={item?.path}>
         {item ? item.name : 'Ingen markering'}
       </span>
     </div>
 
-    <div class="flex items-center gap-1 shrink-0">
+    <div class="flex flex-wrap items-center gap-1 shrink-0">
       <!-- Tab Toggles: Preview | Anteckningar | AI -->
       <div class="flex items-center gap-0.5 bg-[var(--bg-surface)] p-0.5 rounded-lg border border-[var(--border)] mr-0.5">
         <button
@@ -435,7 +435,7 @@
         <button
           class="p-1 rounded transition-colors {$isInspectorLocked ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/50' : 'hover:bg-[var(--bg-hover)] text-[var(--text-secondary)]'}"
           on:click={toggleInspectorLock}
-          title={$isInspectorLocked ? 'Inspektör låst på denna fil (Klicka eller tryck Cmd+L för att låsa upp)' : 'Lås inspektör på denna fil så den inte byts vid hovring (Cmd+L)'}
+          title={$isInspectorLocked ? 'Inspektör låst på denna fil (Klicka eller tryck Cmd+Shift+L för att låsa upp)' : 'Lås inspektör på denna fil så den inte byts vid hovring (Cmd+Shift+L)'}
         >
           {#if $isInspectorLocked}
             <Lock size={12} class="text-amber-400" />

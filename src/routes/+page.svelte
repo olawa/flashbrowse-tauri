@@ -113,6 +113,7 @@
     : ($activePaneId === 'right' ? 'Höger' : 'Vänster');
 
   function handleGlobalKeyDown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
     // Esc: Close Index View if open
     if (e.key === 'Escape' && $activeIndexMeta) {
       e.preventDefault();
@@ -173,8 +174,8 @@
       e.preventDefault();
       isPaletteOpen = !isPaletteOpen;
     }
-    // Cmd+L / Ctrl+L: Toggle Inspector Lock
-    else if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'l') {
+    // Cmd+Shift+L / Ctrl+Shift+L: Toggle Inspector Lock
+    else if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'l') {
       e.preventDefault();
       toggleInspectorLock();
     }
