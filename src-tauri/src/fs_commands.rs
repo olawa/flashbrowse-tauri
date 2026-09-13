@@ -557,9 +557,7 @@ pub async fn transfer_items(
         if !source_is_ssh && dest_is_ssh {
             let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
             let mut args = vec!["-r".to_string()];
-            for flag in scp_base_args() {
-                args.push(flag.to_string());
-            }
+            args.extend(scp_base_args());
             for p in &source_paths {
                 args.push(p.clone());
             }
@@ -606,7 +604,7 @@ pub async fn transfer_items(
             };
 
             let base_args: Vec<String> = std::iter::once("-r".to_string())
-                .chain(scp_base_args().iter().map(|f| f.to_string()))
+                .chain(scp_base_args())
                 .collect();
 
             if strategy == ConflictStrategy::Rename {
@@ -636,9 +634,7 @@ pub async fn transfer_items(
         if source_is_ssh && dest_is_ssh {
             let target_remote = format!("{}:'{}'", dest_ssh_host, dest_dir.replace('\'', "'\\''"));
             let mut args = vec!["-3".to_string(), "-r".to_string()];
-            for flag in scp_base_args() {
-                args.push(flag.to_string());
-            }
+            args.extend(scp_base_args());
             for p in &source_paths {
                 let remote_src = format!("{}:'{}'", source_ssh_host, p.replace('\'', "'\\''"));
                 args.push(remote_src);

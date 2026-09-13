@@ -3,27 +3,47 @@ use crate::models::{FileItem, PreviewContent, TerminalOutput};
 use std::path::Path;
 use std::process::Command;
 
-pub fn ssh_base_args() -> Vec<&'static str> {
+/// Directory holding the SSH connection-multiplexing sockets.
+///
+/// These used to live at a predictable path in /tmp, which any local user can
+/// write to. A control socket is a live authenticated channel to the remote
+/// host, so it belongs in a directory only this user can enter. Created 0700 on
+/// first use; `%C` is OpenSSH's hash of (host, port, user, local host), which
+/// also keeps the path short enough for the 104-byte socket limit.
+fn control_path_option() -> String {
+    let dir = crate::fs_commands::dirs_home().join(".ssh/flashbrowse");
+    if !dir.is_dir() {
+        let _ = std::fs::create_dir_all(&dir);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    }
+    format!("ControlPath={}/%C", dir.to_string_lossy())
+}
+
+pub fn ssh_base_args() -> Vec<String> {
     vec![
-        "-o", "ControlMaster=auto",
-        "-o", "ControlPath=/tmp/fb_ssh_%h_%p_%r",
-        "-o", "ControlPersist=15m",
-        "-o", "BatchMode=yes",
-        "-o", "ConnectTimeout=15",
-        "-o", "ServerAliveInterval=15",
-        "-o", "ServerAliveCountMax=3",
-        "-o", "StrictHostKeyChecking=accept-new",
+        "-o".into(), "ControlMaster=auto".into(),
+        "-o".into(), control_path_option(),
+        "-o".into(), "ControlPersist=15m".into(),
+        "-o".into(), "BatchMode=yes".into(),
+        "-o".into(), "ConnectTimeout=15".into(),
+        "-o".into(), "ServerAliveInterval=15".into(),
+        "-o".into(), "ServerAliveCountMax=3".into(),
+        "-o".into(), "StrictHostKeyChecking=accept-new".into(),
     ]
 }
 
-pub fn scp_base_args() -> Vec<&'static str> {
+pub fn scp_base_args() -> Vec<String> {
     vec![
-        "-o", "ControlMaster=auto",
-        "-o", "ControlPath=/tmp/fb_ssh_%h_%p_%r",
-        "-o", "ControlPersist=15m",
-        "-o", "BatchMode=yes",
-        "-o", "ConnectTimeout=15",
-        "-o", "StrictHostKeyChecking=accept-new",
+        "-o".into(), "ControlMaster=auto".into(),
+        "-o".into(), control_path_option(),
+        "-o".into(), "ControlPersist=15m".into(),
+        "-o".into(), "BatchMode=yes".into(),
+        "-o".into(), "ConnectTimeout=15".into(),
+        "-o".into(), "StrictHostKeyChecking=accept-new".into(),
     ]
 }
 
@@ -63,8 +83,8 @@ pub async fn ssh_list_directory(host: String, path: String) -> Result<SshDirecto
         let remote_script = format!("cd {} && pwd && ls -la && printf '\\n___SYMLINK_DIRS___\\n' && for f in .*; do [ \"$f\" != \".\" ] && [ \"$f\" != \"..\" ] && [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; for f in *; do [ -d \"$f\" ] && [ -L \"$f\" ] && printf '%s\\n' \"$f\"; done; true", sh_quote_path(target));
 
         let mut args = ssh_base_args();
-        args.push(&host);
-        args.push(&remote_script);
+        args.push(host.clone());
+        args.push(remote_script.clone());
 
         let output = Command::new("ssh")
             .args(&args)
@@ -208,8 +228,8 @@ fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::pa
     let remote_src = format!("{}:{}", host, sh_quote(remote_path));
     let mut args = scp_base_args();
     let cached_str = cached_path.to_string_lossy().to_string();
-    args.push(&remote_src);
-    args.push(&cached_str);
+    args.push(remote_src);
+    args.push(cached_str);
 
     let out = Command::new("scp")
         .args(&args)
@@ -268,8 +288,8 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         // Stat remote file to get size and modified date
         let stat_cmd = format!("stat -c '%s %Y' {} 2>/dev/null || stat -f '%z %m' {} 2>/dev/null", quoted_path, quoted_path);
         let mut stat_args = ssh_base_args();
-        stat_args.push(&host);
-        stat_args.push(&stat_cmd);
+        stat_args.push(host.clone());
+        stat_args.push(stat_cmd.clone());
         let stat_out = Command::new("ssh")
             .args(&stat_args)
             .output();
@@ -289,8 +309,8 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         if ["png", "jpg", "jpeg", "webp", "gif"].contains(&ext.as_str()) {
             let b64_cmd = format!("base64 {} 2>/dev/null | head -c 5000000", quoted_path);
             let mut img_args = ssh_base_args();
-            img_args.push(&host);
-            img_args.push(&b64_cmd);
+            img_args.push(host.clone());
+            img_args.push(b64_cmd.clone());
             let out = Command::new("ssh")
                 .args(&img_args)
                 .output()
@@ -331,8 +351,8 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         if ext == "svg" {
             let cat_cmd = format!("head -c 262144 {} 2>/dev/null", quoted_path);
             let mut svg_args = ssh_base_args();
-            svg_args.push(&host);
-            svg_args.push(&cat_cmd);
+            svg_args.push(host.clone());
+            svg_args.push(cat_cmd.clone());
             let out = Command::new("ssh")
                 .args(&svg_args)
                 .output()
@@ -371,8 +391,8 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         };
 
         let mut read_args = ssh_base_args();
-        read_args.push(&host);
-        read_args.push(&remote_read_cmd);
+        read_args.push(host.clone());
+        read_args.push(remote_read_cmd.clone());
         let out = Command::new("ssh")
             .args(&read_args)
             .output()
@@ -535,8 +555,8 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
         let remote_script = format!("cd {} && {}", sh_quote_path(target), cmd);
 
         let mut run_args = ssh_base_args();
-        run_args.push(&host);
-        run_args.push(&remote_script);
+        run_args.push(host.clone());
+        run_args.push(remote_script.clone());
 
         let output = Command::new("ssh")
             .args(&run_args)
@@ -578,9 +598,7 @@ pub async fn ssh_open_file_locally(
         let local_str = local_target.to_string_lossy().to_string();
 
         let mut args = vec!["-r".to_string()];
-        for flag in scp_base_args() {
-            args.push(flag.to_string());
-        }
+        args.extend(scp_base_args());
         let remote_src = format!("{}:{}", host, sh_quote(&remote_path));
         args.push(remote_src);
         args.push(local_str.clone());
