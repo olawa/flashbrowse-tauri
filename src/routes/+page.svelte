@@ -16,6 +16,8 @@
     type InspectorPreset,
     isTransferring,
     transferStatus,
+    transferProgress,
+    cancelActiveTransfer,
     transferBetweenPanes,
   } from '$lib/stores/navigation';
   import {
@@ -576,9 +578,34 @@
   </div>
 {/if}
 
-<!-- Transfer Status Banner / Toast -->
-{#if $isTransferring || $transferStatus}
-  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-cyan-950/90 text-cyan-200 border border-cyan-500/50 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
+<!-- Transfer Progress / Status -->
+{#if $transferProgress}
+  {@const p = $transferProgress}
+  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[min(30rem,90vw)] px-4 py-3 bg-cyan-950/95 text-cyan-100 border border-cyan-500/50 rounded-xl shadow-2xl backdrop-blur-md text-xs font-mono">
+    <div class="flex items-center gap-2 mb-2">
+      <div class="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin shrink-0"></div>
+      <span class="truncate flex-1" title={p.current_file}>{p.current_file || 'Förbereder…'}</span>
+      <span class="shrink-0 tabular-nums text-cyan-300">{Math.round(p.percent)}%</span>
+      <button
+        class="shrink-0 px-2 py-0.5 rounded border border-cyan-500/50 hover:bg-cyan-500/20 text-cyan-200 transition-colors"
+        on:click={cancelActiveTransfer}
+        title="Avbryt överföringen (redan överförd data behålls)"
+      >
+        Avbryt
+      </button>
+    </div>
+
+    <div class="h-1.5 rounded-full bg-cyan-500/20 overflow-hidden">
+      <div class="h-full bg-cyan-400 transition-[width] duration-150" style="width: {Math.min(100, Math.max(0, p.percent))}%"></div>
+    </div>
+
+    <div class="flex items-center justify-between mt-1.5 text-[10px] text-cyan-300/80 tabular-nums">
+      <span>{p.files_done}/{p.files_total} objekt</span>
+      <span>{p.speed}{p.eta ? ` · ${p.eta} kvar` : ''}</span>
+    </div>
+  </div>
+{:else if $isTransferring || $transferStatus}
+  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-cyan-950/90 text-cyan-200 border border-cyan-500/50 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono">
     {#if $isTransferring}
       <div class="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
     {/if}

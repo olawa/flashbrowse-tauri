@@ -87,6 +87,56 @@ export async function transferItems(
   });
 }
 
+/** Progress payload emitted by the backend during a transfer. */
+export interface TransferProgress {
+  id: string;
+  current_file: string;
+  files_done: number;
+  files_total: number;
+  percent: number;
+  speed: string;
+  eta: string;
+  done: boolean;
+  cancelled: boolean;
+  error: string | null;
+}
+
+/**
+ * Start a transfer that reports progress through the `transfer-progress` event.
+ * Resolves with the summary message when the transfer ends.
+ */
+export async function startTransfer(
+  id: string,
+  sourceIsSsh: boolean,
+  sourceSshHost: string,
+  sourcePaths: string[],
+  destIsSsh: boolean,
+  destSshHost: string,
+  destDir: string,
+  onConflict: ConflictStrategy = 'fail',
+): Promise<string> {
+  return await invoke<string>('start_transfer', {
+    id,
+    sourceIsSsh,
+    sourceSshHost,
+    sourcePaths,
+    destIsSsh,
+    destSshHost,
+    destDir,
+    onConflict,
+  });
+}
+
+/** Stop a running transfer. Partial data is kept so restarting resumes it. */
+export async function cancelTransfer(id: string): Promise<boolean> {
+  return await invoke<boolean>('cancel_transfer', { id });
+}
+
+/** 'rsync' when progress reporting is available, otherwise 'scp'. */
+export async function transferBackend(): Promise<'rsync' | 'scp'> {
+  return await invoke<'rsync' | 'scp'>('transfer_backend');
+}
+
 export async function moveItems(
   paths: string[],
   destinationDir: string,

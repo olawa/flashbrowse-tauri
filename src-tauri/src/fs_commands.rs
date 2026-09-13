@@ -1,5 +1,4 @@
 use crate::models::{DirectoryIndexGroup, DirectoryNotes, DirectorySummary, DiskInfo, FileItem};
-use crate::ssh_commands::{scp_base_args, sh_quote};
 use chrono::{DateTime, Local};
 use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::fs;
@@ -369,7 +368,7 @@ pub enum ConflictStrategy {
 }
 
 impl ConflictStrategy {
-    fn parse(value: Option<String>) -> Self {
+    pub fn parse(value: Option<String>) -> Self {
         match value.as_deref() {
             Some("rename") => ConflictStrategy::Rename,
             Some("overwrite") => ConflictStrategy::Overwrite,
@@ -403,7 +402,7 @@ fn check_conflicts(targets: &[PathBuf], strategy: ConflictStrategy) -> Result<()
 }
 
 /// Finder-style "Keep Both": data.tsv -> "data 2.tsv" -> "data 3.tsv".
-fn unique_target(target: &Path) -> PathBuf {
+pub fn unique_target(target: &Path) -> PathBuf {
     if target.symlink_metadata().is_err() {
         return target.to_path_buf();
     }
@@ -517,143 +516,27 @@ pub async fn transfer_items(
     dest_dir: String,
     on_conflict: Option<String>,
 ) -> Result<String, String> {
+    // Same engine as start_transfer, without an app handle: this entry point is
+    // for callers that just want the transfer done (downloads, "save to"), with
+    // no progress reporting.
     tauri::async_runtime::spawn_blocking(move || {
-        if source_paths.is_empty() {
-            return Ok("Inga filer valda".to_string());
-        }
-
-        // Case 1: Local to Local
-        if !source_is_ssh && !dest_is_ssh {
-            let dest = resolve_path(&dest_dir);
-            if !dest.is_dir() {
-                return Err(format!("Målmappen finns inte lokalt: {}", dest_dir));
-            }
-            let strategy = ConflictStrategy::parse(on_conflict);
-
-            let sources: Vec<PathBuf> = source_paths.iter().map(|p| resolve_path(p)).collect();
-            let planned: Vec<PathBuf> = sources
-                .iter()
-                .filter_map(|src| target_for(&dest, src, ConflictStrategy::Fail))
-                .collect();
-            check_conflicts(&planned, strategy)?;
-
-            let mut copied = 0usize;
-            for src in &sources {
-                let Some(target) = target_for(&dest, src, strategy) else {
-                    continue;
-                };
-                if src.is_dir() {
-                    copy_dir_recursive(src, &target).map_err(|e| e.to_string())?;
-                } else {
-                    fs::copy(src, &target)
-                        .map_err(|e| format!("Kunde inte kopiera {}: {}", src.display(), e))?;
-                }
-                copied += 1;
-            }
-            return Ok(format!("Kopierade {} objekt lokalt", copied));
-        }
-
-        // Case 2: Local to Remote (Upload via scp)
-        if !source_is_ssh && dest_is_ssh {
-            let target_remote = format!("{}:{}", dest_ssh_host, sh_quote(&dest_dir));
-            let mut args = vec!["-r".to_string()];
-            args.extend(scp_base_args());
-            for p in &source_paths {
-                args.push(p.clone());
-            }
-            args.push(target_remote);
-
-            let out = std::process::Command::new("scp")
-                .args(&args)
-                .output()
-                .map_err(|e| format!("Kunde inte starta scp för uppladdning: {}", e))?;
-
-            if !out.status.success() {
-                let err = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("Uppladdning misslyckades: {}", err));
-            }
-            return Ok(format!("Överförde {} objekt till {}", source_paths.len(), dest_ssh_host));
-        }
-
-        // Case 3: Remote to Local (Download via scp)
-        if source_is_ssh && !dest_is_ssh {
-            let dest_local = resolve_path(&dest_dir);
-            if let Err(e) = std::fs::create_dir_all(&dest_local) {
-                return Err(format!("Kunde inte skapa målmapp {}: {}", dest_local.display(), e));
-            }
-
-            // scp happily overwrites whatever it lands on, so the local targets
-            // are resolved here rather than left to scp.
-            let strategy = ConflictStrategy::parse(on_conflict);
-            let planned: Vec<PathBuf> = source_paths
-                .iter()
-                .filter_map(|p| Path::new(p).file_name().map(|n| dest_local.join(n)))
-                .collect();
-            check_conflicts(&planned, strategy)?;
-
-            let run_scp = |args: Vec<String>| -> Result<(), String> {
-                let out = std::process::Command::new("scp")
-                    .args(&args)
-                    .output()
-                    .map_err(|e| format!("Kunde inte starta scp för nedladdning: {}", e))?;
-                if !out.status.success() {
-                    let err = String::from_utf8_lossy(&out.stderr);
-                    return Err(format!("Nedladdning misslyckades: {}", err));
-                }
-                Ok(())
-            };
-
-            let base_args: Vec<String> = std::iter::once("-r".to_string())
-                .chain(scp_base_args())
-                .collect();
-
-            if strategy == ConflictStrategy::Rename {
-                // One scp per file so each can land on its own numbered name.
-                for p in &source_paths {
-                    let Some(name) = Path::new(p).file_name() else {
-                        continue;
-                    };
-                    let target = unique_target(&dest_local.join(name));
-                    let mut args = base_args.clone();
-                    args.push(format!("{}:{}", source_ssh_host, sh_quote(p)));
-                    args.push(target.to_string_lossy().to_string());
-                    run_scp(args)?;
-                }
-            } else {
-                let mut args = base_args.clone();
-                for p in &source_paths {
-                    args.push(format!("{}:{}", source_ssh_host, sh_quote(p)));
-                }
-                args.push(dest_local.to_string_lossy().to_string());
-                run_scp(args)?;
-            }
-            return Ok(format!("Laddade ner {} objekt från {}", source_paths.len(), source_ssh_host));
-        }
-
-        // Case 4: Remote to Remote
-        if source_is_ssh && dest_is_ssh {
-            let target_remote = format!("{}:{}", dest_ssh_host, sh_quote(&dest_dir));
-            let mut args = vec!["-3".to_string(), "-r".to_string()];
-            args.extend(scp_base_args());
-            for p in &source_paths {
-                let remote_src = format!("{}:{}", source_ssh_host, sh_quote(p));
-                args.push(remote_src);
-            }
-            args.push(target_remote);
-
-            let out = std::process::Command::new("scp")
-                .args(&args)
-                .output()
-                .map_err(|e| format!("Kunde inte starta fjärröverföring med scp: {}", e))?;
-
-            if !out.status.success() {
-                let err = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("Fjärröverföring misslyckades: {}", err));
-            }
-            return Ok(format!("Överförde {} objekt mellan fjärrservrar", source_paths.len()));
-        }
-
-        Ok("Överföring slutförd".to_string())
+        crate::transfer_commands::run_transfer(
+            None,
+            &format!("quiet-{}", std::process::id()),
+            crate::transfer_commands::TransferSpec {
+                source: crate::transfer_commands::Endpoint {
+                    is_ssh: source_is_ssh,
+                    host: source_ssh_host,
+                },
+                source_paths,
+                dest: crate::transfer_commands::Endpoint {
+                    is_ssh: dest_is_ssh,
+                    host: dest_ssh_host,
+                },
+                dest_dir,
+                strategy: ConflictStrategy::parse(on_conflict),
+            },
+        )
     })
     .await
     .map_err(|e| e.to_string())?
@@ -778,7 +661,7 @@ pub async fn create_zip_archive(source_paths: Vec<String>, output_zip_path: Opti
     }).await.map_err(|e| e.to_string())?
 }
 
-fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
+pub fn copy_dir_recursive(src: &Path, dst: &Path) -> std::io::Result<()> {
     if src.is_symlink() {
         let target = fs::read_link(src)?;
         #[cfg(unix)]

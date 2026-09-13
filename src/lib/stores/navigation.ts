@@ -1,5 +1,15 @@
 import { writable, get } from 'svelte/store';
-import { listDirectory, getHomeDirectory, sshListDirectory, transferItems, watchDirectory, parseConflictError, type ConflictStrategy } from '../invoke';
+import {
+  listDirectory,
+  getHomeDirectory,
+  sshListDirectory,
+  startTransfer,
+  cancelTransfer,
+  watchDirectory,
+  parseConflictError,
+  type ConflictStrategy,
+  type TransferProgress,
+} from '../invoke';
 import { listen } from '@tauri-apps/api/event';
 import type { FileItem } from '../types';
 
@@ -79,10 +89,73 @@ let isWatchingStarted = false;
 let refreshDebounceTimer: any = null;
 const navRequestCounters = { left: 0, right: 0 };
 
+/// Where each pane was when the app was last closed.
+const SESSION_KEY = 'flashbrowse_session_v1';
+
+interface SessionState {
+  left?: string;
+  right?: string;
+}
+
+function readSession(): SessionState {
+  if (typeof localStorage === 'undefined') return {};
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Remember the folder each pane is showing.
+ *
+ * Only local paths: restoring an SSH pane would open a connection during
+ * startup, which hangs on a laptop that is off the VPN.
+ */
+let sessionSaveTimer: any = null;
+
+/** Coalesce the writes: the pane stores also change on selection and filtering. */
+function scheduleSessionSave() {
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(saveSession, 400);
+}
+
+function saveSession() {
+  if (typeof localStorage === 'undefined') return;
+  const left = get(leftPane);
+  const right = get(rightPane);
+  const state: SessionState = {
+    left: left.isSSH ? undefined : left.currentPath || undefined,
+    right: right.isSSH ? undefined : right.currentPath || undefined,
+  };
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Failed to save session:', e);
+  }
+}
+
+/** Go to the remembered folder, falling back to home if it is gone. */
+async function restorePane(paneId: 'left' | 'right', saved: string | undefined, home: string) {
+  if (saved && saved !== home) {
+    await navigatePane(paneId, saved);
+    const state = get(paneId === 'left' ? leftPane : rightPane);
+    if (!state.errorMessage) return;
+  }
+  await navigatePane(paneId, home);
+}
+
 export async function initNavigation() {
   const home = await getHomeDirectory();
-  await navigatePane('left', home);
-  await navigatePane('right', home);
+  const session = readSession();
+
+  await Promise.all([
+    restorePane('left', session.left, home),
+    restorePane('right', session.right, home),
+  ]);
+
+  leftPane.subscribe(scheduleSessionSave);
+  rightPane.subscribe(scheduleSessionSave);
 
   if (!isWatchingStarted) {
     isWatchingStarted = true;
@@ -265,6 +338,31 @@ export function sortPaneItems(paneId: 'left' | 'right', sortBy: 'name' | 'size' 
 
 export const isTransferring = writable<boolean>(false);
 export const transferStatus = writable<string | null>(null);
+/** Live progress of the running transfer, or null when nothing is running. */
+export const transferProgress = writable<TransferProgress | null>(null);
+
+let activeTransferId: string | null = null;
+let progressListenerStarted = false;
+
+function startProgressListener() {
+  if (progressListenerStarted) return;
+  progressListenerStarted = true;
+  listen<TransferProgress>('transfer-progress', (event) => {
+    // Ignore progress from an older transfer that is still winding down.
+    if (event.payload.id !== activeTransferId) return;
+    transferProgress.set(event.payload.done ? null : event.payload);
+  }).catch(console.error);
+}
+
+/** Stop the transfer that is currently running, keeping partial data. */
+export async function cancelActiveTransfer() {
+  if (!activeTransferId) return;
+  try {
+    await cancelTransfer(activeTransferId);
+  } catch (err) {
+    console.error('Failed to cancel transfer:', err);
+  }
+}
 
 export async function transferBetweenPanes(
   fromPaneId: 'left' | 'right',
@@ -287,8 +385,13 @@ export async function transferBetweenPanes(
   isTransferring.set(true);
   transferStatus.set(`Överför ${paths.length} objekt...`);
 
+  startProgressListener();
+  const transferId = `t${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  activeTransferId = transferId;
+
   const run = async (onConflict: ConflictStrategy) =>
-    await transferItems(
+    await startTransfer(
+      transferId,
       fromState.isSSH,
       fromState.sshHost,
       paths,
@@ -330,5 +433,7 @@ export async function transferBetweenPanes(
     setTimeout(() => transferStatus.set(null), 6000);
   } finally {
     isTransferring.set(false);
+    transferProgress.set(null);
+    activeTransferId = null;
   }
 }

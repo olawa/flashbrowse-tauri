@@ -4,12 +4,14 @@ pub mod models;
 pub mod preview_commands;
 pub mod ssh_commands;
 pub mod terminal_commands;
+pub mod transfer_commands;
 
 use bio_commands::*;
 use fs_commands::*;
 use preview_commands::*;
 use ssh_commands::*;
 use terminal_commands::*;
+use transfer_commands::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,6 +25,9 @@ pub fn run() {
             trash_items,
             copy_items,
             transfer_items,
+            start_transfer,
+            cancel_transfer,
+            transfer_backend,
             move_items,
             create_directory,
             create_file,
