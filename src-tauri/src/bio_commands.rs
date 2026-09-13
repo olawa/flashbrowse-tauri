@@ -181,8 +181,10 @@ pub async fn detect_track_genomes(paths: Vec<String>) -> Result<Vec<TrackGenomeD
             let name = res.file_name().unwrap_or_default().to_string_lossy().to_string();
             let ext = res.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
 
-            if (ext == "bam" || ext == "cram" || ext == "sam") && samtools.is_some() {
-                let out = Command::new(samtools.as_ref().unwrap())
+            if let (true, Some(samtools_bin)) =
+                (matches!(ext.as_str(), "bam" | "cram" | "sam"), samtools.as_ref())
+            {
+                let out = Command::new(samtools_bin)
                     .arg("view")
                     .arg("-H")
                     .arg(&res)
@@ -592,6 +594,18 @@ pub async fn generate_rsnap_snapshot(
 
 static RSNAP_SERVER_PROCESS: std::sync::Mutex<Option<std::process::Child>> = std::sync::Mutex::new(None);
 
+/// Lock the rsnap server slot, recovering from a poisoned mutex.
+///
+/// `lock().unwrap()` turns one panic taken while the lock was held into a panic
+/// on every later call: starting, stopping and even querying the server would
+/// fail for the rest of the session. The guarded value is a process handle, and
+/// a panic elsewhere does not make it invalid, so recovering is right here.
+fn rsnap_server_lock() -> std::sync::MutexGuard<'static, Option<std::process::Child>> {
+    RSNAP_SERVER_PROCESS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct RsnapServerInfo {
     pub is_running: bool,
@@ -613,7 +627,7 @@ pub fn start_rsnap_server(
     genome_id: Option<String>,
     port: Option<u16>,
 ) -> Result<RsnapServerInfo, String> {
-    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    let mut lock = rsnap_server_lock();
     if let Some(ref mut child) = *lock {
         match child.try_wait() {
             Ok(None) => {
@@ -687,7 +701,7 @@ pub fn start_rsnap_server(
 /// Stop running rsnap background server
 #[tauri::command]
 pub fn stop_rsnap_server() -> Result<bool, String> {
-    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    let mut lock = rsnap_server_lock();
     if let Some(mut child) = lock.take() {
         let _ = child.kill();
         let _ = child.wait();
@@ -700,7 +714,7 @@ pub fn stop_rsnap_server() -> Result<bool, String> {
 /// Query status of rsnap background server
 #[tauri::command]
 pub fn get_rsnap_server_status() -> Result<RsnapServerInfo, String> {
-    let mut lock = RSNAP_SERVER_PROCESS.lock().unwrap();
+    let mut lock = rsnap_server_lock();
     if let Some(ref mut child) = *lock {
         match child.try_wait() {
             Ok(None) => {
