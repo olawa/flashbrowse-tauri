@@ -246,7 +246,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         .map_err(|e| e.to_string())?;
 
         if let Ok(cached_path) = cached_res {
-            if let Ok(preview) = crate::preview_commands::get_preview(&cached_path.to_string_lossy(), None) {
+            if let Ok(preview) = crate::preview_commands::get_preview_sync(&cached_path.to_string_lossy(), None) {
                 return Ok(preview);
             }
         }

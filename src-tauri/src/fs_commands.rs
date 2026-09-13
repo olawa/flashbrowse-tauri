@@ -90,8 +90,17 @@ pub fn resolve_path(path: &str) -> PathBuf {
     }
 }
 
+/// Tauri runs synchronous commands on the IPC thread, so anything that touches
+/// the filesystem has to be moved to the blocking pool: a directory on a slow
+/// mount (SSHFS, SMB, a cluster share) would otherwise stall the whole app.
 #[tauri::command]
-pub fn list_directory(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, String> {
+pub async fn list_directory(path: String, show_hidden: bool) -> Result<Vec<FileItem>, String> {
+    tauri::async_runtime::spawn_blocking(move || list_directory_sync(&path, show_hidden))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+pub fn list_directory_sync(path: &str, show_hidden: bool) -> Result<Vec<FileItem>, String> {
     let resolved_path = resolve_path(path);
 
     if !resolved_path.exists() {
@@ -244,7 +253,15 @@ fn build_subdir_tree(dir: &Path, depth: u8, max_depth: u8, max_per_level: usize)
 }
 
 #[tauri::command]
-pub fn get_subdirs_tree(path: &str, max_depth: u8, max_per_level: usize) -> Vec<SubdirNode> {
+pub async fn get_subdirs_tree(path: String, max_depth: u8, max_per_level: usize) -> Vec<SubdirNode> {
+    tauri::async_runtime::spawn_blocking(move || {
+        get_subdirs_tree_sync(&path, max_depth, max_per_level)
+    })
+    .await
+    .unwrap_or_default()
+}
+
+pub fn get_subdirs_tree_sync(path: &str, max_depth: u8, max_per_level: usize) -> Vec<SubdirNode> {
     let resolved = resolve_path(path);
     let effective_depth = max_depth.min(4); // hard cap at 4 levels
     let effective_per_level = max_per_level.min(20); // hard cap at 20
@@ -252,7 +269,13 @@ pub fn get_subdirs_tree(path: &str, max_depth: u8, max_per_level: usize) -> Vec<
 }
 
 #[tauri::command]
-pub fn get_disk_info(path: &str) -> Result<DiskInfo, String> {
+pub async fn get_disk_info(path: String) -> Result<DiskInfo, String> {
+    tauri::async_runtime::spawn_blocking(move || get_disk_info_sync(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+pub fn get_disk_info_sync(path: &str) -> Result<DiskInfo, String> {
     let check_path = PathBuf::from(if path.is_empty() { "/" } else { path });
     let disks = Disks::new_with_refreshed_list();
 
@@ -1200,7 +1223,13 @@ pub async fn scan_directory_index(
 
 /// Fetch notes for a given directory (looks for NOTES.md, notes.md, .notes.md, README.md)
 #[tauri::command]
-pub fn get_directory_notes(dir_path: String) -> Result<DirectoryNotes, String> {
+pub async fn get_directory_notes(dir_path: String) -> Result<DirectoryNotes, String> {
+    tauri::async_runtime::spawn_blocking(move || get_directory_notes_sync(dir_path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn get_directory_notes_sync(dir_path: String) -> Result<DirectoryNotes, String> {
     let resolved = resolve_path(&dir_path);
     if !resolved.is_dir() {
         return Err(format!("Not a directory: {}", resolved.display()));
@@ -1241,7 +1270,21 @@ pub fn get_directory_notes(dir_path: String) -> Result<DirectoryNotes, String> {
 
 /// Save notes for a given directory to NOTES.md (or specified filename)
 #[tauri::command]
-pub fn save_directory_notes(dir_path: String, content: String, filename: Option<String>) -> Result<DirectoryNotes, String> {
+pub async fn save_directory_notes(
+    dir_path: String,
+    content: String,
+    filename: Option<String>,
+) -> Result<DirectoryNotes, String> {
+    tauri::async_runtime::spawn_blocking(move || save_directory_notes_sync(dir_path, content, filename))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn save_directory_notes_sync(
+    dir_path: String,
+    content: String,
+    filename: Option<String>,
+) -> Result<DirectoryNotes, String> {
     let resolved = resolve_path(&dir_path);
     if !resolved.is_dir() {
         return Err(format!("Not a directory: {}", resolved.display()));

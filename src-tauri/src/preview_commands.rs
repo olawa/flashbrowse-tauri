@@ -287,8 +287,16 @@ pub(crate) fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String
     (headers, rows)
 }
 
+/// Previewing reads (and sometimes decodes) file contents, which must not run
+/// on the IPC thread - see the note on list_directory.
 #[tauri::command]
-pub fn get_preview(path: &str, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
+pub async fn get_preview(path: String, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
+    tauri::async_runtime::spawn_blocking(move || get_preview_sync(&path, max_bytes))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
     let resolved_path = resolve_path(path);
 
     if !resolved_path.exists() {
