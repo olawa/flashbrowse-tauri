@@ -63,6 +63,7 @@
     LayoutTemplate,
     Columns2,
     Columns3,
+    Square,
     EyeOff,
     Terminal as TerminalIcon,
   } from 'lucide-svelte';
@@ -198,6 +199,11 @@
       const nextIdx = (presets.indexOf($inspectorPreset) + 1) % presets.length;
       inspectorPreset.set(presets[nextIdx]);
     }
+    // Cmd+Shift+D: One or two file browsers
+    else if ((e.metaKey || e.ctrlKey) && !e.altKey && e.shiftKey && e.key.toLowerCase() === 'd') {
+      e.preventDefault();
+      setDualPane(!$isDualPane);
+    }
     // Cmd+Option+D: Toggle Dual Inspector
     else if ((e.metaKey || e.ctrlKey) && e.altKey && e.key.toLowerCase() === 'd') {
       e.preventDefault();
@@ -208,6 +214,17 @@
       e.preventDefault();
       toggleStash();
     }
+  }
+
+  /**
+   * Switch between one and two file browsers.
+   *
+   * Going back to one pane moves focus to the left pane, so keyboard commands
+   * cannot act on a browser that is no longer visible.
+   */
+  function setDualPane(enabled: boolean) {
+    isDualPane.set(enabled);
+    if (!enabled) activePaneId.set('left');
   }
 
   function unlockKidsMode() {
@@ -343,6 +360,26 @@
             <span class="font-mono">Terminal</span>
             <kbd class="px-1 py-0.2 rounded text-[9px] font-mono {$isTerminalOpen ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-400'}">⌘J</kbd>
           </button>
+
+          <!-- Browser Count: one or two file panes -->
+          <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {!$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => setDualPane(false)}
+              title="En filbrowser (⌘⇧D)"
+            >
+              <Square size={11} />
+              <span class="hidden md:inline">1 panel</span>
+            </button>
+            <button
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => setDualPane(true)}
+              title="Två filbrowsers sida vid sida (⌘⇧D)"
+            >
+              <Columns2 size={11} />
+              <span class="hidden md:inline">2 paneler</span>
+            </button>
+          </div>
 
           <!-- Inspector Layout Preset Switcher -->
           <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">

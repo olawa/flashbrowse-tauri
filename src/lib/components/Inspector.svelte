@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { emit } from '@tauri-apps/api/event';
-  import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, openFileWith, sshOpenFileLocally, toggleDetachedInspector } from '../invoke';
+  import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, openFileWith, sshOpenFileLocally, toggleDetachedInspector, findCompanions, type Companion } from '../invoke';
   import {
     isInspectorDetached,
     castToSecondaryInspector,
@@ -45,6 +45,7 @@
     Download,
     Settings,
     Code,
+    Link2,
   } from 'lucide-svelte';
   import {
     downloadDirectory,
@@ -77,6 +78,36 @@
   let svgViewMode: 'rendered' | 'source' = 'rendered';
   let showHexDump = false;
   let currentTab: 'preview' | 'notes' | 'ai' = 'preview';
+
+  // Companion files (.bai/.tbi indexes, .md5 checksums, the other read of a pair)
+  let companions: Companion[] = [];
+  let companionsFor: string | null = null;
+
+  $: if (item && !item.is_dir && item.path !== companionsFor) {
+    companionsFor = item.path;
+    loadCompanions(item);
+  } else if (!item || item.is_dir) {
+    companions = [];
+    companionsFor = null;
+  }
+
+  async function loadCompanions(target: FileItem) {
+    const pane = $activePaneId === 'left' ? $leftPane : $rightPane;
+    try {
+      const sets = await findCompanions([target.path], pane.isSSH, pane.sshHost);
+      // A slower lookup for a file the user already moved away from is stale.
+      if (companionsFor !== target.path) return;
+      companions = sets[0]?.companions ?? [];
+    } catch {
+      companions = [];
+    }
+  }
+
+  const COMPANION_LABEL: Record<Companion['kind'], string> = {
+    index: 'Index',
+    checksum: 'Kontrollsumma',
+    mate: 'Parfil',
+  };
 
   $: activePaneState = $activePaneId === 'left' ? $leftPane : $rightPane;
   $: sshFolderName = activePaneState.isSSH && activePaneState.sshHost ? getSSHServerFolderName(activePaneState.sshHost) : '';
@@ -479,6 +510,25 @@
       {/if}
     </div>
   </div>
+
+  <!-- Companion files: indexes, checksums and pair mates that belong with this file -->
+  {#if companions.length > 0}
+    <div class="px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] shrink-0 flex items-center gap-2 flex-wrap text-[10.5px]">
+      <span class="flex items-center gap-1 text-[var(--text-muted)] font-semibold uppercase tracking-wider shrink-0">
+        <Link2 size={11} class="text-[var(--accent)]" />
+        Följeslagare
+      </span>
+      {#each companions as companion (companion.path)}
+        <span
+          class="px-1.5 py-0.5 rounded border border-[var(--border)] bg-[var(--bg-surface)] font-mono text-[var(--text-secondary)] flex items-center gap-1"
+          title="{COMPANION_LABEL[companion.kind]} · {companion.formatted_size} · följer med vid överföring"
+        >
+          {companion.name}
+          <span class="text-[var(--text-muted)]">{companion.formatted_size}</span>
+        </span>
+      {/each}
+    </div>
+  {/if}
 
   <!-- Inspector Body -->
   <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">

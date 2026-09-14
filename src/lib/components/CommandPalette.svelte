@@ -67,6 +67,7 @@
       { id: 'reset-layout', title: 'Layout: Återställ panelbredder till standard', category: 'Vy', icon: LayoutGrid, action: () => resetLayoutWidths() },
       { id: 'toggle-terminal', title: 'Toggle Terminal (Cmd+J)', category: 'Vy', icon: Terminal, action: () => toggleTerminal() },
       { id: 'toggle-dock', title: 'Toggle Terminal Dock Position', category: 'Vy', icon: Terminal, action: () => toggleTerminalDock() },
+      { id: 'toggle-panes', title: 'Växla mellan en och två filbrowsers (⌘⇧D)', category: 'Vy', icon: LayoutGrid, action: () => isDualPane.update((v) => { if (v) activePaneId.set('left'); return !v; }) },
       { id: 'toggle-inspector', title: 'Toggle Dual Inspector', category: 'Vy', icon: LayoutGrid, action: () => isDualInspector.update((v) => !v) },
       { id: 'toggle-dotfiles', title: 'Toggle Hidden Files', category: 'Vy', icon: Eye, action: () => showHiddenFiles.update((v) => !v) },
       { id: 'jump-home', title: 'Gå till Hemkatalog (~)', category: 'Navigation', icon: Home, action: () => navigatePane($activePaneId, home) },

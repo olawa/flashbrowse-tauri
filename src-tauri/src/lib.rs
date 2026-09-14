@@ -1,4 +1,5 @@
 pub mod bio_commands;
+pub mod companion_commands;
 pub mod fs_commands;
 pub mod models;
 pub mod preview_commands;
@@ -7,6 +8,7 @@ pub mod terminal_commands;
 pub mod transfer_commands;
 
 use bio_commands::*;
+use companion_commands::*;
 use fs_commands::*;
 use preview_commands::*;
 use ssh_commands::*;
@@ -28,6 +30,7 @@ pub fn run() {
             start_transfer,
             cancel_transfer,
             transfer_backend,
+            find_companions,
             move_items,
             create_directory,
             create_file,

@@ -1,6 +1,6 @@
 import { writable } from 'svelte/store';
 
-function createPersistentStore<T>(key: string, defaultValue: T) {
+export function createPersistentStore<T>(key: string, defaultValue: T) {
   let initial = defaultValue;
   if (typeof localStorage !== 'undefined') {
     try {

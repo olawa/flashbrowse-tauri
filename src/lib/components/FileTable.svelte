@@ -1013,6 +1013,7 @@
 <div
   tabindex="0"
   class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
+  class:pane-remote={pane.isSSH}
   on:mouseleave={handleRowMouseLeave}
   on:mousedown={() => activePaneId.set(paneId)}
   on:wheel|passive={handleWheel}

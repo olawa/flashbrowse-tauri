@@ -87,6 +87,31 @@ export async function transferItems(
   });
 }
 
+/** An index, checksum or pair mate that belongs with a selected file. */
+export interface Companion {
+  path: string;
+  name: string;
+  kind: 'index' | 'checksum' | 'mate';
+  formatted_size: string;
+}
+
+export interface CompanionSet {
+  primary: string;
+  companions: Companion[];
+}
+
+/**
+ * Find the files that should travel with these ones: .bai/.tbi/.fai indexes,
+ * .md5 checksums and the other read of a FASTQ pair.
+ */
+export async function findCompanions(
+  paths: string[],
+  isSsh = false,
+  sshHost = '',
+): Promise<CompanionSet[]> {
+  return await invoke<CompanionSet[]>('find_companions', { paths, isSsh, sshHost });
+}
+
 /** Progress payload emitted by the backend during a transfer. */
 export interface TransferProgress {
   id: string;

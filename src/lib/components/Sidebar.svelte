@@ -9,6 +9,7 @@
     rightPane,
     clickMode,
     smartHoverPreview,
+    companionMode,
   } from '../stores/navigation';
   import { currentTheme, setTheme, isKidsMode } from '../stores/theme';
   import DiskBar from './DiskBar.svelte';
@@ -36,6 +37,7 @@
     Filter,
     Layers,
     Zap,
+    Link2,
     Terminal as TerminalIcon,
   } from 'lucide-svelte';
   import { isTerminalOpen, toggleTerminal } from '../stores/terminal';
@@ -437,6 +439,20 @@
           </div>
           <span class="text-[9px] px-1 rounded bg-[var(--border)] font-mono">
             {$clickMode === 'folders-only' ? '1x' : '2x'}
+          </span>
+        </button>
+
+        <button
+          class="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-[var(--bg-hover)] text-left text-[var(--text-secondary)]"
+          on:click={() => companionMode.update((m) => (m === 'ask' ? 'always' : m === 'always' ? 'never' : 'ask'))}
+          title="Index (.bai/.tbi), kontrollsummor och parfiler följer med vid överföring"
+        >
+          <div class="flex items-center gap-2">
+            <Link2 size={14} class={$companionMode === 'never' ? '' : 'text-[var(--accent)]'} />
+            <span>Följeslagarfiler</span>
+          </div>
+          <span class="text-[9px] px-1 rounded bg-[var(--border)] font-mono">
+            {$companionMode === 'ask' ? 'FRÅGA' : $companionMode === 'always' ? 'ALLTID' : 'ALDRIG'}
           </span>
         </button>
 

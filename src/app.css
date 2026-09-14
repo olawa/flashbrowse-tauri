@@ -273,3 +273,21 @@ body {
   border-radius: 4px;
   background: var(--bg-panel);
 }
+
+/* ---------------------------------------------------------------
+   Remote panes
+   An SSH pane is lifted a step out of the background so you can see
+   at a glance which browser is on the cluster and which is local -
+   the difference matters most right before a delete or a transfer.
+   The lift is neutral, not accent-coloured: a tinted pane reads as a
+   warning. Every token is derived from --bg-active and --text-primary,
+   which this rule does not redefine, so the values cannot chain into
+   each other and drift far from the theme.
+   --------------------------------------------------------------- */
+.pane-remote {
+  --bg-base: color-mix(in srgb, var(--bg-active) 94%, var(--text-primary) 6%);
+  --bg-surface: color-mix(in srgb, var(--bg-active) 91%, var(--text-primary) 9%);
+  --bg-panel: color-mix(in srgb, var(--bg-active) 88%, var(--text-primary) 12%);
+  --border: color-mix(in srgb, var(--bg-active) 62%, var(--text-muted) 38%);
+  --bg-hover: color-mix(in srgb, var(--text-primary) 10%, transparent);
+}

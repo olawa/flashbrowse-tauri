@@ -192,7 +192,10 @@
   }}
 />
 
-<div class="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-xs text-[var(--text-secondary)] select-none relative z-20">
+<div
+  class="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-xs text-[var(--text-secondary)] select-none relative z-20"
+  class:pane-remote={pane.isSSH}
+>
   <!-- History Controls -->
   <div class="flex items-center gap-0.5 mr-1 shrink-0">
     <button

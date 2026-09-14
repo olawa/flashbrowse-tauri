@@ -1,14 +1,17 @@
 import { writable, get } from 'svelte/store';
+import { createPersistentStore } from './layoutStore';
 import {
   listDirectory,
   getHomeDirectory,
   sshListDirectory,
   startTransfer,
   cancelTransfer,
+  findCompanions,
   watchDirectory,
   parseConflictError,
   type ConflictStrategy,
   type TransferProgress,
+  type Companion,
 } from '../invoke';
 import { listen } from '@tauri-apps/api/event';
 import type { FileItem } from '../types';
@@ -51,7 +54,8 @@ export const rightPane = writable<PaneState>(createDefaultPaneState());
 export type InspectorPreset = 'center' | 'right' | 'dual' | 'none';
 
 export const activePaneId = writable<'left' | 'right'>('left');
-export const isDualPane = writable<boolean>(true);
+/** One or two file browsers. Remembered between sessions. */
+export const isDualPane = createPersistentStore<boolean>('flashbrowse_dual_pane', true);
 export const isDualInspector = writable<boolean>(false);
 export const inspectorPreset = writable<InspectorPreset>('center');
 export const isInspectorDetached = writable<boolean>(false);
@@ -364,6 +368,70 @@ export async function cancelActiveTransfer() {
   }
 }
 
+/** Whether companion files are added automatically, asked about, or ignored. */
+export type CompanionMode = 'ask' | 'always' | 'never';
+
+export const companionMode = writable<CompanionMode>(
+  (typeof localStorage !== 'undefined'
+    ? (localStorage.getItem('flashbrowse_companion_mode') as CompanionMode)
+    : null) || 'ask'
+);
+
+companionMode.subscribe((mode) => {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('flashbrowse_companion_mode', mode);
+  }
+});
+
+const COMPANION_LABELS: Record<Companion['kind'], string> = {
+  index: 'index',
+  checksum: 'kontrollsumma',
+  mate: 'parfil',
+};
+
+/**
+ * Return the paths to transfer, including companions.
+ *
+ * Returns null if the user cancelled at the prompt.
+ */
+async function includeCompanions(
+  paths: string[],
+  isSSH: boolean,
+  sshHost: string
+): Promise<string[] | null> {
+  const mode = get(companionMode);
+  if (mode === 'never') return paths;
+
+  let sets;
+  try {
+    sets = await findCompanions(paths, isSSH, sshHost);
+  } catch (err) {
+    // Finding companions is a convenience: never block the transfer on it.
+    console.warn('Companion lookup failed:', err);
+    return paths;
+  }
+
+  const extra = sets.flatMap((s) => s.companions);
+  if (extra.length === 0) return paths;
+
+  if (mode === 'ask') {
+    const listed = extra
+      .slice(0, 8)
+      .map((c) => `  ${c.name}  (${COMPANION_LABELS[c.kind]}, ${c.formatted_size})`)
+      .join('\n');
+    const more = extra.length > 8 ? `\n  …och ${extra.length - 8} till` : '';
+    const takeAlong = confirm(
+      `${extra.length} följeslagarfiler hör ihop med markeringen:\n\n${listed}${more}\n\n` +
+        'OK = ta med dem\nAvbryt = överför bara markerade filer'
+    );
+    if (!takeAlong) return paths;
+  }
+
+  const merged = new Set(paths);
+  for (const c of extra) merged.add(c.path);
+  return Array.from(merged);
+}
+
 export async function transferBetweenPanes(
   fromPaneId: 'left' | 'right',
   toPaneId: 'left' | 'right',
@@ -375,12 +443,18 @@ export async function transferBetweenPanes(
   const fromState = get(fromStore);
   const toState = get(toStore);
 
-  const paths = explicitPaths && explicitPaths.length > 0
+  let paths = explicitPaths && explicitPaths.length > 0
     ? explicitPaths
     : Array.from(fromState.selectedPaths);
 
   if (paths.length === 0) return;
   if (!toState.currentPath) return;
+
+  // Offer to bring index files, checksums and pair mates along: a BAM that
+  // arrives without its .bai is broken for everything downstream.
+  const withCompanions = await includeCompanions(paths, fromState.isSSH, fromState.sshHost);
+  if (withCompanions === null) return;
+  paths = withCompanions;
 
   isTransferring.set(true);
   transferStatus.set(`Överför ${paths.length} objekt...`);
