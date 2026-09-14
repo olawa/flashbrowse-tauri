@@ -222,12 +222,13 @@
     isGeneratingSnapshot = true;
     snapshotError = '';
     try {
-      const genomeId = bamHeader?.detected_reference?.includes('38') ? 'hg38' :
-                       bamHeader?.detected_reference?.includes('19') || bamHeader?.detected_reference?.includes('37') ? 'hg19' : undefined;
+      // No genome id: the backend reads the build from the BAM header. The old
+      // string match on the label picked hg38 for a mouse BAM, since "GRCm38"
+      // also contains "38".
       const b64 = await generateRsnapSnapshot(
-        item.path,
+        [item.path],
         snapshotRegion.trim(),
-        genomeId,
+        undefined,
         bamHeader?.reference_matched_path
       );
       snapshotB64 = b64;

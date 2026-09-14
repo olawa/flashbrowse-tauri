@@ -239,15 +239,22 @@ export async function getBamHeader(path: string): Promise<BamHeaderData> {
   return await invoke<BamHeaderData>('get_bam_header', { path });
 }
 
+/**
+ * Render an rsnap snapshot as base64 PNG.
+ *
+ * Several BAMs render as one stacked multi-sample view over the same region.
+ * `region` may be coordinates or a gene name; leaving `genomeId` unset lets the
+ * backend pick the genome from the BAM header.
+ */
 export async function generateRsnapSnapshot(
-  bamPath: string,
+  bamPaths: string[],
   region: string,
   genomeId?: string,
   refPath?: string,
   gtfPath?: string,
 ): Promise<string> {
   return await invoke<string>('generate_rsnap_snapshot', {
-    bamPath,
+    bamPaths,
     region,
     genomeId,
     refPath,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive, sendToIgv } from '../invoke';
+  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive, sendToIgv, generateRsnapSnapshot } from '../invoke';
   import { addMultipleToStash } from '../stores/stash';
   import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
   import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
@@ -196,6 +196,38 @@
       ext === 'bed' || ext === 'bw' || ext === 'bigwig'
     );
   });
+
+  // Multi-sample snapshot: rsnap stacks one panel per BAM over the same region.
+  $: alignmentItems = items.filter((i) => {
+    if (i.is_dir) return false;
+    const ext = i.extension.toLowerCase();
+    return ext === 'bam' || ext === 'cram';
+  });
+
+  let snapshotRegion = '';
+  let snapshotB64: string | null = null;
+  let snapshotError = '';
+  let isGeneratingSnapshot = false;
+
+  async function handleMultiSnapshot() {
+    const region = snapshotRegion.trim();
+    if (alignmentItems.length === 0 || !region) return;
+
+    isGeneratingSnapshot = true;
+    snapshotError = '';
+    snapshotB64 = null;
+    try {
+      // No genome id: the backend reads the build from the first BAM header.
+      snapshotB64 = await generateRsnapSnapshot(
+        alignmentItems.map((i) => i.path),
+        region
+      );
+    } catch (e: any) {
+      snapshotError = String(e);
+    } finally {
+      isGeneratingSnapshot = false;
+    }
+  }
 
   async function handleOpenRsnap() {
     if (genomicsItems.length === 0) return;
@@ -399,6 +431,50 @@
       </button>
     {/if}
   </div>
+
+  <!-- Multi-sample rsnap snapshot: all selected alignments, one region -->
+  {#if alignmentItems.length > 1}
+    <div class="p-3 bg-[#11141b] border-b border-[#252d3d] shrink-0 space-y-2">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 shrink-0">
+          <Camera size={13} class="text-emerald-400" />
+          Gemensam snapshot ({alignmentItems.length} prover)
+        </span>
+        <input
+          type="text"
+          bind:value={snapshotRegion}
+          on:keydown={(e) => e.key === 'Enter' && handleMultiSnapshot()}
+          placeholder="Gen eller region — t.ex. TP53, BRCA1 exon11, chr17:7565097-7590856"
+          class="flex-1 min-w-[14rem] bg-[var(--bg-panel)] text-[11px] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none font-mono placeholder:text-[var(--text-muted)]"
+        />
+        <button
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+          on:click={handleMultiSnapshot}
+          disabled={isGeneratingSnapshot || !snapshotRegion.trim()}
+        >
+          {#if isGeneratingSnapshot}
+            <div class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Renderar…</span>
+          {:else}
+            <Camera size={13} />
+            <span>Rendera</span>
+          {/if}
+        </button>
+      </div>
+
+      {#if snapshotError}
+        <pre class="text-[10.5px] text-red-300 bg-red-950/40 border border-red-900/60 rounded p-2 whitespace-pre-wrap break-words m-0 font-mono">{snapshotError}</pre>
+      {/if}
+
+      {#if snapshotB64}
+        <img
+          src="data:image/png;base64,{snapshotB64}"
+          alt="rsnap-snapshot för {alignmentItems.length} prover"
+          class="w-full rounded border border-[var(--border)] bg-black"
+        />
+      {/if}
+    </div>
+  {/if}
 
   <!-- Category Breakdown Chips -->
   {#if categories.length > 0}

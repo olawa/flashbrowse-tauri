@@ -517,9 +517,62 @@ fn format_contig_length(len: u64) -> String {
 }
 
 /// Generate a high-speed rsnap PNG snapshot for a region and return Base64 image
+/// Map a chr1 length to the genome id used in genomes.json.
+///
+/// Lengths are exact and unique per build, so this is more reliable than
+/// matching on the header's free-text reference label - which is how a mouse
+/// BAM used to end up rendered against the human annotation, "GRCm38"
+/// containing "38".
+pub fn build_id_for_chr1(name: Option<&str>, len: Option<u64>) -> Option<&'static str> {
+    match (name, len) {
+        (_, Some(248_956_422)) => Some("hg38"),
+        (_, Some(249_250_621)) => Some("hg19"),
+        (_, Some(248_387_328)) => Some("t2t"),
+        (_, Some(195_471_971)) => Some("mm10"),
+        (_, Some(195_154_279)) => Some("mm39"),
+        _ => None,
+    }
+}
+
+/// Read a BAM/CRAM header and work out which configured genome it aligns to.
+fn detect_build_from_bam(bam_path: &str) -> Option<&'static str> {
+    let samtools = find_tool_executable("samtools")?;
+    let out = Command::new(samtools)
+        .arg("view")
+        .arg("-H")
+        .arg(bam_path)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+
+    let header = String::from_utf8_lossy(&out.stdout);
+    for line in header.lines() {
+        if !line.starts_with("@SQ") {
+            continue;
+        }
+        let mut is_chr1 = false;
+        let mut len = None;
+        let mut name = None;
+        for part in line.split('\t') {
+            if let Some(sn) = part.strip_prefix("SN:") {
+                is_chr1 = sn == "chr1" || sn == "1";
+                name = Some(sn.to_string());
+            } else if let Some(stripped) = part.strip_prefix("LN:") {
+                len = stripped.parse::<u64>().ok();
+            }
+        }
+        if is_chr1 {
+            return build_id_for_chr1(name.as_deref(), len);
+        }
+    }
+    None
+}
+
 #[tauri::command]
 pub async fn generate_rsnap_snapshot(
-    bam_path: String,
+    bam_paths: Vec<String>,
     region: String,
     genome_id: Option<String>,
     ref_path: Option<String>,
@@ -529,8 +582,14 @@ pub async fn generate_rsnap_snapshot(
         let rsnap_bin = find_tool_executable("rsnap")
             .ok_or_else(|| "rsnap executable not found in dev/bin or PATH".to_string())?;
 
-        let resolved_bam = resolve_path(&bam_path);
-        let resolved_bam_str = resolved_bam.to_string_lossy().to_string();
+        if bam_paths.is_empty() {
+            return Err("Ingen BAM-fil vald".to_string());
+        }
+
+        let resolved_bams: Vec<String> = bam_paths
+            .iter()
+            .map(|p| resolve_path(p).to_string_lossy().to_string())
+            .collect();
 
         let temp_file = tempfile::Builder::new()
             .prefix("flashbrowse_rsnap_")
@@ -541,16 +600,26 @@ pub async fn generate_rsnap_snapshot(
         let temp_out_str = temp_path.to_string_lossy().to_string();
 
         let mut cmd = Command::new(rsnap_bin);
-        cmd.arg("-b").arg(&resolved_bam_str);
+        // rsnap renders one panel per --bam, so a multi-selection becomes a
+        // stacked multi-sample snapshot over the same region.
+        for bam in &resolved_bams {
+            cmd.arg("-b").arg(bam);
+        }
         cmd.arg("-p").arg(&region);
         cmd.arg("-o").arg(&temp_out_str);
 
-        // Resolve reference & GTF
+        // Resolve reference & GTF. Without an explicit choice, ask the BAM
+        // header which build it was aligned to rather than assuming human.
         let configured = get_configured_genomes().unwrap_or_default();
         let target_genome = if let Some(gid) = genome_id {
             configured.iter().find(|g| g.id == gid).cloned()
         } else {
-            configured.iter().find(|g| g.id == "hg38").or_else(|| configured.first()).cloned()
+            let detected = detect_build_from_bam(&resolved_bams[0]);
+            detected
+                .and_then(|build| configured.iter().find(|g| g.id == build))
+                .or_else(|| configured.iter().find(|g| g.id == "hg38"))
+                .or_else(|| configured.first())
+                .cloned()
         };
 
         let effective_ref = ref_path.or_else(|| target_genome.as_ref().and_then(|g| g.fasta_path.clone()));
