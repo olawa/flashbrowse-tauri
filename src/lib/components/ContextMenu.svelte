@@ -209,7 +209,8 @@
 
   async function handleRsQc() {
     try {
-      qcResultModal = await runRsQc(item.path);
+      const result = await runRsQc(item.path);
+      qcResultModal = `${result.report}\n\nFiler skrivna till: ${result.output_dir}`;
     } catch (e: any) {
       alert(`rs-qc fel: ${e}`);
       onClose();

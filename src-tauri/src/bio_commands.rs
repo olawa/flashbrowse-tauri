@@ -1,12 +1,12 @@
 use crate::fs_commands::{format_byte_size, resolve_path};
 use crate::models::{
     ArchiveEntry, ArchiveSummary, BamHeaderData, ContigInfo, GenomeRefInfo, ProgramInfo,
-    ReadGroupInfo, SamRecord, SamViewResult, TrackGenomeDetection,
+    ReadGroupInfo, RsQcResult, SamRecord, SamViewResult, TrackGenomeDetection,
 };
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::fs::{self, File};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// Locate bioinformatics tools in common dev/system paths
@@ -639,6 +639,7 @@ pub async fn generate_rsnap_snapshot(
             }
         }
 
+        cmd.current_dir(writable_output_dir(None));
         let output = cmd.output().map_err(|e| format!("Failed to execute rsnap: {}", e))?;
 
         if !output.status.success() {
@@ -755,6 +756,9 @@ pub fn start_rsnap_server(
         }
     }
 
+    // A GUI app inherits "/" as its working directory, which is read-only on
+    // macOS; anything the child writes relatively would fail there.
+    cmd.current_dir(writable_output_dir(None));
     let child = cmd.spawn().map_err(|e| format!("Kunde inte starta rsnap server: {}", e))?;
     let pid = child.id();
     *lock = Some(child);
@@ -879,6 +883,7 @@ pub fn launch_rsnap(
         }
     }
 
+    cmd.current_dir(writable_output_dir(None));
     cmd.spawn().map_err(|e| format!("Kunde inte starta rsnap viewer: {}", e))?;
     Ok(())
 }
@@ -970,18 +975,69 @@ pub fn check_igv_status(port: Option<u16>) -> bool {
 }
 
 /// Run rs-qc alignment QC and return summary report
+/// A directory an external tool can safely write its outputs into.
+///
+/// A GUI app on macOS inherits the working directory "/" - the read-only signed
+/// system volume - so any tool that writes to a relative path fails with
+/// "Read-only file system (os error 30)". Tools are therefore given an explicit
+/// directory: next to the data when that is writable, which is where a
+/// bioinformatician expects results, otherwise the app's own data directory.
+pub fn writable_output_dir(preferred: Option<&Path>) -> PathBuf {
+    if let Some(dir) = preferred {
+        if is_writable_dir(dir) {
+            return dir.to_path_buf();
+        }
+    }
+
+    let app_dir = crate::fs_commands::dirs_home().join("Library/Application Support/flashbrowse/reports");
+    if std::fs::create_dir_all(&app_dir).is_ok() && is_writable_dir(&app_dir) {
+        return app_dir;
+    }
+
+    std::env::temp_dir()
+}
+
+/// Probe by writing, rather than reading permission bits: a network mount or a
+/// read-only volume can look writable and refuse the write.
+fn is_writable_dir(dir: &Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    let probe = dir.join(format!(".flashbrowse_write_probe_{}", std::process::id()));
+    match std::fs::write(&probe, b"") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe);
+            true
+        }
+        Err(_) => false,
+    }
+}
+
 #[tauri::command]
-pub async fn run_rs_qc(bam_path: String) -> Result<String, String> {
+pub async fn run_rs_qc(bam_path: String) -> Result<RsQcResult, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let rsqc_bin = find_tool_executable("rs-qc")
             .ok_or_else(|| "rs-qc executable not found in dev/bin or PATH".to_string())?;
 
         let resolved_path = resolve_path(&bam_path);
 
+        // rs-qc writes its report, tables and plots to a prefix that is relative
+        // by default, i.e. into the working directory. Both are made explicit:
+        // an absolute prefix, and a directory we know we can write to.
+        let out_dir = writable_output_dir(resolved_path.parent());
+        let sample = resolved_path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_else(|| "sample".to_string());
+        let prefix = out_dir.join(&sample);
+
         let output = Command::new(rsqc_bin)
             .arg("align")
             .arg("-i")
             .arg(&resolved_path)
+            .arg("-o")
+            .arg(&prefix)
+            .current_dir(&out_dir)
             .output()
             .map_err(|e| format!("Failed to execute rs-qc: {}", e))?;
 
@@ -992,7 +1048,10 @@ pub async fn run_rs_qc(bam_path: String) -> Result<String, String> {
             return Err(format!("rs-qc error: {}\n{}", stderr, stdout));
         }
 
-        Ok(stdout)
+        Ok(RsQcResult {
+            report: stdout,
+            output_dir: out_dir.to_string_lossy().to_string(),
+        })
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1226,3 +1285,36 @@ pub async fn get_bam_alignments(
     .map_err(|e| e.to_string())?
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chr1_length_identifies_the_build() {
+        assert_eq!(build_id_for_chr1(Some("chr1"), Some(248_956_422)), Some("hg38"));
+        assert_eq!(build_id_for_chr1(Some("1"), Some(249_250_621)), Some("hg19"));
+        // A mouse BAM must not be taken for human just because "GRCm38" has a 38 in it.
+        assert_eq!(build_id_for_chr1(Some("chr1"), Some(195_471_971)), Some("mm10"));
+        assert_eq!(build_id_for_chr1(Some("chr1"), Some(123)), None);
+        assert_eq!(build_id_for_chr1(None, None), None);
+    }
+
+    #[test]
+    fn a_read_only_directory_is_not_offered_for_output() {
+        // "/" is the read-only signed system volume on macOS, and the working
+        // directory a GUI app inherits - the case that broke rs-qc.
+        let root = Path::new("/");
+        assert!(!is_writable_dir(root));
+
+        let chosen = writable_output_dir(Some(root));
+        assert_ne!(chosen, root);
+        assert!(is_writable_dir(&chosen), "fallback must be writable: {chosen:?}");
+    }
+
+    #[test]
+    fn a_writable_directory_is_used_as_is() {
+        let dir = std::env::temp_dir();
+        assert_eq!(writable_output_dir(Some(&dir)), dir);
+    }
+}

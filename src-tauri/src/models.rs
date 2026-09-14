@@ -199,3 +199,10 @@ pub struct TrackGenomeDetection {
     pub detected_label: String,
     pub chr1_len: Option<u64>,
 }
+
+/// Result of an rs-qc run: the text report plus where its files were written.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct RsQcResult {
+    pub report: String,
+    pub output_dir: String,
+}

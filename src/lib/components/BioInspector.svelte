@@ -6,6 +6,7 @@
     launchRsnap,
     runRsQc,
     sendToIgv,
+    revealInOs,
   } from '../invoke';
   import {
     addTracksToHub,
@@ -35,6 +36,7 @@
     ZoomIn,
     ZoomOut,
     Sliders,
+    FolderOpen,
   } from 'lucide-svelte';
 
   export let item: FileItem;
@@ -76,6 +78,7 @@
 
   // rs-qc state
   let qcReport: string | null = null;
+  let qcOutputDir: string | null = null;
   let isRunningQc = false;
   let qcError = '';
 
@@ -310,7 +313,9 @@
     isRunningQc = true;
     qcError = '';
     try {
-      qcReport = await runRsQc(item.path);
+      const result = await runRsQc(item.path);
+      qcReport = result.report;
+      qcOutputDir = result.output_dir;
     } catch (e: any) {
       qcError = String(e);
     } finally {
@@ -963,6 +968,16 @@
           <div class="p-3 rounded-xl bg-[#0c0d10] border border-[#252d3d] font-mono text-[11px] text-slate-300 overflow-auto max-h-96">
             <pre class="m-0 whitespace-pre-wrap">{qcReport}</pre>
           </div>
+          {#if qcOutputDir}
+            <button
+              class="mt-2 flex items-center gap-1.5 text-[10.5px] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors font-mono"
+              on:click={() => qcOutputDir && revealInOs(qcOutputDir)}
+              title="Visa rs-qc:s tabeller och diagram i Finder"
+            >
+              <FolderOpen size={12} />
+              <span>Filer skrivna till {qcOutputDir}</span>
+            </button>
+          {/if}
         {/if}
       </div>
     {/if}

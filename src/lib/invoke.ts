@@ -323,8 +323,14 @@ export async function checkIgvStatus(port?: number): Promise<boolean> {
   return await invoke<boolean>('check_igv_status', { port });
 }
 
-export async function runRsQc(bamPath: string): Promise<string> {
-  return await invoke<string>('run_rs_qc', { bamPath });
+/** Text report from rs-qc plus the directory its files were written to. */
+export interface RsQcResult {
+  report: string;
+  output_dir: string;
+}
+
+export async function runRsQc(bamPath: string): Promise<RsQcResult> {
+  return await invoke<RsQcResult>('run_rs_qc', { bamPath });
 }
 
 export async function listArchiveContents(path: string): Promise<ArchiveSummary> {
