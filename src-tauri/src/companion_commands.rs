@@ -45,7 +45,6 @@ pub struct CompanionSet {
 /// Picard and older pipelines write `sample.bai`.
 fn candidates(path: &str) -> Vec<(String, CompanionKind)> {
     let mut out: Vec<(String, CompanionKind)> = Vec::new();
-    let lower = path.to_lowercase();
 
     // Checksums sit next to anything.
     for ext in ["md5", "sha256", "sha1"] {
@@ -53,16 +52,18 @@ fn candidates(path: &str) -> Vec<(String, CompanionKind)> {
     }
 
     // Index files, by data type.
-    let stem_without_ext = |suffix: &str| path[..path.len() - suffix.len()].to_string();
-
-    if lower.ends_with(".bam") {
+    if let Some(stem) = strip_ext_ci(path, ".bam") {
         out.push((format!("{}.bai", path), CompanionKind::Index));
         out.push((format!("{}.csi", path), CompanionKind::Index));
-        out.push((format!("{}bai", stem_without_ext("bam")), CompanionKind::Index));
-    } else if lower.ends_with(".cram") {
+        // Picard and older pipelines drop the .bam instead of appending.
+        out.push((format!("{}.bai", stem), CompanionKind::Index));
+    } else if let Some(stem) = strip_ext_ci(path, ".cram") {
         out.push((format!("{}.crai", path), CompanionKind::Index));
-        out.push((format!("{}crai", stem_without_ext("cram")), CompanionKind::Index));
-    } else if lower.ends_with(".gz") || lower.ends_with(".bgz") || lower.ends_with(".bcf") {
+        out.push((format!("{}.crai", stem), CompanionKind::Index));
+    } else if strip_ext_ci(path, ".gz").is_some()
+        || strip_ext_ci(path, ".bgz").is_some()
+        || strip_ext_ci(path, ".bcf").is_some()
+    {
         // Tabix-indexed: vcf.gz, bed.gz, gff.gz, gtf.gz, bcf …
         out.push((format!("{}.tbi", path), CompanionKind::Index));
         out.push((format!("{}.csi", path), CompanionKind::Index));
@@ -70,20 +71,13 @@ fn candidates(path: &str) -> Vec<(String, CompanionKind)> {
     }
 
     for fasta in [".fa", ".fasta", ".fa.gz", ".fasta.gz", ".fna"] {
-        if lower.ends_with(fasta) {
+        if let Some(stem) = strip_ext_ci(path, fasta) {
             out.push((format!("{}.fai", path), CompanionKind::Index));
             out.push((format!("{}.gzi", path), CompanionKind::Index));
             // Sequence dictionaries replace the extension instead of appending.
-            out.push((
-                format!("{}dict", stem_without_ext(&fasta[1..])),
-                CompanionKind::Index,
-            ));
+            out.push((format!("{}.dict", stem), CompanionKind::Index));
             break;
         }
-    }
-
-    if lower.ends_with(".bigwig") || lower.ends_with(".bw") {
-        // No index, but a matching .bed is a common companion export.
     }
 
     if let Some(mate) = mate_path(path) {
@@ -91,6 +85,17 @@ fn candidates(path: &str) -> Vec<(String, CompanionKind)> {
     }
 
     out
+}
+
+/// Strip `ext` from the end of `path`, ignoring case.
+///
+/// Returns None when the path does not end with it - including when the cut
+/// would land inside a multi-byte character, which plain slicing would panic on.
+fn strip_ext_ci<'a>(path: &'a str, ext: &str) -> Option<&'a str> {
+    let split = path.len().checked_sub(ext.len())?;
+    let head = path.get(..split)?;
+    let tail = path.get(split..)?;
+    tail.eq_ignore_ascii_case(ext).then_some(head)
 }
 
 /// The other half of a paired-end FASTQ, if this looks like one.
@@ -277,6 +282,15 @@ mod tests {
         let found = candidate_paths("/ref/hg38.fa");
         assert!(found.contains(&"/ref/hg38.fa.fai".to_string()));
         assert!(found.contains(&"/ref/hg38.dict".to_string()));
+    }
+
+    #[test]
+    fn handles_paths_that_are_not_plain_ascii() {
+        // A cut landing inside a multi-byte character must not panic.
+        let found = candidate_paths("/data/prov–körning.bam");
+        assert!(found.contains(&"/data/prov–körning.bam.bai".to_string()));
+        assert!(candidate_paths("/data/åäö").len() >= 3);
+        assert!(candidate_paths("é").len() >= 3);
     }
 
     #[test]
