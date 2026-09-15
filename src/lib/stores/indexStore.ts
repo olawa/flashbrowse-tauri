@@ -18,16 +18,56 @@ export const activeIndexGroups = derived(
   }
 );
 
+export type IndexSortBy = 'name' | 'size' | 'modified';
+
+/** How the index list is sorted. Clicking a column header changes it. */
+export const indexSortBy = writable<IndexSortBy>('name');
+export const indexSortAsc = writable<boolean>(true);
+
+/** Click a column: first click sorts by it, clicking it again reverses. */
+export function sortIndexItems(column: IndexSortBy) {
+  if (get(indexSortBy) === column) {
+    indexSortAsc.update((v) => !v);
+  } else {
+    indexSortBy.set(column);
+    // Size and date are most useful largest/newest first; names read A-Z.
+    indexSortAsc.set(column === 'name');
+  }
+}
+
 export const activeIndexFilteredItems = derived(
-  [activeIndexGroups, indexSearchQuery],
-  ([$groups, $query]) => {
+  [activeIndexGroups, indexSearchQuery, indexSortBy, indexSortAsc],
+  ([$groups, $query, $sortBy, $sortAsc]) => {
     const allItems: FileItem[] = [];
     for (const g of $groups) {
       allItems.push(...g.items);
     }
+
     const q = $query.trim().toLowerCase();
-    if (!q) return allItems;
-    return allItems.filter((item) => item.name.toLowerCase().includes(q) || item.path.toLowerCase().includes(q));
+    const matched = q
+      ? allItems.filter(
+          (item) => item.name.toLowerCase().includes(q) || item.path.toLowerCase().includes(q)
+        )
+      : allItems;
+
+    const sorted = [...matched].sort((a, b) => {
+      let cmp = 0;
+      if ($sortBy === 'size') {
+        cmp = a.size_bytes - b.size_bytes;
+      } else if ($sortBy === 'modified') {
+        cmp = a.modified_timestamp - b.modified_timestamp;
+      } else {
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      // Ties on size or date fall back to the name, so the order is stable
+      // rather than dependent on which directory was scanned first.
+      if (cmp === 0 && $sortBy !== 'name') {
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return $sortAsc ? cmp : -cmp;
+    });
+
+    return sorted;
   }
 );
 

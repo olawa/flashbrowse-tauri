@@ -16,6 +16,9 @@
     toggleIndexDir,
     refreshCurrentIndex,
     activeHighlightedParentDir,
+    indexSortBy,
+    indexSortAsc,
+    sortIndexItems,
   } from '../stores/indexStore';
   import {
     leftPane,
@@ -26,7 +29,8 @@
     triggerInspectorScroll,
     castToSecondaryInspector,
   } from '../stores/navigation';
-  import { openInDefault, launchRsnap, revealInOs } from '../invoke';
+  import { openInDefault, launchRsnap, revealInOs, findRelatedBams, type RelatedBamResult } from '../invoke';
+  import RelatedBamsModal from './RelatedBamsModal.svelte';
   import type { FileItem, DirectoryIndexGroup } from '../types';
   import {
     Folder,
@@ -49,6 +53,8 @@
     Rocket,
     RefreshCw,
     ArrowLeft,
+    ArrowUp,
+    ArrowDown,
   } from 'lucide-svelte';
 
   export let onSelectPreview: (item: FileItem) => void = () => {};
@@ -131,6 +137,40 @@
         onSelectPreview(item);
       }
     }, 120);
+  }
+
+  // Right-clicking an alignment asks which other indexed files came from the
+  // same reads. The index itself holds no header data, so the headers are read
+  // on demand - and the index is exactly the bounded candidate list to check.
+  let relatedFor = '';
+  let relatedResult: RelatedBamResult | null = null;
+  let isFindingRelated = false;
+  let relatedError = '';
+
+  async function handleFindRelated(item: FileItem) {
+    if (!/\.(bam|cram)$/i.test(item.path)) return;
+
+    relatedFor = item.name;
+    isFindingRelated = true;
+    relatedError = '';
+    relatedResult = null;
+    try {
+      const candidates = $activeIndexFilteredItems
+        .filter((i) => /\.(bam|cram)$/i.test(i.path))
+        .map((i) => i.path);
+      relatedResult = await findRelatedBams(item.path, candidates);
+    } catch (e: any) {
+      relatedError = String(e);
+    } finally {
+      isFindingRelated = false;
+    }
+  }
+
+  function openRelatedPath(path: string) {
+    const dir = path.substring(0, path.lastIndexOf('/')) || '/';
+    relatedResult = null;
+    navigatePane($activePaneId, dir);
+    closeIndexView();
   }
 
   function handleFileMouseLeave() {
@@ -412,9 +452,38 @@
       <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <!-- Table Header -->
         <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] text-[var(--text-muted)] font-sans font-semibold text-[11px] shrink-0 sticky top-0">
-          <div class="col-span-8">Namn</div>
-          <div class="col-span-2 text-right">Storlek</div>
-          <div class="col-span-2 text-right pr-1">Ändrad</div>
+          <button
+            class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors min-w-0"
+            on:click={() => sortIndexItems('name')}
+            title="Sortera efter namn"
+          >
+            <span>Namn</span>
+            {#if $indexSortBy === 'name'}
+              {#if $indexSortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
+            {/if}
+          </button>
+
+          <button
+            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors"
+            on:click={() => sortIndexItems('size')}
+            title="Sortera efter storlek"
+          >
+            <span>Storlek</span>
+            {#if $indexSortBy === 'size'}
+              {#if $indexSortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
+            {/if}
+          </button>
+
+          <button
+            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
+            on:click={() => sortIndexItems('modified')}
+            title="Sortera efter ändringsdatum"
+          >
+            <span>Ändrad</span>
+            {#if $indexSortBy === 'modified'}
+              {#if $indexSortAsc}<ArrowUp size={11} class="text-[var(--accent)]" />{:else}<ArrowDown size={11} class="text-[var(--accent)]" />{/if}
+            {/if}
+          </button>
         </div>
 
         <!-- Files List with Virtual DOM Windowing -->
@@ -447,6 +516,7 @@
                     on:mouseenter={() => handleFileMouseEnter(item)}
                     on:mouseleave={handleFileMouseLeave}
                     on:wheel={(e) => handleRowWheel(item, e)}
+                    on:contextmenu|preventDefault={() => handleFindRelated(item)}
                     role="row"
                     tabindex="-1"
                   >
@@ -498,3 +568,12 @@
     </div>
   </div>
 {/if}
+
+<RelatedBamsModal
+  referenceName={relatedFor}
+  result={relatedResult}
+  isLoading={isFindingRelated}
+  error={relatedError}
+  onOpenPath={openRelatedPath}
+  onClose={() => { relatedResult = null; relatedError = ''; }}
+/>

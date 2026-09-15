@@ -323,6 +323,43 @@ export async function checkIgvStatus(port?: number): Promise<boolean> {
   return await invoke<boolean>('check_igv_status', { port });
 }
 
+/** What a BAM header says about where its reads came from. */
+export interface BamProvenance {
+  path: string;
+  name: string;
+  fastqs: string[];
+  source_bams: string[];
+  read_groups: string[];
+  sample: string | null;
+}
+
+export interface RelatedBam {
+  path: string;
+  name: string;
+  formatted_size: string;
+  matched_on: string[];
+  provenance: BamProvenance;
+}
+
+export interface RelatedBamResult {
+  reference: BamProvenance;
+  related: RelatedBam[];
+  unreadable: string[];
+  examined: number;
+  capped: boolean;
+}
+
+/**
+ * Find which of `candidates` came from the same reads as `reference`, by
+ * reading each header (@PG command lines and @RG read groups).
+ */
+export async function findRelatedBams(
+  reference: string,
+  candidates: string[],
+): Promise<RelatedBamResult> {
+  return await invoke<RelatedBamResult>('find_related_bams', { reference, candidates });
+}
+
 /** Text report from rs-qc plus the directory its files were written to. */
 export interface RsQcResult {
   report: string;

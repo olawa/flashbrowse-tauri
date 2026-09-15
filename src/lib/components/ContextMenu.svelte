@@ -12,10 +12,13 @@
     sendToIgv,
   } from '../invoke';
   import { executeTerminalCommand } from '../stores/terminal';
-  import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane } from '../stores/navigation';
+  import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane, navigatePane } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
   import { castToSecondaryInspector } from '../stores/navigation';
   import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
+  import { activeIndexFilteredItems } from '../stores/indexStore';
+  import { findRelatedBams, type RelatedBamResult } from '../invoke';
+  import RelatedBamsModal from './RelatedBamsModal.svelte';
   import type { FileItem } from '../types';
   import {
     ExternalLink,
@@ -40,6 +43,7 @@
     FileCode,
     Code,
     ChevronRight,
+    GitBranch,
   } from 'lucide-svelte';
   import { saveRemoteOrLocalItem, downloadDirectory, saveNotification, getSSHServerFolderName } from '../stores/downloadStore';
 
@@ -207,6 +211,43 @@
     onClose();
   }
 
+  // BAM files from the same reads: search the files the user can already see -
+  // this pane's listing, plus the index when one is open - rather than walking
+  // the disk, so the cost is bounded and predictable.
+  let relatedResult: RelatedBamResult | null = null;
+  let isFindingRelated = false;
+  let relatedError = '';
+
+  function relatedCandidates(): string[] {
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    const isAlignment = (p: string) => /\.(bam|cram)$/i.test(p);
+
+    const fromPane = store.items.filter((i) => !i.is_dir && isAlignment(i.path)).map((i) => i.path);
+    const fromIndex = $activeIndexFilteredItems.filter((i) => isAlignment(i.path)).map((i) => i.path);
+
+    return Array.from(new Set([...fromPane, ...fromIndex]));
+  }
+
+  async function handleFindRelated() {
+    isFindingRelated = true;
+    relatedError = '';
+    relatedResult = null;
+    try {
+      relatedResult = await findRelatedBams(item.path, relatedCandidates());
+    } catch (e: any) {
+      relatedError = String(e);
+    } finally {
+      isFindingRelated = false;
+    }
+  }
+
+  function openRelated(path: string) {
+    const dir = path.substring(0, path.lastIndexOf('/')) || '/';
+    navigatePane(paneId, dir);
+    relatedResult = null;
+    onClose();
+  }
+
   async function handleRsQc() {
     try {
       const result = await runRsQc(item.path);
@@ -366,6 +407,15 @@
     >
       <Activity size={13} />
       <span>Kör rs-qc (Alignment QC)</span>
+    </button>
+
+    <button
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
+      on:click={handleFindRelated}
+      title="Läser @PG-kommandoraden och @RG-läsgrupperna i headern och jämför med övriga BAM-filer i listan och indexet"
+    >
+      <GitBranch size={13} />
+      <span>BAM-filer från samma FASTQ</span>
     </button>
   {/if}
 
@@ -608,6 +658,15 @@
     <span>Move to Trash</span>
   </button>
 </div>
+
+<RelatedBamsModal
+  referenceName={item.name}
+  result={relatedResult}
+  isLoading={isFindingRelated}
+  error={relatedError}
+  onOpenPath={openRelated}
+  onClose={() => { relatedResult = null; relatedError = ''; onClose(); }}
+/>
 
 <!-- rs-qc Modal Output -->
 {#if qcResultModal}
