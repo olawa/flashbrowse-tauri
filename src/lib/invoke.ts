@@ -323,6 +323,23 @@ export async function checkIgvStatus(port?: number): Promise<boolean> {
   return await invoke<boolean>('check_igv_status', { port });
 }
 
+/** What kind of sequencing data an alignment holds. */
+export interface AlignmentClass {
+  path: string;
+  name: string;
+  read_type: 'rna' | 'shortread' | 'hifi' | 'ont' | 'longread' | 'unknown';
+  type_id: string;
+  type_label: string;
+  /** What the verdict was based on, e.g. "@PG STAR". Null when nothing said. */
+  evidence: string | null;
+  platform: string | null;
+}
+
+/** Work out the read type of each alignment by reading its header. */
+export async function classifyAlignments(paths: string[]): Promise<AlignmentClass[]> {
+  return await invoke<AlignmentClass[]>('classify_alignments', { paths });
+}
+
 /** What a BAM header says about where its reads came from. */
 export interface BamProvenance {
   path: string;

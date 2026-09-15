@@ -1,5 +1,5 @@
 import { writable, get, derived } from 'svelte/store';
-import { scanDirectoryIndex, getHomeDirectory } from '../invoke';
+import { scanDirectoryIndex, getHomeDirectory, classifyAlignments, type AlignmentClass } from '../invoke';
 import type { DirectoryIndexGroup, FileItem, FileTypeIndexMeta } from '../types';
 
 export const activeIndexMeta = writable<FileTypeIndexMeta | null>(null);
@@ -17,6 +17,81 @@ export const activeIndexGroups = derived(
     return $groups.filter((g) => $selected.has(g.directory_path));
   }
 );
+
+export type IndexGrouping = 'directory' | 'type';
+
+/**
+ * Virtual folders: group the indexed alignments by what they are (RNA, short
+ * read, HiFi, ONT) instead of by where they sit on disk. The classification
+ * comes from each file's header, so it is read on demand the first time.
+ */
+export const indexGrouping = writable<IndexGrouping>('directory');
+export const alignmentClasses = writable<Record<string, AlignmentClass>>({});
+export const selectedTypes = writable<Set<string>>(new Set());
+export const isClassifying = writable<boolean>(false);
+export const classifyError = writable<string>('');
+
+const ALIGNMENT_RE = /\.(bam|cram)$/i;
+
+/** Virtual folders with their counts, ordered with the useful ones first. */
+export const indexTypeGroups = derived(
+  [indexedGroups, alignmentClasses],
+  ([$groups, $classes]) => {
+    const counts = new Map<string, { id: string; label: string; count: number }>();
+    for (const g of $groups) {
+      for (const item of g.items) {
+        if (!ALIGNMENT_RE.test(item.path)) continue;
+        const cls = $classes[item.path];
+        const id = cls?.type_id ?? 'unclassified';
+        const label = cls?.type_label ?? 'Inte läst än';
+        const entry = counts.get(id) ?? { id, label, count: 0 };
+        entry.count += 1;
+        counts.set(id, entry);
+      }
+    }
+
+    const order = ['rna', 'sr', 'hifi', 'ont', 'lr', 'unknown', 'unclassified'];
+    return Array.from(counts.values()).sort(
+      (a, b) => order.indexOf(a.id) - order.indexOf(b.id) || a.label.localeCompare(b.label)
+    );
+  }
+);
+
+/** Read the headers of every indexed alignment and remember what they are. */
+export async function classifyIndexedAlignments() {
+  const groups = get(indexedGroups);
+  const paths = groups
+    .flatMap((g) => g.items)
+    .filter((i) => ALIGNMENT_RE.test(i.path))
+    .map((i) => i.path);
+
+  if (paths.length === 0) {
+    alignmentClasses.set({});
+    return;
+  }
+
+  isClassifying.set(true);
+  classifyError.set('');
+  try {
+    const classes = await classifyAlignments(paths);
+    const byPath: Record<string, AlignmentClass> = {};
+    for (const c of classes) byPath[c.path] = c;
+    alignmentClasses.set(byPath);
+  } catch (e: any) {
+    classifyError.set(String(e));
+  } finally {
+    isClassifying.set(false);
+  }
+}
+
+export function toggleIndexType(id: string) {
+  selectedTypes.update((s) => {
+    const next = new Set(s);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+}
 
 export type IndexSortBy = 'name' | 'size' | 'modified';
 
@@ -36,11 +111,27 @@ export function sortIndexItems(column: IndexSortBy) {
 }
 
 export const activeIndexFilteredItems = derived(
-  [activeIndexGroups, indexSearchQuery, indexSortBy, indexSortAsc],
-  ([$groups, $query, $sortBy, $sortAsc]) => {
-    const allItems: FileItem[] = [];
+  [
+    activeIndexGroups,
+    indexSearchQuery,
+    indexSortBy,
+    indexSortAsc,
+    indexGrouping,
+    selectedTypes,
+    alignmentClasses,
+  ],
+  ([$groups, $query, $sortBy, $sortAsc, $grouping, $types, $classes]) => {
+    let allItems: FileItem[] = [];
     for (const g of $groups) {
       allItems.push(...g.items);
+    }
+
+    // In virtual-folder mode the selected types replace the directory choice.
+    if ($grouping === 'type' && $types.size > 0) {
+      allItems = allItems.filter((item) => {
+        const id = $classes[item.path]?.type_id ?? 'unclassified';
+        return $types.has(id);
+      });
     }
 
     const q = $query.trim().toLowerCase();
@@ -78,6 +169,10 @@ function getCacheKey(root: string, categoryId: string): string {
 let currentScanId = 0;
 
 export async function openIndexScan(meta: FileTypeIndexMeta, root?: string, forceRefresh = false) {
+  // A new scan means a new set of files; drop what was classified before.
+  alignmentClasses.set({});
+  selectedTypes.set(new Set());
+
   const scanId = ++currentScanId;
   activeIndexMeta.set(meta);
   indexSearchQuery.set('');

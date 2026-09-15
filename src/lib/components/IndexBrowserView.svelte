@@ -19,6 +19,14 @@
     indexSortBy,
     indexSortAsc,
     sortIndexItems,
+    indexGrouping,
+    indexTypeGroups,
+    selectedTypes,
+    toggleIndexType,
+    alignmentClasses,
+    classifyIndexedAlignments,
+    isClassifying,
+    classifyError,
   } from '../stores/indexStore';
   import {
     leftPane,
@@ -137,6 +145,14 @@
         onSelectPreview(item);
       }
     }, 120);
+  }
+
+  /** Switching to virtual folders reads the headers, once per index. */
+  async function switchToTypeGrouping() {
+    indexGrouping.set('type');
+    if (Object.keys($alignmentClasses).length === 0) {
+      await classifyIndexedAlignments();
+    }
   }
 
   // Right-clicking an alignment asks which other indexed files came from the
@@ -369,7 +385,25 @@
       <!-- 1. LEFT COLUMN: Directory Groups List -->
       <div class="w-64 lg:w-72 h-full flex flex-col border-r border-[var(--border)] bg-[var(--bg-surface)] shrink-0">
         <!-- Folder Selection Bar -->
-        <div class="px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center justify-between text-[11px]">
+        <!-- Group by directory, or by what the files are -->
+        <div class="px-2 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center gap-0.5 text-[10.5px]">
+          <button
+            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'directory' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+            on:click={() => indexGrouping.set('directory')}
+            title="Gruppera efter mapp på disk"
+          >
+            Mappar
+          </button>
+          <button
+            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'type' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+            on:click={switchToTypeGrouping}
+            title="Virtuella mappar: gruppera efter vad filerna innehåller (RNA, kortläsning, HiFi, ONT)"
+          >
+            Typ
+          </button>
+        </div>
+
+        <div class="px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center justify-between text-[11px]" class:hidden={$indexGrouping !== 'directory'}>
           <span class="font-bold text-[var(--text-secondary)]">Mappar ({totalFolders})</span>
           <div class="flex items-center gap-2">
             <button
@@ -388,6 +422,38 @@
           </div>
         </div>
 
+        {#if $indexGrouping === 'type'}
+          <!-- Virtual folders: what the alignments are, read from their headers -->
+          <div class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/30">
+            {#if $isClassifying}
+              <div class="px-3 py-3 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
+                <Loader2 size={13} class="animate-spin text-[var(--accent)]" />
+                <span>Läser BAM-headers…</span>
+              </div>
+            {:else if $classifyError}
+              <div class="px-3 py-3 text-[11px] text-red-300 font-mono">{$classifyError}</div>
+            {:else if $indexTypeGroups.length === 0}
+              <div class="px-3 py-3 text-[11px] text-[var(--text-muted)]">
+                Inga BAM- eller CRAM-filer i indexet.
+              </div>
+            {/if}
+
+            {#each $indexTypeGroups as group (group.id)}
+              {@const isSelected = $selectedTypes.size === 0 || $selectedTypes.has(group.id)}
+              <button
+                class="w-full px-3 py-2 flex items-center justify-between gap-2 text-left transition-all {isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
+                on:click={() => toggleIndexType(group.id)}
+                title="Visa bara {group.label}"
+              >
+                <span class="flex items-center gap-2 min-w-0">
+                  <Dna size={13} class="text-[var(--accent)] shrink-0" />
+                  <span class="truncate text-xs font-medium">{group.label}</span>
+                </span>
+                <span class="text-[10px] font-mono text-[var(--text-muted)] shrink-0">{group.count}</span>
+              </button>
+            {/each}
+          </div>
+        {:else}
         <!-- Folders List -->
         <div class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/30">
           {#each $indexedGroups as group}
@@ -446,6 +512,7 @@
             </div>
           {/if}
         </div>
+        {/if}
       </div>
 
       <!-- 2. RIGHT COLUMN: Files Table -->
@@ -524,7 +591,18 @@
                     <div class="col-span-8 flex items-center gap-2 min-w-0">
                       <svelte:component this={getFileIcon(item)} size={14} class="{$activeIndexMeta.colorClass} shrink-0" />
                       <div class="flex flex-col min-w-0 flex-1 leading-tight">
-                        <span class="truncate font-sans font-medium text-xs">{item.name}</span>
+                        <span class="truncate font-sans font-medium text-xs flex items-center gap-1.5">
+                          <span class="truncate">{item.name}</span>
+                          {#if $alignmentClasses[item.path] && $alignmentClasses[item.path].type_id !== 'unknown'}
+                            {@const cls = $alignmentClasses[item.path]}
+                            <span
+                              class="px-1 py-0.2 rounded bg-[var(--accent-subtle)] text-[var(--accent)] text-[9px] font-mono shrink-0"
+                              title="{cls.type_label} — {cls.evidence ?? 'okänd grund'}"
+                            >
+                              {cls.type_id}
+                            </span>
+                          {/if}
+                        </span>
                         <span class="text-[10px] text-[var(--text-muted)] font-mono truncate" title={item.path}>
                           {item.path.replace($indexRootPath, '.')}
                         </span>

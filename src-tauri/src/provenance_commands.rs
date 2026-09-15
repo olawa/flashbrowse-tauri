@@ -383,6 +383,304 @@ pub async fn find_related_bams(
     .map_err(|e| e.to_string())?
 }
 
+// MARK: - Read-type classification
+//
+// Sorting alignments by what they are - RNA, short read, HiFi, ONT - is only
+// possible from the header, and no single field carries it. @RG PL is the
+// intended place but is often missing entirely (most of the files this was
+// developed against have no @RG at all), and when present it holds an
+// instrument name like "NovaSeq" rather than the spec's "ILLUMINA". So the
+// aligner and its command line are read as well, and the reason is reported
+// alongside the verdict so a wrong guess is visible rather than silent.
+
+/// What kind of data an alignment holds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReadType {
+    Rna,
+    ShortRead,
+    HiFi,
+    Ont,
+    /// Long read, but HiFi and ONT could not be told apart.
+    LongRead,
+    /// Nothing in the header says what this is.
+    Unknown,
+}
+
+impl ReadType {
+    pub fn id(&self) -> &'static str {
+        match self {
+            ReadType::Rna => "rna",
+            ReadType::ShortRead => "sr",
+            ReadType::HiFi => "hifi",
+            ReadType::Ont => "ont",
+            ReadType::LongRead => "lr",
+            ReadType::Unknown => "unknown",
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            ReadType::Rna => "RNA",
+            ReadType::ShortRead => "Kortläsning",
+            ReadType::HiFi => "PacBio HiFi",
+            ReadType::Ont => "ONT",
+            ReadType::LongRead => "Långläsning",
+            ReadType::Unknown => "Okänd typ",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AlignmentClass {
+    pub path: String,
+    pub name: String,
+    pub read_type: ReadType,
+    pub type_id: String,
+    pub type_label: String,
+    /// What the verdict was based on, e.g. "@PG STAR" or "@RG PL:NovaSeq".
+    pub evidence: Option<String>,
+    /// Platform as written in the header, when there is one.
+    pub platform: Option<String>,
+}
+
+fn contains_word(haystack: &str, needle: &str) -> bool {
+    haystack
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .any(|w| w.eq_ignore_ascii_case(needle))
+}
+
+/// Classify from the platform field, which may hold either a spec value
+/// (ILLUMINA, PACBIO, ONT) or the instrument name people actually write.
+fn read_type_from_platform(platform: &str) -> Option<ReadType> {
+    let p = platform.to_ascii_lowercase();
+    let has = |needles: &[&str]| needles.iter().any(|n| p.contains(n));
+
+    if has(&["pacbio", "revio", "sequel", "smrt"]) {
+        // CLR is the old noisy chemistry; anything else from PacBio is HiFi.
+        return Some(if p.contains("clr") { ReadType::LongRead } else { ReadType::HiFi });
+    }
+    if has(&["ont", "nanopore", "promethion", "minion", "gridion"]) {
+        return Some(ReadType::Ont);
+    }
+    if has(&[
+        "illumina", "novaseq", "hiseq", "nextseq", "miseq", "iseq", "nova-x", "bgi", "mgi",
+        "dnbseq", "element", "aviti", "ultima",
+    ]) {
+        return Some(ReadType::ShortRead);
+    }
+    None
+}
+
+/// Classify from the aligner name and its command line.
+fn read_type_from_program(program: &str, command_line: &str) -> Option<ReadType> {
+    let pn = program.to_ascii_lowercase();
+    let cl = command_line.to_ascii_lowercase();
+
+    // Spliced aligners mean RNA whatever the platform.
+    if matches!(pn.as_str(), "star" | "hisat2" | "hisat" | "tophat" | "subread" | "segemehl") {
+        return Some(ReadType::Rna);
+    }
+    if cl.contains("-ax splice") || cl.contains("-x splice") || cl.contains("--sjdbgtffile") {
+        return Some(ReadType::Rna);
+    }
+
+    // minimap2 presets name the chemistry outright.
+    if cl.contains("map-ont") || cl.contains("lr:hqae") {
+        return Some(ReadType::Ont);
+    }
+    if cl.contains("map-hifi") || cl.contains("asm20") || pn == "pbmm2" {
+        return Some(ReadType::HiFi);
+    }
+    if cl.contains("map-pb") {
+        return Some(ReadType::LongRead);
+    }
+    if matches!(pn.as_str(), "dorado" | "guppy" | "minibar") {
+        return Some(ReadType::Ont);
+    }
+
+    // flashmap takes the read type as its subcommand.
+    if pn == "flashmap" {
+        if contains_word(&cl, "rna") {
+            return Some(ReadType::Rna);
+        }
+        if contains_word(&cl, "sr") {
+            return Some(ReadType::ShortRead);
+        }
+        if contains_word(&cl, "lr") {
+            return Some(if cl.contains("ont-like") { ReadType::Ont } else { ReadType::HiFi });
+        }
+    }
+
+    if matches!(pn.as_str(), "bwa" | "bowtie2" | "bowtie" | "novoalign" | "snap" | "strobealign") {
+        return Some(ReadType::ShortRead);
+    }
+    if matches!(pn.as_str(), "winnowmap" | "ngmlr" | "lra") {
+        return Some(ReadType::LongRead);
+    }
+
+    None
+}
+
+/// Last resort: the names of the FASTQ files that went in.
+fn read_type_from_filenames(fastqs: &[String]) -> Option<ReadType> {
+    let joined = fastqs.join(" ").to_ascii_lowercase();
+    if joined.is_empty() {
+        return None;
+    }
+    if joined.contains("hifi") || joined.contains("ccs") {
+        return Some(ReadType::HiFi);
+    }
+    if joined.contains("ont") || joined.contains("nanopore") || joined.contains("promethion") {
+        return Some(ReadType::Ont);
+    }
+    if joined.contains("rna") || joined.contains("transcriptome") || joined.contains("cdna") {
+        return Some(ReadType::Rna);
+    }
+    // A pair of read files is short-read sequencing in practice. This needs
+    // two actual inputs, so it cannot fire on a single file name.
+    if fastqs.len() >= 2 && (joined.contains("_r1") || joined.contains("_1.")) {
+        return Some(ReadType::ShortRead);
+    }
+    None
+}
+
+/// Work out what kind of data a header describes, and say why.
+pub fn classify_header(path: &str, header: &str) -> AlignmentClass {
+    let prov = provenance_from_header(path, header);
+    let mut platform = None;
+
+    for line in header.lines() {
+        if !line.starts_with("@RG") {
+            continue;
+        }
+        for field in line.split('\t') {
+            if let Some(v) = field.strip_prefix("PL:").or_else(|| field.strip_prefix("PM:")) {
+                if !is_uninformative_id(v) {
+                    platform.get_or_insert_with(|| v.to_string());
+                }
+            }
+        }
+    }
+
+    if let Some(p) = &platform {
+        if let Some(rt) = read_type_from_platform(p) {
+            return build_class(path, prov, rt, Some(format!("@RG PL:{p}")), platform.clone());
+        }
+    }
+
+    // Walk the @PG chain; the first informative program wins, which is the one
+    // closest to the raw reads.
+    for line in header.lines() {
+        if !line.starts_with("@PG") {
+            continue;
+        }
+        let mut program = String::new();
+        let mut command_line = String::new();
+        for field in line.split('\t') {
+            if let Some(v) = field.strip_prefix("PN:") {
+                program = v.to_string();
+            } else if let Some(v) = field.strip_prefix("CL:") {
+                command_line = v.to_string();
+            }
+        }
+        if program.eq_ignore_ascii_case("samtools") {
+            continue;
+        }
+        if let Some(rt) = read_type_from_program(&program, &command_line) {
+            let evidence = if program.is_empty() {
+                "@PG".to_string()
+            } else {
+                format!("@PG {program}")
+            };
+            return build_class(path, prov, rt, Some(evidence), platform);
+        }
+    }
+
+    if let Some(rt) = read_type_from_filenames(&prov.fastqs) {
+        let evidence = format!("filnamn: {}", prov.fastqs.join(", "));
+        return build_class(path, prov, rt, Some(evidence), platform);
+    }
+
+    // Nothing in the header at all - common when the aligner ran in a pipe.
+    // The file's own name is the only thing left, and people do name files
+    // after the chemistry. Reported as a guess from the name, so it can be
+    // told apart from something the header actually said.
+    if let Some(rt) = read_type_from_filenames(std::slice::from_ref(&prov.name)) {
+        let evidence = format!("gissat från filnamnet {}", prov.name);
+        return build_class(path, prov, rt, Some(evidence), platform);
+    }
+
+    build_class(path, prov, ReadType::Unknown, None, platform)
+}
+
+fn build_class(
+    path: &str,
+    prov: BamProvenance,
+    read_type: ReadType,
+    evidence: Option<String>,
+    platform: Option<String>,
+) -> AlignmentClass {
+    AlignmentClass {
+        path: path.to_string(),
+        name: prov.name,
+        type_id: read_type.id().to_string(),
+        type_label: read_type.label().to_string(),
+        read_type,
+        evidence,
+        platform,
+    }
+}
+
+/// Classify a set of alignments, for grouping them into virtual folders.
+#[tauri::command]
+pub async fn classify_alignments(paths: Vec<String>) -> Result<Vec<AlignmentClass>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let samtools = crate::bio_commands::find_tool_executable("samtools")
+            .ok_or_else(|| "samtools hittades inte i dev/bin eller PATH".to_string())?;
+
+        let paths: Vec<String> = paths
+            .iter()
+            .map(|p| resolve_path(p).to_string_lossy().to_string())
+            .take(MAX_CANDIDATES)
+            .collect();
+
+        let classes = Mutex::new(Vec::new());
+        let next = std::sync::atomic::AtomicUsize::new(0);
+
+        std::thread::scope(|scope| {
+            for _ in 0..8.min(paths.len().max(1)) {
+                scope.spawn(|| loop {
+                    let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    let Some(path) = paths.get(i) else {
+                        return;
+                    };
+                    let class = match read_header(&samtools, path) {
+                        Some(header) => classify_header(path, &header),
+                        None => build_class(
+                            path,
+                            BamProvenance {
+                                name: basename(path),
+                                ..Default::default()
+                            },
+                            ReadType::Unknown,
+                            None,
+                            None,
+                        ),
+                    };
+                    classes.lock().unwrap().push(class);
+                });
+            }
+        });
+
+        let mut classes = classes.into_inner().unwrap_or_default();
+        classes.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(classes)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,6 +689,105 @@ mod tests {
 @SQ\tSN:chr1\tLN:248956422\n\
 @RG\tID:UPAL021_R\tSM:UPAL021\tLB:lib1\tPU:HWI-C1JT2.4.ATCACG\n\
 @PG\tID:STAR\tPN:STAR\tVN:2.7.10a\tCL:STAR --runThreadN 20 --genomeDir /ref/star --readFilesIn prealignment/merged/UPAL021_R_fastq1.fastq.gz prealignment/merged/UPAL021_R_fastq2.fastq.gz --readFilesCommand zcat\n";
+
+    // The classification rules below are written against headers taken from
+    // real files, not invented ones.
+
+    #[test]
+    fn a_spliced_aligner_means_rna() {
+        let c = classify_header("/data/UPAL021_R.bam", STAR_HEADER);
+        assert_eq!(c.read_type, ReadType::Rna);
+        assert_eq!(c.evidence.as_deref(), Some("@PG STAR"));
+    }
+
+    #[test]
+    fn an_instrument_name_counts_as_a_platform() {
+        // Real files write PL:NovaSeq, not the spec's PL:ILLUMINA.
+        let header = "@RG\tID:D26.L001\tSM:D26\tPL:NovaSeq\tPU:22JYK7LT1.L001\n";
+        let c = classify_header("/data/d26.bam", header);
+        assert_eq!(c.read_type, ReadType::ShortRead);
+        assert_eq!(c.platform.as_deref(), Some("NovaSeq"));
+    }
+
+    #[test]
+    fn minimap2_presets_name_the_chemistry() {
+        let ont = classify_header(
+            "/d/a.bam",
+            "@PG\tID:minimap2\tPN:minimap2\tCL:minimap2 -ax map-ont ref.fa reads.fq.gz\n",
+        );
+        assert_eq!(ont.read_type, ReadType::Ont);
+
+        let hifi = classify_header(
+            "/d/b.bam",
+            "@PG\tID:minimap2\tPN:minimap2\tCL:minimap2 -ax map-hifi ref.fa reads.fq.gz\n",
+        );
+        assert_eq!(hifi.read_type, ReadType::HiFi);
+
+        let rna = classify_header(
+            "/d/c.bam",
+            "@PG\tID:minimap2\tPN:minimap2\tCL:minimap2 -ax splice ref.fa reads.fq.gz\n",
+        );
+        assert_eq!(rna.read_type, ReadType::Rna);
+    }
+
+    #[test]
+    fn flashmap_takes_the_read_type_from_its_subcommand() {
+        let sr = classify_header(
+            "/d/sr.bam",
+            "@PG\tID:flashmap\tPN:flashmap\tCL:flashmap sr -i ref.fmi -1 a_R1.fastq.gz -2 a_R2.fastq.gz\n",
+        );
+        assert_eq!(sr.read_type, ReadType::ShortRead);
+
+        let rna = classify_header(
+            "/d/rna.bam",
+            "@PG\tID:flashmap\tPN:flashmap\tCL:flashmap rna -i rna.fmi -1 x_1.fq.gz -2 x_2.fq.gz\n",
+        );
+        assert_eq!(rna.read_type, ReadType::Rna);
+
+        let ont = classify_header(
+            "/d/ont.bam",
+            "@PG\tID:flashmap\tPN:flashmap\tCL:flashmap lr --ont-like -i ref.fmi reads.fq.gz\n",
+        );
+        assert_eq!(ont.read_type, ReadType::Ont);
+    }
+
+    #[test]
+    fn samtools_is_skipped_when_looking_for_the_aligner() {
+        // samtools wraps everything; the aligner underneath is what matters.
+        let header = "@PG\tID:samtools\tPN:samtools\tCL:samtools sort -o out.bam -\n\
+@PG\tID:bwa\tPN:bwa\tCL:bwa mem ref.fa a_R1.fq.gz a_R2.fq.gz\n";
+        let c = classify_header("/d/out.bam", header);
+        assert_eq!(c.read_type, ReadType::ShortRead);
+        assert_eq!(c.evidence.as_deref(), Some("@PG bwa"));
+    }
+
+    #[test]
+    fn file_names_are_the_last_resort() {
+        let header = "@PG\tID:unknownaligner\tPN:unknownaligner\tCL:unknownaligner sample_hifi_ccs.fastq.gz\n";
+        let c = classify_header("/d/x.bam", header);
+        assert_eq!(c.read_type, ReadType::HiFi);
+        assert!(c.evidence.unwrap().starts_with("filnamn"));
+    }
+
+    #[test]
+    fn a_name_that_states_the_chemistry_is_used_as_a_last_guess() {
+        // Real file here: hg002-hifi-chr20.fastq.rslra.bam, whose header holds
+        // nothing but the sort step.
+        let header = "@PG\tID:samtools\tPN:samtools\tCL:samtools sort -o out.bam -\n";
+        let c = classify_header("/data/hg002-hifi-chr20.fastq.rslra.bam", header);
+        assert_eq!(c.read_type, ReadType::HiFi);
+        assert!(c.evidence.unwrap().starts_with("gissat från filnamnet"));
+    }
+
+    #[test]
+    fn a_header_with_nothing_to_go_on_says_so() {
+        // Very common in practice: the aligner ran in a pipe and only the
+        // samtools sort step left a @PG line.
+        let header = "@PG\tID:samtools\tPN:samtools\tCL:samtools sort -o HG002.bam -\n";
+        let c = classify_header("/data/HG002.bam", header);
+        assert_eq!(c.read_type, ReadType::Unknown);
+        assert!(c.evidence.is_none());
+    }
 
     #[test]
     fn reads_fastqs_and_read_groups_from_a_star_header() {

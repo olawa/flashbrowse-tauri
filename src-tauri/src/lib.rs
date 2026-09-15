@@ -34,6 +34,7 @@ pub fn run() {
             transfer_backend,
             find_companions,
             find_related_bams,
+            classify_alignments,
             move_items,
             create_directory,
             create_file,
