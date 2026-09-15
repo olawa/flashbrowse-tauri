@@ -515,7 +515,7 @@ fn read_type_from_program(program: &str, command_line: &str) -> Option<ReadType>
     if matches!(pn.as_str(), "bwa" | "bowtie2" | "bowtie" | "novoalign" | "snap" | "strobealign") {
         return Some(ReadType::ShortRead);
     }
-    if matches!(pn.as_str(), "winnowmap" | "ngmlr" | "lra") {
+    if matches!(pn.as_str(), "winnowmap" | "ngmlr" | "lra" | "rs-lra" | "rs_lra") {
         return Some(ReadType::LongRead);
     }
 
@@ -593,6 +593,24 @@ pub fn classify_header(path: &str, header: &str) -> AlignmentClass {
             } else {
                 format!("@PG {program}")
             };
+
+            // An aligner that handles both chemistries (rs-lra, winnowmap) only
+            // says "long read". If the reads themselves are named hifi or ont,
+            // that is more specific and does not contradict the aligner.
+            if rt == ReadType::LongRead {
+                if let Some(refined) = read_type_from_filenames(&prov.fastqs) {
+                    if matches!(refined, ReadType::HiFi | ReadType::Ont) {
+                        return build_class(
+                            path,
+                            prov,
+                            refined,
+                            Some(format!("{evidence} + filnamn")),
+                            platform,
+                        );
+                    }
+                }
+            }
+
             return build_class(path, prov, rt, Some(evidence), platform);
         }
     }
@@ -759,6 +777,25 @@ mod tests {
         let c = classify_header("/d/out.bam", header);
         assert_eq!(c.read_type, ReadType::ShortRead);
         assert_eq!(c.evidence.as_deref(), Some("@PG bwa"));
+    }
+
+    #[test]
+    fn a_long_read_aligner_is_refined_by_the_read_names() {
+        // rs-lra handles both chemistries, so it only establishes "long read";
+        // the reads say which one.
+        let hifi = classify_header(
+            "/d/a.bam",
+            "@PG\tID:rs-lra\tPN:rs-lra\tVN:0.1.0\tCL:rs-lra -i ref.fmi -q hg002-hifi-chr20.fastq.gz -o a.bam\n",
+        );
+        assert_eq!(hifi.read_type, ReadType::HiFi);
+        assert_eq!(hifi.evidence.as_deref(), Some("@PG rs-lra + filnamn"));
+
+        // With nothing to refine it, long read is the honest answer.
+        let plain = classify_header(
+            "/d/b.bam",
+            "@PG\tID:rs-lra\tPN:rs-lra\tVN:0.1.0\tCL:rs-lra -i ref.fmi -q reads.fastq.gz -o b.bam\n",
+        );
+        assert_eq!(plain.read_type, ReadType::LongRead);
     }
 
     #[test]
