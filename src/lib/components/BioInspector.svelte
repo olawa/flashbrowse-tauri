@@ -755,8 +755,10 @@
               <input
                 type="text"
                 bind:value={snapshotRegion}
-                placeholder="chr1:1000000-1005000 eller gen (t.ex. EGFR)"
+                placeholder="chr1:1000000-1005000, gen (EGFR) eller exon (EGFR exon2)"
+                title="Skriv bara regionen eller gennamnet — flaggor som --genes hanteras av appen"
                 class="flex-1 bg-transparent text-white focus:outline-none font-mono text-xs"
+                on:input={() => (snapshotError = '')}
                 on:keydown={(e) => {
                   if (e.key === 'Enter') {
                     selectedLocus.set(snapshotRegion);

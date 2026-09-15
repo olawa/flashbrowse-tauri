@@ -632,11 +632,28 @@ pub async fn generate_rsnap_snapshot(
             }
         }
 
+        let mut gtf_passed = false;
         if let Some(g) = effective_gtf {
             let res_gtf = resolve_path(&g);
             if res_gtf.exists() {
                 cmd.arg("-g").arg(res_gtf.to_string_lossy().to_string());
+                gtf_passed = true;
             }
+        }
+
+        // A gene name needs an annotation file. rsnap would say "use --genes",
+        // which is not something a user of this app can do - the app supplies it.
+        let looks_like_coordinates = region.contains(':');
+        if !looks_like_coordinates && !gtf_passed {
+            let genome = target_genome
+                .as_ref()
+                .map(|g| g.name.clone())
+                .unwrap_or_else(|| "okänt genom".to_string());
+            return Err(format!(
+                "\"{region}\" ser ut som ett gennamn, men ingen annoteringsfil (GTF) är \
+                 konfigurerad för {genome}.\nLägg till en gtf_path för genomet i \
+                 ~/.config/flashbrowse/genomes.json, eller ange en region som chr17:7565097-7590856."
+            ));
         }
 
         cmd.current_dir(writable_output_dir(None));
@@ -644,7 +661,13 @@ pub async fn generate_rsnap_snapshot(
 
         if !output.status.success() {
             let err = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("rsnap failed: {}", err));
+            // Show what was actually run: without it, a failure from an external
+            // tool gives no way to tell a bad region from a missing annotation.
+            let invocation = std::iter::once(cmd.get_program().to_string_lossy().to_string())
+                .chain(cmd.get_args().map(|a| a.to_string_lossy().to_string()))
+                .collect::<Vec<_>>()
+                .join(" ");
+            return Err(format!("{}\n\nKommando:\n{}", err.trim(), invocation));
         }
 
         if !temp_path.exists() {
