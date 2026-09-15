@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
+  import { parseLocus, formatLocus, pannedLocus, zoomedLocus } from '../locus';
   import {
     getBamHeader,
     getBamAlignments,
@@ -95,7 +97,13 @@
     }
   }
 
-  $: if ($selectedLocus && $selectedLocus !== snapshotRegion) {
+  // Follow the shared locus when something else changes it (a gene click, the
+  // other inspector), but only on an actual change. Comparing against
+  // snapshotRegion instead made every keystroke differ from the store and get
+  // written straight back, so the position box could not be typed in at all.
+  let lastAppliedLocus: string | null = null;
+  $: if ($selectedLocus && $selectedLocus !== lastAppliedLocus) {
+    lastAppliedLocus = $selectedLocus;
     snapshotRegion = $selectedLocus;
   }
 
@@ -242,56 +250,86 @@
     }
   }
 
-  function parseLocus(locusStr: string): { chr: string; start: number; end: number } | null {
-    const clean = locusStr.trim().replace(/,/g, '');
-    const match = clean.match(/^([^:]+):(\d+)[-_](\d+)$/);
-    if (!match) return null;
-    return {
-      chr: match[1],
-      start: parseInt(match[2], 10),
-      end: parseInt(match[3], 10),
-    };
+  /**
+   * Make `region` the current one: share it, remember it as applied, render it.
+   *
+   * Recording it as applied keeps the sync above from treating our own change
+   * as an external one.
+   */
+  function applyRegion(region: string) {
+    snapshotRegion = region;
+    lastAppliedLocus = region;
+    selectedLocus.set(region);
+    handleGenerateSnapshot();
   }
 
-  function formatLocus(chr: string, start: number, end: number): string {
-    const safeStart = Math.max(1, Math.round(start));
-    const safeEnd = Math.max(safeStart + 50, Math.round(end));
-    return `${chr}:${safeStart}-${safeEnd}`;
+  // MARK: - Trackpad panning and zooming
+  //
+  // Each render spawns rsnap, which takes about a second, so wheel events move
+  // a pending region immediately - the badge and the box follow the gesture -
+  // and the render happens once the gesture stops.
+  let pendingRenderTimer: any = null;
+
+  function scheduleRender(region: string) {
+    snapshotRegion = region;
+    lastAppliedLocus = region;
+    clearTimeout(pendingRenderTimer);
+    pendingRenderTimer = setTimeout(() => {
+      selectedLocus.set(region);
+      handleGenerateSnapshot();
+    }, 220);
   }
+
+  function handleCanvasWheel(e: WheelEvent) {
+    const parsed = parseLocus(snapshotRegion);
+    if (!parsed) return;
+
+    const span = parsed.end - parsed.start;
+
+    // macOS sends pinch gestures as a wheel event with ctrlKey set.
+    if (e.ctrlKey) {
+      e.preventDefault();
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      const anchor = rect.width > 0 ? (e.clientX - rect.left) / rect.width : 0.5;
+      scheduleRender(zoomedLocus(parsed, Math.exp(e.deltaY * 0.01), anchor));
+      return;
+    }
+
+    // Two fingers sideways pans; shift+wheel does the same on a mouse.
+    const horizontal = e.shiftKey ? e.deltaY : e.deltaX;
+    if (Math.abs(horizontal) > Math.abs(e.shiftKey ? e.deltaX : e.deltaY)) {
+      e.preventDefault();
+      const fraction = horizontal / 600;
+      if (Math.round(span * fraction) === 0) return;
+      scheduleRender(pannedLocus(parsed, fraction));
+    }
+    // Plain vertical scrolling is left alone so the inspector still scrolls.
+  }
+
+  onDestroy(() => clearTimeout(pendingRenderTimer));
 
   function panRegion(fraction: number) {
     const parsed = parseLocus(snapshotRegion);
     if (!parsed) return;
-    const span = parsed.end - parsed.start;
-    const shift = Math.round(span * fraction);
-    snapshotRegion = formatLocus(parsed.chr, parsed.start + shift, parsed.end + shift);
-    selectedLocus.set(snapshotRegion);
-    handleGenerateSnapshot();
+    applyRegion(pannedLocus(parsed, fraction));
   }
 
   function zoomRegion(factor: number) {
     const parsed = parseLocus(snapshotRegion);
     if (!parsed) return;
-    const mid = (parsed.start + parsed.end) / 2;
-    const newSpan = (parsed.end - parsed.start) * factor;
-    snapshotRegion = formatLocus(parsed.chr, mid - newSpan / 2, mid + newSpan / 2);
-    selectedLocus.set(snapshotRegion);
-    handleGenerateSnapshot();
+    applyRegion(zoomedLocus(parsed, factor));
   }
 
   function setSpan(spanBp: number) {
     const parsed = parseLocus(snapshotRegion);
     if (!parsed) return;
     const mid = (parsed.start + parsed.end) / 2;
-    snapshotRegion = formatLocus(parsed.chr, mid - spanBp / 2, mid + spanBp / 2);
-    selectedLocus.set(snapshotRegion);
-    handleGenerateSnapshot();
+    applyRegion(formatLocus(parsed.chr, mid - spanBp / 2, mid + spanBp / 2));
   }
 
   function jumpToGene(locus: string) {
     snapshotRegion = locus;
-    selectedLocus.set(snapshotRegion);
-    handleGenerateSnapshot();
+    applyRegion(snapshotRegion);
   }
 
   async function copySnapshotImage() {
@@ -761,8 +799,7 @@
                 on:input={() => (snapshotError = '')}
                 on:keydown={(e) => {
                   if (e.key === 'Enter') {
-                    selectedLocus.set(snapshotRegion);
-                    handleGenerateSnapshot();
+                    applyRegion(snapshotRegion);
                   }
                 }}
               />
@@ -775,8 +812,7 @@
               class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow transition-colors disabled:opacity-50 flex items-center gap-1.5 shrink-0"
               disabled={isGeneratingSnapshot}
               on:click={() => {
-                selectedLocus.set(snapshotRegion);
-                handleGenerateSnapshot();
+                applyRegion(snapshotRegion);
               }}
             >
               <Camera size={13} />
@@ -900,12 +936,24 @@
             <span class="font-mono text-xs">Renderar alignment-vy med rsnap...</span>
           </div>
         {:else if snapshotB64}
-          <div class="relative rounded-xl bg-black border border-[#252d3d] overflow-hidden shadow-2xl group select-none">
+          <div
+            class="relative rounded-xl bg-black border border-[#252d3d] overflow-hidden shadow-2xl group select-none"
+            on:wheel={handleCanvasWheel}
+            role="img"
+            aria-label="rsnap alignment-vy. Två fingrar i sidled panorerar, nyp för att zooma."
+            title="Två fingrar i sidled panorerar · nyp (eller ⌃scroll) zoomar"
+          >
             <img
               src="data:image/png;base64,{snapshotB64}"
               alt="rsnap alignment snapshot"
               class="w-full object-contain rounded transition-transform"
             />
+
+            {#if isGeneratingSnapshot}
+              <div class="absolute inset-0 bg-black/30 flex items-center justify-center pointer-events-none">
+                <RefreshCw size={20} class="animate-spin text-amber-300" />
+              </div>
+            {/if}
 
             <!-- Top Floating Badge -->
             <div class="absolute top-2 left-2 px-2 py-1 rounded bg-black/75 backdrop-blur-md border border-white/10 text-white font-mono text-[10px] flex items-center gap-2 shadow-lg">
