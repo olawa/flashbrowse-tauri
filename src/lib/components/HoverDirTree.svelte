@@ -57,15 +57,10 @@
 
   let tooltipStyle = '';
   $: {
-    const GAP = 8;
-    const W = 260;
-    const fromRight = typeof window !== 'undefined' ? window.innerWidth - anchorX : 999;
-    const safeTop = typeof window !== 'undefined' ? Math.min(anchorY, window.innerHeight - 360) : anchorY;
-    if (fromRight < W + GAP * 2) {
-      tooltipStyle = `right: ${typeof window !== 'undefined' ? window.innerWidth - anchorX + GAP : 0}px; top: ${Math.max(10, safeTop)}px;`;
-    } else {
-      tooltipStyle = `left: ${anchorX}px; top: ${Math.max(10, safeTop)}px;`;
-    }
+    const W = 256;
+    const safeX = typeof window !== 'undefined' ? Math.max(10, Math.min(window.innerWidth - W - 15, anchorX)) : anchorX;
+    const safeY = typeof window !== 'undefined' ? Math.max(10, Math.min(window.innerHeight - 300, anchorY)) : anchorY;
+    tooltipStyle = `left: ${safeX}px; top: ${safeY}px;`;
   }
 
   function handleMouseEnter() {

@@ -734,18 +734,43 @@
     if (item.is_dir && !pane.isSSH) {
       clearTimeout(hoverTreeTimer);
       clearTimeout(hoverTreeCloseTimer);
+
+      // Synchronously capture position from live event before setTimeout clears currentTarget
+      const rowEl = (e?.currentTarget as HTMLElement | null) || ((e?.target as HTMLElement | null)?.closest?.('[role="row"]') as HTMLElement | null);
+      const rect = rowEl?.getBoundingClientRect();
+      const pointerX = e?.clientX;
+      const pointerY = e?.clientY;
+
       hoverTreeTimer = setTimeout(() => {
         if (hoveredPath === item.path) {
-          // Get anchor position from the row element
-          const rowEl = e?.currentTarget as HTMLElement | null;
-          if (rowEl) {
-            const rect = rowEl.getBoundingClientRect();
-            hoverTreeAnchorX = Math.min(window.innerWidth - 275, Math.max(rect.left + 40, (e?.clientX || rect.left) + 20));
-            hoverTreeAnchorY = rect.top;
+          const menuWidth = 256;
+          // Calculate X: align under pointer or folder icon
+          let posX = 200;
+          if (pointerX !== undefined) {
+            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, pointerX - 10));
+          } else if (rect) {
+            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, rect.left + 35));
           }
+
+          // Calculate Y: right under the pointer / row
+          let posY = 200;
+          if (rect) {
+            posY = rect.bottom + 2;
+            if (posY + 290 > window.innerHeight) {
+              posY = Math.max(10, rect.top - 290);
+            }
+          } else if (pointerY !== undefined) {
+            posY = pointerY + 12;
+            if (posY + 290 > window.innerHeight) {
+              posY = Math.max(10, pointerY - 290);
+            }
+          }
+
+          hoverTreeAnchorX = posX;
+          hoverTreeAnchorY = posY;
           hoverTreeItem = item;
         }
-      }, 220);
+      }, 200);
     } else {
       // Not a directory: close any open tree
       if (hoverTreeItem && hoverTreeItem.path !== item.path) {
@@ -1349,7 +1374,7 @@
                 <!-- Name Column -->
                 <div class="col-span-7 flex items-center gap-1.5 min-w-0">
                   {#if item.is_dir}
-                    <span class="text-[9px] text-slate-500/70 group-hover:text-amber-400 w-2.5 flex justify-center shrink-0 transition-colors" title="Hovra för att expandera underkataloger">▸</span>
+                    <span class="text-[9px] text-slate-500/70 group-hover:text-amber-400 w-2.5 flex justify-center shrink-0 transition-colors">▸</span>
                   {:else}
                     <span class="w-2.5 shrink-0"></span>
                   {/if}
