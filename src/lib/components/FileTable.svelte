@@ -21,7 +21,8 @@
     transferStatus,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
-  import { openInDefault, quickLook, renameItem, trashItems } from '../invoke';
+  import { openInDefault, quickLook, renameItem, trashItems, sshOpenFileLocally } from '../invoke';
+  import { saveNotification } from '../stores/downloadStore';
   import ContextMenu from './ContextMenu.svelte';
   import HoverDirTree from './HoverDirTree.svelte';
   import type { FileItem } from '../types';
@@ -677,9 +678,29 @@
     }
   }
 
-  function handleDoubleClick(item: FileItem) {
+  async function handleDoubleClick(item: FileItem) {
     if (item.is_dir) {
       navigatePane(paneId, item.path);
+    } else if (pane.isSSH) {
+      saveNotification.set({
+        text: `⬇️ Hämtar ${item.name} för att öppna lokalt...`,
+        success: true,
+      });
+      try {
+        const localPath = await sshOpenFileLocally(pane.sshHost, item.path);
+        saveNotification.set({
+          text: `🚀 Öppnade ${item.name} lokalt`,
+          path: localPath,
+          success: true,
+        });
+        setTimeout(() => saveNotification.set(null), 4000);
+      } catch (err: any) {
+        saveNotification.set({
+          text: `❌ Kunde inte öppna lokalt: ${err}`,
+          success: false,
+        });
+        setTimeout(() => saveNotification.set(null), 5000);
+      }
     } else {
       openInDefault(item.path);
     }

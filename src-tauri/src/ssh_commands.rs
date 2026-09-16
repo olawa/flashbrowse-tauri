@@ -80,6 +80,24 @@ fn sh_quote_path(path: &str) -> String {
     }
 }
 
+/// Format a remote host and path for scp (OpenSSH 9+ SFTP mode).
+///
+/// OpenSSH 9.0+ uses SFTP by default, which takes raw paths without shell quotes.
+/// Wrapping paths in single quotes causes SFTP to search for literal quote characters,
+/// failing with "No such file or directory".
+/// Tilde paths (~ or ~/dir) are converted to relative paths so SFTP resolves them
+/// against the remote user's home directory.
+pub fn scp_remote_spec(host: &str, path: &str) -> String {
+    let clean_path = if path == "~" {
+        ".".to_string()
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        rest.to_string()
+    } else {
+        path.to_string()
+    };
+    format!("{}:{}", host, clean_path)
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct SshDirectoryResult {
     pub current_path: String,
@@ -235,7 +253,7 @@ fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::pa
 
     let cached_path = cache_dir.join(format!("{:x}_{}", hash, file_name));
 
-    let remote_src = format!("{}:{}", host, sh_quote(remote_path));
+    let remote_src = scp_remote_spec(host, remote_path);
     let mut args = scp_base_args();
     let cached_str = cached_path.to_string_lossy().to_string();
     args.push(remote_src);
@@ -632,7 +650,7 @@ pub async fn ssh_open_file_locally(
 
         let mut args = vec!["-r".to_string()];
         args.extend(scp_base_args());
-        let remote_src = format!("{}:{}", host, sh_quote(&remote_path));
+        let remote_src = scp_remote_spec(&host, &remote_path);
         args.push(remote_src);
         args.push(local_str.clone());
 
@@ -648,18 +666,20 @@ pub async fn ssh_open_file_locally(
 
         #[cfg(target_os = "macos")]
         {
-            if let Some(ref app) = app_name {
+            let opened = if let Some(ref app) = app_name {
                 if !app.is_empty() && app != "default" {
-                    let res = Command::new("open")
-                        .args(["-a", app, &local_str])
-                        .spawn();
-                    if res.is_err() {
-                        let _ = Command::new("open").arg(&local_str).spawn();
+                    match Command::new("open").args(["-a", app, &local_str]).status() {
+                        Ok(st) => st.success(),
+                        Err(_) => false,
                     }
                 } else {
-                    let _ = Command::new("open").arg(&local_str).spawn();
+                    false
                 }
             } else {
+                false
+            };
+
+            if !opened {
                 let _ = Command::new("open").arg(&local_str).spawn();
             }
         }
@@ -723,5 +743,13 @@ mod tests {
         let out = Command::new("sh").arg("-c").arg(script).output().expect("sh");
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), dir.to_string_lossy());
         std::fs::remove_dir_all(parent).ok();
+    }
+
+    #[test]
+    fn scp_remote_spec_formats_without_quotes_and_handles_tilde() {
+        assert_eq!(super::scp_remote_spec("srv", "/var/log/syslog"), "srv:/var/log/syslog");
+        assert_eq!(super::scp_remote_spec("srv", "~/file.tsv"), "srv:file.tsv");
+        assert_eq!(super::scp_remote_spec("srv", "~"), "srv:.");
+        assert_eq!(super::scp_remote_spec("srv", "/path with spaces/data.bam"), "srv:/path with spaces/data.bam");
     }
 }

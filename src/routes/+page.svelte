@@ -60,6 +60,7 @@
     Table,
     Copy,
     Check,
+    AlertCircle,
     LayoutTemplate,
     Columns2,
     Columns3,
@@ -652,8 +653,12 @@
 
 <!-- Save / Download Notification Toast -->
 {#if $saveNotification}
-  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-emerald-950/95 text-emerald-200 border border-emerald-500/50 rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
-    <Check size={14} class="text-emerald-400" />
+  <div class="fixed top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-2 {$saveNotification.success ? 'bg-emerald-950/95 text-emerald-200 border-emerald-500/50' : 'bg-red-950/95 text-red-200 border-red-500/50'} border rounded-full shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-mono animate-bounce">
+    {#if $saveNotification.success}
+      <Check size={14} class="text-emerald-400" />
+    {:else}
+      <AlertCircle size={14} class="text-red-400" />
+    {/if}
     <span>{$saveNotification.text}</span>
   </div>
 {/if}

@@ -89,11 +89,20 @@ pub struct Endpoint {
 }
 
 impl Endpoint {
-    /// The path as rsync/scp should see it: quoted for the remote shell when
+    /// The path as rsync should see it: quoted for the remote shell when
     /// the endpoint is remote, plain otherwise.
     fn spec(&self, path: &str) -> String {
         if self.is_ssh {
             format!("{}:{}", self.host, sh_quote(path))
+        } else {
+            path.to_string()
+        }
+    }
+
+    /// The path as scp (OpenSSH 9+ SFTP mode) should see it: raw, unquoted path.
+    fn scp_spec(&self, path: &str) -> String {
+        if self.is_ssh {
+            crate::ssh_commands::scp_remote_spec(&self.host, path)
         } else {
             path.to_string()
         }
@@ -412,8 +421,8 @@ fn run_scp(
         args.push("-3".into());
     }
     args.extend(scp_base_args());
-    args.push(source.spec(source_path));
-    args.push(dest.spec(target));
+    args.push(source.scp_spec(source_path));
+    args.push(dest.scp_spec(target));
 
     let mut child = Command::new("scp")
         .args(&args)
