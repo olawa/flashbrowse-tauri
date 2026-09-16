@@ -19,6 +19,7 @@
   let expandedL1Timer: any = null;
   let expandedL2Path: string | null = null;
   let expandedL2Timer: any = null;
+  let leaveTimer: any = null;
 
   onMount(async () => {
     try {
@@ -33,6 +34,7 @@
   onDestroy(() => {
     clearTimeout(expandedL1Timer);
     clearTimeout(expandedL2Timer);
+    clearTimeout(leaveTimer);
   });
 
   function handleL0MouseEnter(node: SubdirNode) {
@@ -64,27 +66,39 @@
   }
 
   function handleMouseEnter() {
+    clearTimeout(leaveTimer);
     cancelClose();
   }
 
   function handleMouseLeave(e: MouseEvent) {
     const related = e.relatedTarget as HTMLElement | null;
     if (related && tooltipEl?.contains(related)) return;
-    onClose();
+    clearTimeout(leaveTimer);
+    leaveTimer = setTimeout(() => {
+      onClose();
+    }, 280);
   }
 </script>
+
+<svelte:window on:keydown={(e) => { if (e.key === 'Escape') onClose(); }} />
 
 <!-- svelte-ignore a11y-no-static-element-interactions -->
 <div
   bind:this={tooltipEl}
-  class="fixed z-[9999] w-64 max-h-96 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/95 shadow-2xl shadow-black/60 backdrop-blur-md text-xs select-none flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+  class="fixed z-[9999] w-64 max-h-96 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)]/95 shadow-2xl shadow-black/60 backdrop-blur-md text-xs select-none flex flex-col animate-in fade-in zoom-in-95 duration-100"
   style={tooltipStyle}
   on:mouseenter={handleMouseEnter}
   on:mouseleave={handleMouseLeave}
   role="tree"
 >
+  <!-- Invisible bridge hit-area extending above to bridge any micro gap with parent row -->
+  <div
+    class="absolute -top-3.5 left-0 right-0 h-4 pointer-events-auto"
+    on:mouseenter={handleMouseEnter}
+  ></div>
+
   <!-- Header with folder title -->
-  <div class="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)]/80 text-[var(--text-secondary)] text-[11px] font-semibold shrink-0">
+  <div class="flex items-center gap-2 px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)]/80 text-[var(--text-secondary)] text-[11px] font-semibold shrink-0 rounded-t-xl">
     <Folder size={12} class="text-[var(--accent)] shrink-0" />
     <span class="truncate font-mono">{path.split('/').pop() || path}</span>
     <span class="ml-auto text-[9px] text-[var(--text-muted)] font-normal uppercase tracking-wider">Träd</span>
@@ -99,7 +113,7 @@
     <div class="px-4 py-3 text-[var(--text-muted)] italic text-center text-xs">Inga underkataloger</div>
   {:else}
     <!-- Single vertical scroll view with progressive inline expansion -->
-    <div class="flex-1 overflow-y-auto py-1 px-1 divide-y divide-[var(--border)]/20 font-sans">
+    <div class="flex-1 overflow-y-auto py-1 px-1 divide-y divide-[var(--border)]/20 font-sans rounded-b-xl">
       {#each nodes as node (node.path)}
         {@const isExpanded = expandedL1Path === node.path}
         {@const hasChildren = node.children && node.children.length > 0}

@@ -19,9 +19,18 @@
     transferBetweenPanes,
     isTransferring,
     transferStatus,
+    showHiddenFiles,
   } from '../stores/navigation';
   import { isKidsMode } from '../stores/theme';
-  import { openInDefault, quickLook, renameItem, trashItems, sshOpenFileLocally } from '../invoke';
+  import {
+    openInDefault,
+    quickLook,
+    renameItem,
+    trashItems,
+    sshOpenFileLocally,
+    listDirectory,
+    sshListDirectory,
+  } from '../invoke';
   import { saveNotification } from '../stores/downloadStore';
   import ContextMenu from './ContextMenu.svelte';
   import HoverDirTree from './HoverDirTree.svelte';
@@ -45,6 +54,7 @@
     ArrowDownToLine,
     ArrowRightLeft,
     ChevronDown,
+    ChevronRight,
     CheckSquare,
     Square,
   } from 'lucide-svelte';
@@ -305,6 +315,10 @@
   $: if (pane.currentPath !== lastSeenPath) {
     lastSeenPath = pane.currentPath;
     hoveredPath = null;
+    expandedFolderPaths = new Set();
+    folderChildrenMap = new Map();
+    expandingFolderPaths = new Set();
+    closeHoverTree();
     if (!$isInspectorLocked) activeHoveredItem.set(null);
   }
 
@@ -315,22 +329,86 @@
   let hoverTreeAnchorX = 0;
   let hoverTreeAnchorY = 0;
 
+  // Inline Tree Expansion in FileTable
+  let expandedFolderPaths = new Set<string>();
+  let folderChildrenMap = new Map<string, FileItem[]>();
+  let expandingFolderPaths = new Set<string>();
+  let chevronHoverTimer: any = null;
+
+  async function toggleFolderExpanded(item: FileItem) {
+    if (!item.is_dir) return;
+
+    if (expandedFolderPaths.has(item.path)) {
+      // Collapse
+      expandedFolderPaths.delete(item.path);
+      expandedFolderPaths = new Set(expandedFolderPaths);
+
+      // If selected item was inside this folder, select the parent folder
+      const store = paneId === 'left' ? leftPane : rightPane;
+      const selected = Array.from(pane.selectedPaths);
+      const anyInside = selected.some((p) => p.startsWith(item.path + '/'));
+      if (anyInside) {
+        store.update((s) => ({ ...s, selectedPaths: new Set([item.path]) }));
+        onSelectPreview(item);
+      }
+    } else {
+      // Expand
+      expandedFolderPaths.add(item.path);
+      expandedFolderPaths = new Set(expandedFolderPaths);
+
+      if (!folderChildrenMap.has(item.path)) {
+        expandingFolderPaths.add(item.path);
+        expandingFolderPaths = new Set(expandingFolderPaths);
+        try {
+          let children: FileItem[] = [];
+          if (pane.isSSH) {
+            const res = await sshListDirectory(pane.sshHost, item.path);
+            children = res.items;
+          } else {
+            children = await listDirectory(item.path, $showHiddenFiles);
+          }
+          folderChildrenMap.set(item.path, children);
+          folderChildrenMap = new Map(folderChildrenMap);
+        } catch (err) {
+          console.error('Failed to list children for tree expansion:', err);
+        } finally {
+          expandingFolderPaths.delete(item.path);
+          expandingFolderPaths = new Set(expandingFolderPaths);
+        }
+      }
+    }
+  }
+
+  function handleChevronHover(item: FileItem) {
+    clearTimeout(chevronHoverTimer);
+    chevronHoverTimer = setTimeout(() => {
+      if (item.is_dir && !expandedFolderPaths.has(item.path)) {
+        toggleFolderExpanded(item);
+      }
+    }, 280);
+  }
+
+  function clearChevronHover() {
+    clearTimeout(chevronHoverTimer);
+  }
+
   // Virtual Scrolling State for extreme smoothness in large directories
   const ROW_HEIGHT = 28;
   const OVERSCAN = 14;
   let scrollTop = 0;
   let containerHeight = 600;
 
-  $: isVirtual = filteredItems.length > 60;
+  $: isVirtual = flattenedItems.length > 60;
   $: startIndex = isVirtual ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0;
-  $: endIndex = isVirtual ? Math.min(filteredItems.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN) : filteredItems.length;
-  $: visibleItems = filteredItems.slice(startIndex, endIndex);
-  $: totalHeight = filteredItems.length * ROW_HEIGHT;
+  $: endIndex = isVirtual ? Math.min(flattenedItems.length, Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + OVERSCAN) : flattenedItems.length;
+  $: visibleItems = flattenedItems.slice(startIndex, endIndex);
+  $: totalHeight = flattenedItems.length * ROW_HEIGHT;
   $: offsetY = isVirtual ? startIndex * ROW_HEIGHT : 0;
 
   function handleTableScroll(e: Event) {
     const target = e.currentTarget as HTMLElement;
     scrollTop = target.scrollTop;
+    closeHoverTree();
   }
 
   const HEADER_HEIGHT = 29;
@@ -435,10 +513,10 @@
         const relBottom = selBottom - HEADER_HEIGHT;
         if (relBottom >= 0 && relTop <= totalHeight) {
           const mathStartIdx = Math.max(0, Math.floor(relTop / ROW_HEIGHT));
-          const mathEndIdx = Math.min(filteredItems.length - 1, Math.floor(relBottom / ROW_HEIGHT));
+          const mathEndIdx = Math.min(flattenedItems.length - 1, Math.floor(relBottom / ROW_HEIGHT));
           for (let i = mathStartIdx; i <= mathEndIdx; i++) {
-            if (filteredItems[i]) {
-              newSelected.add(filteredItems[i].path);
+            if (flattenedItems[i]) {
+              newSelected.add(flattenedItems[i].path);
             }
           }
         }
@@ -503,11 +581,8 @@
     return name.toLowerCase().includes(pattern.toLowerCase());
   }
 
-  $: filteredItems = (() => {
-    let result = pane.items.filter((item) => matchFilter(item.name, filterText));
-    const { sortBy, sortAsc } = pane;
-
-    return result.sort((a, b) => {
+  function sortFileList(items: FileItem[], sortBy: string, sortAsc: boolean): FileItem[] {
+    return [...items].sort((a, b) => {
       if (a.is_dir !== b.is_dir) {
         return b.is_dir ? 1 : -1;
       }
@@ -525,6 +600,35 @@
 
       return sortAsc ? cmp : -cmp;
     });
+  }
+
+  $: filteredItems = (() => {
+    let result = pane.items.filter((item) => matchFilter(item.name, filterText));
+    return sortFileList(result, pane.sortBy, pane.sortAsc);
+  })();
+
+  type TableTreeItem = FileItem & { _depth: number };
+
+  $: flattenedItems = (() => {
+    const list: TableTreeItem[] = [];
+    const { sortBy, sortAsc } = pane;
+
+    function appendLevel(items: FileItem[], depth: number) {
+      for (const item of items) {
+        list.push({ ...item, _depth: depth });
+        if (item.is_dir && expandedFolderPaths.has(item.path)) {
+          const rawChildren = folderChildrenMap.get(item.path);
+          if (rawChildren && rawChildren.length > 0) {
+            const filteredChildren = rawChildren.filter((c) => matchFilter(c.name, filterText));
+            const sortedChildren = sortFileList(filteredChildren, sortBy, sortAsc);
+            appendLevel(sortedChildren, depth + 1);
+          }
+        }
+      }
+    }
+
+    appendLevel(filteredItems, 0);
+    return list;
   })();
 
   // MARK: - Drag and Drop between Panels
@@ -597,6 +701,7 @@
   // MARK: - Single / Double Click & Shift / Cmd Multi-Selection
   function handleRowClick(item: FileItem, event: MouseEvent) {
     activePaneId.set(paneId);
+    closeHoverTree();
     // An explicit click wins over any pending hover preview
     clearTimeout(hoverTimer);
     clearTimeout(hoverReleaseTimer);
@@ -607,9 +712,9 @@
 
     // 1. Shift + Click: Range Selection from anchor
     if (event.shiftKey) {
-      const anchorPath = lastClickedPath || (filteredItems.length > 0 ? filteredItems[0].path : null);
-      let anchorIdx = anchorPath ? filteredItems.findIndex((i) => i.path === anchorPath) : 0;
-      let targetIdx = filteredItems.findIndex((i) => i.path === item.path);
+      const anchorPath = lastClickedPath || (flattenedItems.length > 0 ? flattenedItems[0].path : null);
+      let anchorIdx = anchorPath ? flattenedItems.findIndex((i) => i.path === anchorPath) : 0;
+      let targetIdx = flattenedItems.findIndex((i) => i.path === item.path);
 
       if (anchorIdx === -1) anchorIdx = 0;
       if (targetIdx === -1) targetIdx = 0;
@@ -621,7 +726,7 @@
         event.metaKey || event.ctrlKey ? pane.selectedPaths : []
       );
       for (let i = minIdx; i <= maxIdx; i++) {
-        rangePaths.add(filteredItems[i].path);
+        rangePaths.add(flattenedItems[i].path);
       }
 
       store.update((s) => ({ ...s, selectedPaths: rangePaths }));
@@ -708,6 +813,19 @@
 
   // MARK: - Smart Hover Live Preview with Lock and Cmd Support
   function handleRowMouseEnter(item: FileItem, e?: MouseEvent) {
+    // If a hover tree is currently open:
+    if (hoverTreeItem) {
+      if (hoverTreeItem.path === item.path) {
+        // Pointer re-entered the parent folder row!
+        clearTimeout(hoverTreeCloseTimer);
+        hoveredPath = item.path;
+        return;
+      }
+      // Hover tree is open for another folder.
+      // DO NOT let incidental pointer movement across sibling rows kill the tree or steal hover!
+      return;
+    }
+
     hoveredPath = item.path;
     clearTimeout(hoverTimer);
 
@@ -747,22 +865,22 @@
           // Calculate X: align under pointer or folder icon
           let posX = 200;
           if (pointerX !== undefined) {
-            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, pointerX - 10));
+            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, pointerX - 16));
           } else if (rect) {
-            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, rect.left + 35));
+            posX = Math.max(10, Math.min(window.innerWidth - menuWidth - 15, rect.left + 24));
           }
 
-          // Calculate Y: right under the pointer / row
+          // Calculate Y: right under the row (zero gap overlap)
           let posY = 200;
           if (rect) {
-            posY = rect.bottom + 2;
+            posY = rect.bottom - 1;
             if (posY + 290 > window.innerHeight) {
-              posY = Math.max(10, rect.top - 290);
+              posY = Math.max(10, rect.top - 280);
             }
           } else if (pointerY !== undefined) {
-            posY = pointerY + 12;
+            posY = pointerY + 6;
             if (posY + 290 > window.innerHeight) {
-              posY = Math.max(10, pointerY - 290);
+              posY = Math.max(10, pointerY - 280);
             }
           }
 
@@ -770,39 +888,38 @@
           hoverTreeAnchorY = posY;
           hoverTreeItem = item;
         }
-      }, 200);
+      }, 220);
     } else {
-      // Not a directory: close any open tree
-      if (hoverTreeItem && hoverTreeItem.path !== item.path) {
-        hoverTreeItem = null;
-      }
       clearTimeout(hoverTreeTimer);
     }
   }
 
   function handleRowMouseLeave() {
-    hoveredPath = null;
     clearTimeout(hoverTimer);
     clearTimeout(hoverTreeTimer);
-    // Grace period: close tree after 350ms unless mouse entered tooltip
-    hoverTreeCloseTimer = setTimeout(() => {
-      hoverTreeItem = null;
-    }, 350);
+
+    if (hoverTreeItem) {
+      // Grace period: allow 400ms for cursor to travel from row into HoverDirTree
+      clearTimeout(hoverTreeCloseTimer);
+      hoverTreeCloseTimer = setTimeout(() => {
+        hoverTreeItem = null;
+        hoveredPath = null;
+        releaseHoverPreview();
+      }, 400);
+      return;
+    }
+
+    hoveredPath = null;
     releaseHoverPreview();
   }
 
-  /**
-   * Hand the Inspector back to the selected item once the pointer leaves the rows.
-   * Without this the last hovered file stays pinned in the Inspector forever, which
-   * makes navigation, filtering and selection look like they have no effect.
-   * The delay lets the pointer travel between adjacent rows without flicker.
-   */
   onDestroy(() => {
     clearTimeout(hoverTimer);
     clearTimeout(hoverTreeTimer);
     clearTimeout(hoverTreeCloseTimer);
     clearTimeout(hoverReleaseTimer);
     clearTimeout(keyboardPreviewTimer);
+    clearTimeout(chevronHoverTimer);
   });
 
   function releaseHoverPreview() {
@@ -951,7 +1068,7 @@
     if ((e.metaKey || e.ctrlKey) && (e.shiftKey || e.altKey) && e.key === 'ArrowUp') {
       e.preventDefault();
       const firstSelected = Array.from(pane.selectedPaths)[0];
-      const item = pane.items.find((i) => i.path === firstSelected);
+      const item = flattenedItems.find((i) => i.path === firstSelected) || pane.items.find((i) => i.path === firstSelected);
       if (item) {
         handleCastItem(item);
         return;
@@ -973,19 +1090,20 @@
       return;
     }
 
-    // Cmd + A -> Select all filtered items
+    // Cmd + A -> Select all items (including expanded tree items)
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       const store = paneId === 'left' ? leftPane : rightPane;
       store.update((s) => ({
         ...s,
-        selectedPaths: new Set(filteredItems.map((i) => i.path)),
+        selectedPaths: new Set(flattenedItems.map((i) => i.path)),
       }));
       return;
     }
 
-    // Esc -> Clear selection
+    // Esc -> Clear selection & close hover tree
     if (e.key === 'Escape' && !pane.filterQuery) {
+      closeHoverTree();
       const store = paneId === 'left' ? leftPane : rightPane;
       store.update((s) => ({ ...s, selectedPaths: new Set() }));
       return;
@@ -1006,7 +1124,7 @@
       }
     } else if (e.key === 'Enter') {
       const firstSelected = Array.from(pane.selectedPaths)[0];
-      const item = pane.items.find((i) => i.path === firstSelected);
+      const item = flattenedItems.find((i) => i.path === firstSelected) || pane.items.find((i) => i.path === firstSelected);
       if (item) {
         handleDoubleClick(item);
       }
@@ -1016,19 +1134,53 @@
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectOffset(1);
+    } else if (e.key === 'ArrowRight') {
+      const firstSelected = Array.from(pane.selectedPaths)[0];
+      const item = flattenedItems.find((i) => i.path === firstSelected);
+      if (item && item.is_dir) {
+        e.preventDefault();
+        if (!expandedFolderPaths.has(item.path)) {
+          toggleFolderExpanded(item);
+        } else {
+          const idx = flattenedItems.findIndex((i) => i.path === item.path);
+          if (idx !== -1 && idx + 1 < flattenedItems.length) {
+            selectOffset(1);
+          }
+        }
+      }
+    } else if (e.key === 'ArrowLeft') {
+      const firstSelected = Array.from(pane.selectedPaths)[0];
+      const item = flattenedItems.find((i) => i.path === firstSelected);
+      if (item) {
+        e.preventDefault();
+        if (item.is_dir && expandedFolderPaths.has(item.path)) {
+          toggleFolderExpanded(item);
+        } else if (item._depth > 0) {
+          const idx = flattenedItems.findIndex((i) => i.path === item.path);
+          for (let i = idx - 1; i >= 0; i--) {
+            if (flattenedItems[i].is_dir && flattenedItems[i]._depth === item._depth - 1) {
+              const store = paneId === 'left' ? leftPane : rightPane;
+              store.update((s) => ({ ...s, selectedPaths: new Set([flattenedItems[i].path]) }));
+              scrollToItemIndex(i);
+              onSelectPreview(flattenedItems[i]);
+              break;
+            }
+          }
+        }
+      }
     }
   }
 
   let keyboardPreviewTimer: any = null;
 
   function selectOffset(offset: number) {
-    if (filteredItems.length === 0) return;
+    if (flattenedItems.length === 0) return;
     const firstSelected = Array.from(pane.selectedPaths)[0];
-    const currentIndex = filteredItems.findIndex((i) => i.path === firstSelected);
+    const currentIndex = flattenedItems.findIndex((i) => i.path === firstSelected);
     let nextIndex = currentIndex === -1 ? 0 : currentIndex + offset;
-    nextIndex = Math.max(0, Math.min(filteredItems.length - 1, nextIndex));
+    nextIndex = Math.max(0, Math.min(flattenedItems.length - 1, nextIndex));
 
-    const nextItem = filteredItems[nextIndex];
+    const nextItem = flattenedItems[nextIndex];
     if (nextItem) {
       const store = paneId === 'left' ? leftPane : rightPane;
       // Instant visual row selection (0 ms)
@@ -1106,7 +1258,7 @@
         title="Vanlig fillista"
       >
         <LayoutList size={11} />
-        <span>Filer ({filteredItems.length})</span>
+        <span>Filer ({filteredItems.length}){#if expandedFolderPaths.size > 0} <span class="text-[10px] text-amber-300 font-mono">(+{flattenedItems.length - filteredItems.length} i träd)</span>{/if}</span>
       </button>
 
       <button
@@ -1334,7 +1486,7 @@
       </div>
 
       <!-- Table Rows -->
-      {#if filteredItems.length === 0}
+      {#if flattenedItems.length === 0}
         <div class="p-8 text-center text-[var(--text-muted)]">
           Empty directory
         </div>
@@ -1354,13 +1506,16 @@
               {@const isCasting = castingRowPath === item.path}
               {@const isLargeFile = !item.is_dir && item.size_bytes >= 50_000_000}
               {@const proportion = isLargeFile ? Math.min(100, (item.size_bytes / 1_073_741_824) * 100) : 0}
+              {@const depth = item._depth ?? 0}
+              {@const isExpanded = expandedFolderPaths.has(item.path)}
+              {@const isExpanding = expandingFolderPaths.has(item.path)}
 
               <div
                 data-row-path={item.path}
                 use:registerRow={item.path}
                 draggable="true"
                 on:dragstart={(e) => handleRowDragStart(item, e)}
-                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
+                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'} {depth > 0 ? 'bg-black/5' : ''}"
                 style="height: {ROW_HEIGHT}px;"
                 on:click={(e) => handleRowClick(item, e)}
                 on:dblclick={() => handleDoubleClick(item)}
@@ -1371,12 +1526,44 @@
                 role="row"
                 tabindex="-1"
               >
+                <!-- Indentation Guide Lines for nested items -->
+                {#if depth > 0}
+                  <div
+                    class="absolute top-0 bottom-0 pointer-events-none flex"
+                    style="left: 12px; width: {depth * 18}px;"
+                  >
+                    {#each Array(depth) as _, dIdx}
+                      <span
+                        class="w-[18px] h-full border-r border-[var(--border)]/30 shrink-0"
+                      ></span>
+                    {/each}
+                  </div>
+                {/if}
+
                 <!-- Name Column -->
-                <div class="col-span-7 flex items-center gap-1.5 min-w-0">
+                <div
+                  class="col-span-7 flex items-center gap-1.5 min-w-0"
+                  style="padding-left: {depth * 18}px;"
+                >
                   {#if item.is_dir}
-                    <span class="text-[9px] text-slate-500/70 group-hover:text-amber-400 w-2.5 flex justify-center shrink-0 transition-colors">▸</span>
+                    <button
+                      type="button"
+                      class="w-4 h-4 -ml-0.5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0 z-10"
+                      on:click|stopPropagation={() => toggleFolderExpanded(item)}
+                      on:mouseenter={() => handleChevronHover(item)}
+                      on:mouseleave={clearChevronHover}
+                      title={isExpanded ? 'Kollapsa undermapp' : 'Expandera träd inline (klicka eller hovra)'}
+                    >
+                      {#if isExpanding}
+                        <div class="w-2.5 h-2.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+                      {:else if isExpanded}
+                        <ChevronDown size={12} class="text-amber-400" />
+                      {:else}
+                        <ChevronRight size={12} class="group-hover:text-amber-400" />
+                      {/if}
+                    </button>
                   {:else}
-                    <span class="w-2.5 shrink-0"></span>
+                    <span class="w-4 shrink-0"></span>
                   {/if}
                   <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
                   
