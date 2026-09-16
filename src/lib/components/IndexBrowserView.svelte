@@ -40,10 +40,14 @@
   } from '../stores/navigation';
   import { openInDefault, launchRsnap, revealInOs, findRelatedBams, type RelatedBamResult } from '../invoke';
   import RelatedBamsModal from './RelatedBamsModal.svelte';
+  import { favoriteEditor, openInFavoriteEditor } from '../stores/editorStore';
   import type { FileItem, DirectoryIndexGroup } from '../types';
   import {
     Folder,
     FileText,
+    FileCode,
+    Cpu,
+    GitBranch,
     Dna,
     Table,
     Code,
@@ -71,6 +75,29 @@
   let hoveredPath: string | null = null;
   let isRootMenuOpen = false;
   let filesContainerEl: HTMLElement | null = null;
+
+  const isCodeCategory = (id: string) => ['code', 'pipelines', 'rust', 'python', 'scripts'].includes(id);
+
+  function switchCodeCategory(catId: string) {
+    const catMap: Record<string, { label: string; extensions: string[]; badge: string; color: string }> = {
+      code: { label: 'Källkod & Projekt', extensions: ['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'snakefile', 'nf', 'makefile', 'cargo.toml'], badge: 'CODE', color: 'text-amber-400' },
+      pipelines: { label: 'Pipelines & Workflow', extensions: ['snakefile', 'smk', 'nf', 'nextflow.config', 'wdl', 'makefile'], badge: 'PIPE', color: 'text-emerald-400' },
+      rust: { label: 'Rust-projekt', extensions: ['rs', 'cargo.toml', 'cargo.lock'], badge: 'RUST', color: 'text-orange-400' },
+      python: { label: 'Python & Notebooks', extensions: ['py', 'ipynb', 'pyproject.toml', 'requirements.txt', 'environment.yml'], badge: 'PY', color: 'text-yellow-400' },
+      scripts: { label: 'Lösa skript & Shell', extensions: ['sh', 'bash', 'zsh', 'r', 'awk', 'pl'], badge: 'SH', color: 'text-cyan-400' },
+    };
+    const target = catMap[catId];
+    if (target) {
+      openIndexScan({
+        id: catId,
+        name: target.label,
+        extensions: target.extensions,
+        badge: target.badge,
+        iconName: target.badge,
+        colorClass: target.color,
+      }, $indexRootPath, false);
+    }
+  }
 
   function handleWindowKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -367,6 +394,47 @@
           </button>
         {/if}
 
+        <!-- Code & Project Subcategory Switcher Pills -->
+        {#if isCodeCategory($activeIndexMeta.id)}
+          <div class="flex items-center gap-0.5 bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border)] text-[11px] font-medium shrink-0">
+            <button
+              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'code' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              on:click={() => switchCodeCategory('code')}
+              title="Visa all källkod och alla projekt"
+            >
+              Alla
+            </button>
+            <button
+              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'pipelines' ? 'bg-emerald-600 text-white font-bold' : 'text-emerald-400 hover:text-white'}"
+              on:click={() => switchCodeCategory('pipelines')}
+              title="Snakemake, Nextflow och WDL pipelines"
+            >
+              🧬 Pipelines
+            </button>
+            <button
+              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'rust' ? 'bg-orange-600 text-white font-bold' : 'text-orange-400 hover:text-white'}"
+              on:click={() => switchCodeCategory('rust')}
+              title="Rust-projekt (Cargo.toml, .rs)"
+            >
+              🦀 Rust
+            </button>
+            <button
+              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'python' ? 'bg-yellow-600 text-white font-bold' : 'text-yellow-400 hover:text-white'}"
+              on:click={() => switchCodeCategory('python')}
+              title="Python-projekt och Jupyter Notebooks"
+            >
+              🐍 Python
+            </button>
+            <button
+              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'scripts' ? 'bg-cyan-600 text-white font-bold' : 'text-cyan-400 hover:text-white'}"
+              on:click={() => switchCodeCategory('scripts')}
+              title="Shell, R och script"
+            >
+              📜 Skript
+            </button>
+          </div>
+        {/if}
+
         <!-- Refresh Index Button -->
         <button
           class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -624,6 +692,13 @@
 
                       <!-- Action buttons on hover -->
                       <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 ml-1">
+                        <button
+                          class="p-1 rounded hover:bg-sky-600 hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          on:click|stopPropagation={() => openInFavoriteEditor(item.path)}
+                          title="Öppna i {$favoriteEditor} (⌘E)"
+                        >
+                          <FileCode size={12} />
+                        </button>
                         <button
                           class="p-1 rounded hover:bg-[var(--accent)] hover:text-white text-slate-400 transition-colors cursor-pointer"
                           on:click|stopPropagation={() => handleFileDblClick(item)}

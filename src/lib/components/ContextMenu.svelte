@@ -46,6 +46,12 @@
     GitBranch,
   } from 'lucide-svelte';
   import { saveRemoteOrLocalItem, downloadDirectory, saveNotification, getSSHServerFolderName } from '../stores/downloadStore';
+  import {
+    favoriteEditor,
+    setFavoriteEditor,
+    openInFavoriteEditor,
+    SUPPORTED_EDITORS,
+  } from '../stores/editorStore';
 
   export let item: FileItem;
   export let paneId: 'left' | 'right';
@@ -140,6 +146,14 @@
 
   async function handleReveal() {
     await revealInOs(item.path);
+    onClose();
+  }
+
+  async function handleOpenInEditor(editorName?: string) {
+    if (editorName) {
+      setFavoriteEditor(editorName);
+    }
+    await openInFavoriteEditor(item.path, isSSH, currentPaneState.sshHost);
     onClose();
   }
 
@@ -520,26 +534,27 @@
           {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
         </span>
       </button>
-    {:else if isCode}
-      <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400"
-        on:click={() => handleOpenWith('Visual Studio Code')}
-        title="Öppna i Visual Studio Code lokalt på din Mac"
-      >
-        <div class="flex items-center gap-2 min-w-0">
-          <Code size={13} class="text-sky-400 shrink-0" />
-          <span class="truncate font-semibold">Öppna i VS Code</span>
-        </div>
-        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300">
-          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
-        </span>
-      </button>
     {/if}
+
+    <!-- Primary Open in Favorite Editor -->
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
+      on:click={() => handleOpenInEditor()}
+      title="Öppna {item.is_dir ? 'projektmappen' : 'filen'} i {$favoriteEditor} (Kortkommando: ⌘E)"
+    >
+      <div class="flex items-center gap-2 min-w-0">
+        <Code size={13} class="text-sky-400 shrink-0" />
+        <span class="truncate font-semibold">Öppna i {$favoriteEditor}</span>
+      </div>
+      <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300 shrink-0">
+        ⌘E
+      </span>
+    </button>
 
     <!-- Open with submenu -->
     <div class="relative">
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-200"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-200 cursor-pointer"
         on:click={() => (isOpenWithSubmenu = !isOpenWithSubmenu)}
       >
         <div class="flex items-center gap-2 min-w-0">
@@ -550,9 +565,29 @@
       </button>
 
       {#if isOpenWithSubmenu}
-        <div class="bg-[var(--bg-panel)] border-y border-[var(--border)] py-1 pl-4 pr-2 text-[11px] flex flex-col gap-0.5">
+        <div class="bg-[var(--bg-panel)] border-y border-[var(--border)] py-1 pl-3 pr-2 text-[11px] flex flex-col gap-0.5">
+          <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Editorer</div>
+          {#each SUPPORTED_EDITORS as ed}
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-slate-200 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenInEditor(ed.appName)}
+              title="Öppna och sätt {ed.name} som standard (⌘E)"
+            >
+              <div class="flex items-center gap-2 min-w-0">
+                <Code size={12} class="text-sky-400 shrink-0" />
+                <span class="truncate">{ed.name}</span>
+                {#if $favoriteEditor === ed.appName}
+                  <span class="text-[8.5px] text-amber-400 font-bold shrink-0">★ Standard</span>
+                {/if}
+              </div>
+              <span class="text-[9px] font-mono opacity-60 shrink-0">{ed.badge}</span>
+            </button>
+          {/each}
+
+          <div class="h-px my-1 bg-[var(--border)]"></div>
+          <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Dokument & Kalkylark</div>
           <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors"
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors cursor-pointer"
             on:click={() => handleOpenWith('Microsoft Excel')}
           >
             <div class="flex items-center gap-2">
@@ -562,7 +597,7 @@
             <span class="text-[9px] font-mono opacity-70">Excel</span>
           </button>
           <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors"
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors cursor-pointer"
             on:click={() => handleOpenWith('Microsoft Word')}
           >
             <div class="flex items-center gap-2">
@@ -572,27 +607,7 @@
             <span class="text-[9px] font-mono opacity-70">Word</span>
           </button>
           <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-sky-400 text-left transition-colors"
-            on:click={() => handleOpenWith('Visual Studio Code')}
-          >
-            <div class="flex items-center gap-2">
-              <Code size={12} />
-              <span>Visual Studio Code</span>
-            </div>
-            <span class="text-[9px] font-mono opacity-70">VSCode</span>
-          </button>
-          <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors"
-            on:click={() => handleOpenWith('TextEdit')}
-          >
-            <div class="flex items-center gap-2">
-              <FileText size={12} />
-              <span>TextEdit</span>
-            </div>
-            <span class="text-[9px] font-mono opacity-70">Editor</span>
-          </button>
-          <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors"
+            class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors cursor-pointer"
             on:click={() => handleOpenWith(undefined)}
           >
             <div class="flex items-center gap-2">

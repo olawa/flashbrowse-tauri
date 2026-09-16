@@ -49,7 +49,14 @@
   } from '../stores/indexStore';
   import type { FileTypeIndexMeta, ThemeName } from '../types';
   import { sidebarWidth } from '../stores/layoutStore';
-  import { Plus, Trash2, X as XIcon, Command } from 'lucide-svelte';
+  import {
+    Plus,
+    Trash2,
+    X as XIcon,
+    Command,
+    GitBranch,
+    Cpu,
+  } from 'lucide-svelte';
 
   let homeDir = '';
   let devProjectsDir = '';
@@ -163,8 +170,12 @@
     { id: 'fastq', label: 'FASTQ Reads', extensions: ['fastq', 'fq', 'fastq.gz', 'fq.gz'], badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },
     { id: 'table', label: 'Tabeller & Sheets', extensions: ['csv', 'tsv', 'tab', 'xlsx', 'xls', 'ods'], badge: 'TABLE', icon: Table, color: 'text-blue-400' },
     { id: 'bed', label: 'Annotationer', extensions: ['bed', 'gtf', 'gff', 'gff3', 'bigwig', 'bw'], badge: 'BED', icon: Bookmark, color: 'text-pink-400' },
-    { id: 'code', label: 'Källkod & Skript', extensions: ['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'makefile'], badge: 'CODE', icon: Code, color: 'text-yellow-400' },
-    { id: 'doc', label: 'Dokument & Text', extensions: ['md', 'pdf', 'txt', 'doc', 'docx', 'rtf', 'ipynb'], badge: 'DOC', icon: FileText, color: 'text-slate-300' },
+    { id: 'pipelines', label: 'Pipelines & Workflow', extensions: ['snakefile', 'smk', 'nf', 'nextflow.config', 'wdl', 'makefile'], badge: 'PIPE', icon: GitBranch, color: 'text-emerald-400' },
+    { id: 'rust', label: 'Rust-projekt', extensions: ['rs', 'cargo.toml', 'cargo.lock'], badge: 'RUST', icon: Cpu, color: 'text-orange-400' },
+    { id: 'python', label: 'Python & Notebooks', extensions: ['py', 'ipynb', 'pyproject.toml', 'requirements.txt', 'environment.yml'], badge: 'PY', icon: FileCode, color: 'text-yellow-400' },
+    { id: 'scripts', label: 'Lösa skript & Shell', extensions: ['sh', 'bash', 'zsh', 'r', 'awk', 'pl'], badge: 'SH', icon: TerminalIcon, color: 'text-cyan-400' },
+    { id: 'code', label: 'Källkod & Projekt', extensions: ['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'snakefile', 'nf', 'makefile', 'cargo.toml'], badge: 'CODE', icon: Code, color: 'text-amber-400' },
+    { id: 'doc', label: 'Dokument & Text', extensions: ['md', 'pdf', 'txt', 'doc', 'docx', 'rtf'], badge: 'DOC', icon: FileText, color: 'text-slate-300' },
   ];
 
   const themes: Array<{ id: ThemeName; label: string; icon: any }> = [

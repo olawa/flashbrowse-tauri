@@ -740,12 +740,12 @@
           const rowEl = e?.currentTarget as HTMLElement | null;
           if (rowEl) {
             const rect = rowEl.getBoundingClientRect();
-            hoverTreeAnchorX = rect.right + 4;
+            hoverTreeAnchorX = Math.min(window.innerWidth - 275, Math.max(rect.left + 40, (e?.clientX || rect.left) + 20));
             hoverTreeAnchorY = rect.top;
           }
           hoverTreeItem = item;
         }
-      }, 1000);
+      }, 220);
     } else {
       // Not a directory: close any open tree
       if (hoverTreeItem && hoverTreeItem.path !== item.path) {
@@ -1347,7 +1347,12 @@
                 tabindex="-1"
               >
                 <!-- Name Column -->
-                <div class="col-span-7 flex items-center gap-2 min-w-0">
+                <div class="col-span-7 flex items-center gap-1.5 min-w-0">
+                  {#if item.is_dir}
+                    <span class="text-[9px] text-slate-500/70 group-hover:text-amber-400 w-2.5 flex justify-center shrink-0 transition-colors" title="Hovra för att expandera underkataloger">▸</span>
+                  {:else}
+                    <span class="w-2.5 shrink-0"></span>
+                  {/if}
                   <svelte:component this={getFileIcon(item)} size={14} class="{getIconColor(item)} flex-shrink-0" />
                   
                   {#if isRenaming}

@@ -49,6 +49,7 @@
   import { isGenomicsHubOpen } from '$lib/stores/genomicsStore';
   import { activeIndexMeta, closeIndexView, refreshCurrentIndex } from '$lib/stores/indexStore';
   import { saveNotification } from '$lib/stores/downloadStore';
+  import { openInFavoriteEditor } from '$lib/stores/editorStore';
   import type { FileItem } from '$lib/types';
   import {
     Lock,
@@ -133,6 +134,19 @@
       } else {
         reloadPane('left');
         if ($isDualPane) reloadPane('right');
+      }
+      return;
+    }
+
+    // Cmd+E / Ctrl+E: Open active file, folder, or project in favorite editor
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      const activeId = $activePaneId;
+      const currentPane = activeId === 'left' ? $leftPane : $rightPane;
+      const selected = Array.from(currentPane.selectedPaths)[0];
+      const targetPath = selected || currentPane.currentPath;
+      if (targetPath) {
+        openInFavoriteEditor(targetPath, currentPane.isSSH, currentPane.sshHost);
       }
       return;
     }
