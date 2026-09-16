@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Flashbrowse behöver åtkomst till Skrivbordet för att visa och hantera filer.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Flashbrowse behöver åtkomst till Dokument för att visa och hantera filer.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Flashbrowse behöver åtkomst till Hämtade filer för att visa och hantera filer.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Flashbrowse behöver åtkomst till externa volymer för att visa och hantera filer.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Flashbrowse behöver åtkomst till nätverksvolymer för att visa och hantera filer.</string>
+</dict>
+</plist>
