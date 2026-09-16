@@ -9,6 +9,9 @@
     runRsQc,
     sendToIgv,
     revealInOs,
+    qcStatus,
+    openInDefault,
+    type QcStatus,
   } from '../invoke';
   import {
     addTracksToHub,
@@ -81,6 +84,7 @@
   // rs-qc state
   let qcReport: string | null = null;
   let qcOutputDir: string | null = null;
+  let qcStatusFor: string | null = null;
   let isRunningQc = false;
   let qcError = '';
 
@@ -347,6 +351,25 @@
     }
   }
 
+  // QC that has already been run sits next to the file; show it rather than
+  // making the user run it again to find out.
+  let savedQc: QcStatus | null = null;
+
+  $: if (item && !item.is_dir && item.path !== qcStatusFor) {
+    qcStatusFor = item.path;
+    loadQcStatus(item.path);
+  }
+
+  async function loadQcStatus(path: string) {
+    try {
+      const statuses = await qcStatus([path]);
+      if (qcStatusFor !== path) return;
+      savedQc = statuses[0] ?? null;
+    } catch {
+      savedQc = null;
+    }
+  }
+
   async function handleRunQc() {
     isRunningQc = true;
     qcError = '';
@@ -354,6 +377,7 @@
       const result = await runRsQc(item.path);
       qcReport = result.report;
       qcOutputDir = result.output_dir;
+      await loadQcStatus(item.path);
     } catch (e: any) {
       qcError = String(e);
     } finally {
@@ -999,16 +1023,61 @@
           <span class="font-bold text-xs text-purple-300 flex items-center gap-1.5">
             <Activity size={13} /> rs-qc Alignment Diagnostic
           </span>
-          {#if !qcReport}
-            <button
-              class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs shadow transition-colors"
-              disabled={isRunningQc}
-              on:click={handleRunQc}
-            >
-              {isRunningQc ? 'Kör diagnos...' : 'Kör rs-qc analys'}
-            </button>
-          {/if}
+          <button
+            class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-semibold text-xs shadow transition-colors"
+            disabled={isRunningQc}
+            on:click={handleRunQc}
+            title={savedQc ? `rs-qc ${savedQc.suggested_module} skrivs bredvid filen` : 'Kör rs-qc'}
+          >
+            {isRunningQc
+              ? 'Kör diagnos...'
+              : savedQc && savedQc.results.length > 0
+                ? 'Kör om'
+                : 'Kör rs-qc analys'}
+          </button>
         </div>
+
+        {#if savedQc && savedQc.results.length > 0}
+          <div class="space-y-2">
+            {#each savedQc.results as result (result.summary_json)}
+              <div class="p-2.5 rounded-lg bg-[#0e1118] border border-[#252d3d] space-y-1.5">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <span class="flex items-center gap-1.5 text-[11px]">
+                    <span class="px-1.5 py-0.5 rounded bg-purple-950/60 border border-purple-800/60 text-purple-300 font-mono text-[10px]">
+                      {result.module}
+                    </span>
+                    <span class="text-slate-500 font-mono text-[10px]">{result.generated}</span>
+                  </span>
+                  <span class="flex items-center gap-1.5">
+                    {#if result.report_html}
+                      <button
+                        class="px-2 py-0.5 rounded border border-[#2c374d] hover:bg-[#1f2636] text-[10px] text-slate-300"
+                        on:click={() => result.report_html && openInDefault(result.report_html)}
+                      >
+                        Rapport
+                      </button>
+                    {/if}
+                    <button
+                      class="px-2 py-0.5 rounded border border-[#2c374d] hover:bg-[#1f2636] text-[10px] text-slate-300"
+                      on:click={() => revealInOs(result.summary_json)}
+                      title="{result.plots.length} diagram, {result.tables.length} tabeller"
+                    >
+                      Filer ({result.plots.length + result.tables.length + 1})
+                    </button>
+                  </span>
+                </div>
+
+                {#if result.headline.length > 0}
+                  <div class="flex flex-wrap gap-3 font-mono text-[10.5px]">
+                    {#each result.headline as [label, value]}
+                      <span class="text-slate-400">{label}: <span class="text-slate-200 font-semibold">{value}</span></span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
 
         {#if qcError}
           <div class="p-3 rounded-lg bg-red-950/40 border border-red-800 text-red-300 font-mono text-xs">

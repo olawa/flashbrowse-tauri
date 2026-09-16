@@ -22,6 +22,8 @@ pub enum CompanionKind {
     Checksum,
     /// The other half of a pair, e.g. R2 for R1.
     Mate,
+    /// QC output describing this file, written next to it by rs-qc.
+    Report,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +84,19 @@ fn candidates(path: &str) -> Vec<(String, CompanionKind)> {
 
     if let Some(mate) = mate_path(path) {
         out.push((mate, CompanionKind::Mate));
+    }
+
+    // QC results belong with the data they describe: a BAM that arrives
+    // without its QC summary has to be re-run to be judged.
+    if let Some(stem) = [".bam", ".cram", ".sam"]
+        .iter()
+        .find_map(|ext| strip_ext_ci(path, ext))
+    {
+        for module in ["align", "dna", "rna", "atac", "contam"] {
+            out.push((format!("{stem}.{module}.summary.json"), CompanionKind::Report));
+            out.push((format!("{stem}.{module}.summary.txt"), CompanionKind::Report));
+        }
+        out.push((format!("{stem}.report.html"), CompanionKind::Report));
     }
 
     out
@@ -329,6 +344,14 @@ mod tests {
         assert_eq!(sets[0].companions[0].kind, CompanionKind::Index);
 
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn qc_results_travel_with_the_alignment() {
+        let found = candidate_paths("/data/sample.bam");
+        assert!(found.contains(&"/data/sample.align.summary.json".to_string()));
+        assert!(found.contains(&"/data/sample.dna.summary.txt".to_string()));
+        assert!(found.contains(&"/data/sample.report.html".to_string()));
     }
 
     #[test]

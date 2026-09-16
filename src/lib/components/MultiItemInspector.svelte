@@ -1,5 +1,17 @@
 <script lang="ts">
-  import { trashItems, revealInOs, openInDefault, launchRsnap, createZipArchive, sendToIgv, generateRsnapSnapshot } from '../invoke';
+  import {
+    trashItems,
+    revealInOs,
+    openInDefault,
+    launchRsnap,
+    createZipArchive,
+    sendToIgv,
+    generateRsnapSnapshot,
+    runQcBatch,
+    cancelQc,
+    type QcProgress,
+  } from '../invoke';
+  import { listen } from '@tauri-apps/api/event';
   import { addMultipleToStash } from '../stores/stash';
   import { reloadPane, activePaneId, transferBetweenPanes, isDualPane, leftPane, rightPane } from '../stores/navigation';
   import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
@@ -28,6 +40,7 @@
     Download,
     Radio,
     Sparkles,
+    Activity,
   } from 'lucide-svelte';
 
   export let items: FileItem[] = [];
@@ -196,6 +209,51 @@
       ext === 'bed' || ext === 'bw' || ext === 'bigwig'
     );
   });
+
+  // Batch QC: rs-qc picks its module per file - rna for spliced alignments,
+  // dna for the rest, fastq for reads - so a mixed selection needs no sorting
+  // by hand.
+  $: qcCandidates = items.filter((i) => {
+    if (i.is_dir) return false;
+    return /\.(bam|cram)$/i.test(i.path) || /\.(fastq|fq)(\.gz)?$/i.test(i.path);
+  });
+
+  let qcProgress: QcProgress | null = null;
+  let qcMessage = '';
+  let qcId: string | null = null;
+  let qcListenerStarted = false;
+
+  function startQcListener() {
+    if (qcListenerStarted) return;
+    qcListenerStarted = true;
+    listen<QcProgress>('qc-progress', (event) => {
+      if (event.payload.id !== qcId) return;
+      qcProgress = event.payload.done ? null : event.payload;
+      if (event.payload.done && event.payload.failures.length > 0) {
+        qcMessage = event.payload.failures.join('\n');
+      }
+    }).catch(console.error);
+  }
+
+  async function handleRunQcBatch() {
+    if (qcCandidates.length === 0) return;
+    startQcListener();
+    qcId = `qc${Date.now()}`;
+    qcMessage = '';
+    try {
+      const summary = await runQcBatch(qcId, qcCandidates.map((i) => i.path));
+      qcMessage = qcMessage ? `${summary}\n${qcMessage}` : summary;
+    } catch (e: any) {
+      qcMessage = String(e);
+    } finally {
+      qcProgress = null;
+      qcId = null;
+    }
+  }
+
+  async function handleCancelQc() {
+    if (qcId) await cancelQc(qcId);
+  }
 
   // Multi-sample snapshot: rsnap stacks one panel per BAM over the same region.
   $: alignmentItems = items.filter((i) => {
@@ -431,6 +489,54 @@
       </button>
     {/if}
   </div>
+
+  <!-- Batch QC over everything selected that rs-qc can read -->
+  {#if qcCandidates.length > 1}
+    <div class="p-3 bg-[#11141b] border-b border-[#252d3d] shrink-0 space-y-2">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300 shrink-0">
+          <Activity size={13} class="text-purple-400" />
+          Kör QC ({qcCandidates.length} filer)
+        </span>
+
+        {#if qcProgress}
+          <div class="flex-1 min-w-[12rem] flex items-center gap-2">
+            <div class="flex-1 h-1.5 rounded-full bg-purple-500/20 overflow-hidden">
+              <div
+                class="h-full bg-purple-400 transition-[width] duration-200"
+                style="width: {(qcProgress.files_done / Math.max(1, qcProgress.files_total)) * 100}%"
+              ></div>
+            </div>
+            <span class="text-[10px] font-mono text-purple-200 tabular-nums shrink-0">
+              {qcProgress.files_done}/{qcProgress.files_total} · {qcProgress.module}
+            </span>
+            <button
+              class="px-2 py-0.5 rounded border border-purple-500/50 hover:bg-purple-500/20 text-purple-200 text-[10px] shrink-0"
+              on:click={handleCancelQc}
+            >
+              Avbryt
+            </button>
+          </div>
+        {:else}
+          <button
+            class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
+            on:click={handleRunQcBatch}
+            title="rs-qc väljer modul per fil: rna för spliced alignments, dna för övriga, fastq för läsningar. Resultaten skrivs bredvid filerna."
+          >
+            <Activity size={13} />
+            <span>Kör rs-qc</span>
+          </button>
+        {/if}
+      </div>
+
+      {#if qcProgress?.current_file}
+        <div class="text-[10px] font-mono text-slate-400 truncate">{qcProgress.current_file}</div>
+      {/if}
+      {#if qcMessage}
+        <pre class="text-[10.5px] text-slate-300 bg-[#0c0d10] border border-[#252d3d] rounded p-2 whitespace-pre-wrap break-words m-0 font-mono max-h-32 overflow-auto">{qcMessage}</pre>
+      {/if}
+    </div>
+  {/if}
 
   <!-- Multi-sample rsnap snapshot: all selected alignments, one region -->
   {#if alignmentItems.length > 1}

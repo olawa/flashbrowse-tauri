@@ -377,6 +377,67 @@ export async function findRelatedBams(
   return await invoke<RelatedBamResult>('find_related_bams', { reference, candidates });
 }
 
+/** Results of an earlier rs-qc run, found next to the file. */
+export interface QcResult {
+  module: string;
+  summary_json: string;
+  summary_text: string | null;
+  report_html: string | null;
+  plots: string[];
+  tables: string[];
+  generated: string;
+  /** A few headline numbers as [label, value] pairs. */
+  headline: [string, string][];
+}
+
+export interface QcStatus {
+  path: string;
+  name: string;
+  /** The rs-qc module that fits this file: align, dna, rna or fastq. */
+  suggested_module: string;
+  results: QcResult[];
+}
+
+/** Progress of a batch QC run, emitted as `qc-progress`. */
+export interface QcProgress {
+  id: string;
+  current_file: string;
+  module: string;
+  files_done: number;
+  files_total: number;
+  done: boolean;
+  cancelled: boolean;
+  failures: string[];
+}
+
+/** What QC already exists for these files, and what would run for them. */
+export async function qcStatus(paths: string[]): Promise<QcStatus[]> {
+  return await invoke<QcStatus[]>('qc_status', { paths });
+}
+
+/**
+ * Run rs-qc over a set of files, one at a time with every core.
+ * The module is chosen per file unless `moduleOverride` says otherwise.
+ */
+export async function runQcBatch(
+  id: string,
+  paths: string[],
+  threads?: number,
+  moduleOverride?: string,
+  annotation?: string,
+): Promise<string> {
+  return await invoke<string>('run_qc_batch', { id, paths, threads, moduleOverride, annotation });
+}
+
+export async function cancelQc(id: string): Promise<boolean> {
+  return await invoke<boolean>('cancel_qc', { id });
+}
+
+/** Combine several summaries into one report; returns the HTML path. */
+export async function buildQcReport(summaries: string[], outputPrefix: string): Promise<string> {
+  return await invoke<string>('build_qc_report', { summaries, outputPrefix });
+}
+
 /** Text report from rs-qc plus the directory its files were written to. */
 export interface RsQcResult {
   report: string;

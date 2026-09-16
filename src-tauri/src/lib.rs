@@ -3,6 +3,7 @@ pub mod companion_commands;
 pub mod fs_commands;
 pub mod models;
 pub mod preview_commands;
+pub mod qc_commands;
 pub mod provenance_commands;
 pub mod pty_manager;
 pub mod ssh_commands;
@@ -13,6 +14,7 @@ use bio_commands::*;
 use companion_commands::*;
 use fs_commands::*;
 use preview_commands::*;
+use qc_commands::*;
 use provenance_commands::*;
 use pty_manager::*;
 use ssh_commands::*;
@@ -42,6 +44,10 @@ pub fn run() {
             find_companions,
             find_related_bams,
             classify_alignments,
+            qc_status,
+            run_qc_batch,
+            cancel_qc,
+            build_qc_report,
             move_items,
             create_directory,
             create_file,
