@@ -11,8 +11,8 @@
     createZipArchive,
     sendToIgv,
   } from '../invoke';
-  import { executeTerminalCommand } from '../stores/terminal';
-  import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane, navigatePane } from '../stores/navigation';
+  import { openTerminalAt } from '../stores/terminal';
+  import { refreshPane, leftPane, rightPane, transferBetweenPanes, isDualPane, navigatePane, activePaneId } from '../stores/navigation';
   import { addToStash } from '../stores/stash';
   import { castToSecondaryInspector } from '../stores/navigation';
   import { addTracksToHub, isGenomicsHubOpen } from '../stores/genomicsStore';
@@ -153,8 +153,10 @@
   }
 
   async function handleOpenInTerminal() {
-    const dir = item.is_dir ? item.path : item.path.substring(0, item.path.lastIndexOf('/'));
-    await executeTerminalCommand(`cd '${dir}'`);
+    activePaneId.set(paneId);
+    const lastSlash = item.path.lastIndexOf('/');
+    const dir = item.is_dir ? item.path : (lastSlash > 0 ? item.path.substring(0, lastSlash) : (item.path.startsWith('/') ? '/' : '~'));
+    await openTerminalAt(dir);
     onClose();
   }
 

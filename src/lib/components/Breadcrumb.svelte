@@ -23,7 +23,9 @@
     Laptop,
     Clipboard,
     Copy,
+    Terminal as TerminalIcon,
   } from 'lucide-svelte';
+  import { isTerminalOpen, toggleTerminal, openTerminalAt } from '../stores/terminal';
 
   export let paneId: 'left' | 'right' = 'left';
 
@@ -415,6 +417,17 @@
     </button>
 
     <button
+      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] transition-colors {$isTerminalOpen && $activePaneId === paneId ? 'text-amber-400 bg-amber-500/20' : ''}"
+      on:click={() => {
+        activePaneId.set(paneId);
+        toggleTerminal();
+      }}
+      title="Öppna/Stäng Terminal (⌘J)"
+    >
+      <TerminalIcon size={12} />
+    </button>
+
+    <button
       class="px-2 py-0.5 rounded border border-[var(--border)] text-[11px] hover:bg-[var(--bg-hover)] flex items-center gap-1 {$isDualInspector ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border-[var(--accent)]' : ''}"
       on:click={() => isDualInspector.update((v) => !v)}
       title="Växla Dual Inspector"
@@ -458,6 +471,21 @@
         <Copy size={13} class="text-blue-400" />
         <span>Kopiera sökväg</span>
       </div>
+    </button>
+
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      on:click={() => {
+        isContextMenuOpen = false;
+        activePaneId.set(paneId);
+        openTerminalAt(pane.currentPath);
+      }}
+    >
+      <div class="flex items-center gap-2">
+        <TerminalIcon size={13} class="text-amber-400" />
+        <span>Öppna i Terminal</span>
+      </div>
+      <kbd class="text-[9px] font-mono opacity-70">⌘J</kbd>
     </button>
 
     <div class="h-px bg-[var(--border)] my-1"></div>

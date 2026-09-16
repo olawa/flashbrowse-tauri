@@ -562,11 +562,26 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
         // `cmd` is typed by the user in the terminal, so it is deliberately not quoted.
         // `cwd` comes from browsing and must never be able to inject.
         let target = if cwd.is_empty() { "~" } else { &cwd };
-        let remote_script = format!("cd {} && {}", sh_quote_path(target), cmd);
+        let trimmed = cmd.trim();
+
+        let is_pure_cd = trimmed == "cd"
+            || trimmed == "cd ~"
+            || (trimmed.starts_with("cd ") && !trimmed.contains("&&") && !trimmed.contains(';') && !trimmed.contains('|'));
+
+        let remote_script = if is_pure_cd {
+            let cd_arg = if trimmed == "cd" || trimmed == "cd ~" {
+                "~"
+            } else {
+                trimmed[3..].trim()
+            };
+            format!("cd {} && cd {} && pwd", sh_quote_path(target), cd_arg)
+        } else {
+            format!("cd {} && {}", sh_quote_path(target), cmd)
+        };
 
         let mut run_args = ssh_base_args();
         run_args.push(host.clone());
-        run_args.push(remote_script.clone());
+        run_args.push(remote_script);
 
         let output = Command::new("ssh")
             .args(&run_args)
@@ -577,11 +592,19 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
         let stderr = String::from_utf8_lossy(&output.stderr).to_string();
         let exit_code = output.status.code().unwrap_or(-1);
 
+        let (final_stdout, new_cwd) = if is_pure_cd && exit_code == 0 {
+            let last_line = stdout.lines().last().unwrap_or("").trim().to_string();
+            let n_cwd = if !last_line.is_empty() { Some(last_line) } else { None };
+            (String::new(), n_cwd)
+        } else {
+            (stdout, None)
+        };
+
         Ok(TerminalOutput {
-            stdout,
+            stdout: final_stdout,
             stderr,
             exit_code,
-            new_cwd: None,
+            new_cwd,
         })
     })
     .await
@@ -688,5 +711,17 @@ mod tests {
         assert_eq!(pwd, dir.to_string_lossy());
         assert!(!std::path::Path::new("pwned").exists());
         std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn cd_command_resolves_nested_path() {
+        let dir = std::env::temp_dir().join("fb_ssh_cd_test/subdir");
+        std::fs::create_dir_all(&dir).expect("create test sub dir");
+        let parent = dir.parent().unwrap();
+        // Simulates `cd <cwd> && cd subdir && pwd`
+        let script = format!("cd {} && cd subdir && pwd", sh_quote(&parent.to_string_lossy()));
+        let out = Command::new("sh").arg("-c").arg(script).output().expect("sh");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), dir.to_string_lossy());
+        std::fs::remove_dir_all(parent).ok();
     }
 }

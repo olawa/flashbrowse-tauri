@@ -20,6 +20,7 @@
     LayoutPanelLeft,
     PanelBottom,
     CornerDownLeft,
+    Server,
   } from 'lucide-svelte';
 
   let inputVal = '';
@@ -29,11 +30,21 @@
   $: activeId = $activePaneId;
   $: currentPane = activeId === 'left' ? $leftPane : $rightPane;
   $: isSideDocked = $terminalDockPosition === 'side';
+  $: isSSH = currentPane.isSSH;
+  $: sshHostShort = currentPane.sshHost ? currentPane.sshHost.split('.')[0] : '';
 
   $: if ($terminalLines.length && scrollContainer) {
     tick().then(() => {
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
     });
+  }
+
+  function focusInput() {
+    inputEl?.focus();
+  }
+
+  $: if ($isTerminalOpen) {
+    tick().then(focusInput);
   }
 
   async function handleKeyDown(e: KeyboardEvent) {
@@ -73,7 +84,7 @@
   }
 
   onMount(() => {
-    inputEl?.focus();
+    tick().then(focusInput);
   });
 </script>
 
@@ -85,15 +96,21 @@
 >
   <!-- Terminal Header -->
   <div class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] text-xs">
-    <div class="flex items-center gap-2 text-[var(--text-secondary)]">
-      <TerminalIcon size={13} class="text-[var(--accent)]" />
+    <div class="flex items-center gap-2 text-[var(--text-secondary)] min-w-0">
+      <TerminalIcon size={13} class={isSSH ? 'text-emerald-400' : 'text-[var(--accent)]'} />
       <span class="font-bold text-[var(--text-primary)]">Terminal</span>
-      <span class="text-[var(--text-muted)] font-mono text-[10px] truncate max-w-[180px]">
-        {currentPane.currentPath}
+      {#if isSSH}
+        <span class="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shrink-0">
+          <Server size={10} />
+          {sshHostShort}
+        </span>
+      {/if}
+      <span class="font-mono text-[10px] truncate max-w-[200px] {isSSH ? 'text-emerald-400/80' : 'text-[var(--text-muted)]'}" title={currentPane.currentPath}>
+        {currentPane.currentPath || (isSSH ? '~' : '/')}
       </span>
     </div>
 
-    <div class="flex items-center gap-1">
+    <div class="flex items-center gap-1 shrink-0">
       <!-- Dock Toggle Button -->
       <button
         class="flex items-center gap-1 px-2 py-0.5 rounded border border-[var(--border)] text-[10px] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]"
@@ -130,16 +147,21 @@
   </div>
 
   <!-- Terminal Output Lines -->
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     bind:this={scrollContainer}
-    class="flex-1 overflow-y-auto p-2.5 font-mono text-xs text-slate-200 space-y-1 select-text"
+    on:click={focusInput}
+    role="region"
+    aria-label="Terminal log"
+    class="flex-1 overflow-y-auto p-2.5 font-mono text-xs text-slate-200 space-y-1 select-text cursor-text"
   >
     {#each $terminalLines as line (line.id)}
       <div
         class="leading-relaxed break-words whitespace-pre-wrap {line.isError
           ? 'text-red-400 font-semibold'
           : line.isPrompt
-          ? 'text-cyan-400 font-bold'
+          ? (line.text.startsWith('[') ? 'text-emerald-400 font-bold' : 'text-cyan-400 font-bold')
           : 'text-slate-300'}"
       >
         {line.text}
@@ -149,17 +171,21 @@
 
   <!-- Terminal Prompt & Input -->
   <div class="flex items-center gap-1.5 px-3 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)]">
-    <span class="text-cyan-400 font-mono text-xs font-bold">$</span>
+    {#if isSSH}
+      <span class="text-emerald-400 font-mono text-xs font-bold shrink-0">{sshHostShort}:$</span>
+    {:else}
+      <span class="text-cyan-400 font-mono text-xs font-bold shrink-0">$</span>
+    {/if}
     <input
       bind:this={inputEl}
       type="text"
       bind:value={inputVal}
       on:keydown={handleKeyDown}
-      placeholder="Type command (Tab to complete)..."
+      placeholder={isSSH ? `SSH remote-kommando på ${sshHostShort} (Tab för förslag)...` : 'Skriv kommando (Tab för förslag)...'}
       class="flex-1 bg-transparent text-xs text-white font-mono focus:outline-none border-none p-0"
     />
     {#if $isExecuting}
-      <div class="w-3 h-3 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin"></div>
+      <div class="w-3 h-3 rounded-full border-2 border-[var(--accent)] border-t-transparent animate-spin shrink-0"></div>
     {/if}
   </div>
 </div>
