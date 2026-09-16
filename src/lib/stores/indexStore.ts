@@ -144,16 +144,24 @@ export const activeIndexFilteredItems = derived(
     const sorted = [...matched].sort((a, b) => {
       let cmp = 0;
       if ($sortBy === 'size') {
-        cmp = a.size_bytes - b.size_bytes;
+        const sizeA = typeof a.size_bytes === 'number' ? a.size_bytes : 0;
+        const sizeB = typeof b.size_bytes === 'number' ? b.size_bytes : 0;
+        cmp = sizeA < sizeB ? -1 : sizeA > sizeB ? 1 : 0;
       } else if ($sortBy === 'modified') {
-        cmp = a.modified_timestamp - b.modified_timestamp;
+        const modA = typeof a.modified_timestamp === 'number' ? a.modified_timestamp : 0;
+        const modB = typeof b.modified_timestamp === 'number' ? b.modified_timestamp : 0;
+        cmp = modA < modB ? -1 : modA > modB ? 1 : 0;
       } else {
-        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
       }
       // Ties on size or date fall back to the name, so the order is stable
       // rather than dependent on which directory was scanned first.
       if (cmp === 0 && $sortBy !== 'name') {
-        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        const nameA = a.name || '';
+        const nameB = b.name || '';
+        cmp = nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
       }
       return $sortAsc ? cmp : -cmp;
     });

@@ -19,6 +19,7 @@
     indexSortBy,
     indexSortAsc,
     sortIndexItems,
+    type IndexSortBy,
     indexGrouping,
     indexTypeGroups,
     selectedTypes,
@@ -69,6 +70,7 @@
 
   let hoveredPath: string | null = null;
   let isRootMenuOpen = false;
+  let filesContainerEl: HTMLElement | null = null;
 
   function handleWindowKeyDown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
@@ -81,6 +83,14 @@
     const target = $activePaneId || 'left';
     navigatePane(target, dirPath);
     closeIndexView();
+  }
+
+  function handleSort(col: IndexSortBy) {
+    sortIndexItems(col);
+    if (filesContainerEl) {
+      filesContainerEl.scrollTop = 0;
+    }
+    scrollTop = 0;
   }
 
   // Virtual Scrolling for instant 60 FPS in massive indexes (10,000+ files)
@@ -518,10 +528,11 @@
       <!-- 2. RIGHT COLUMN: Files Table -->
       <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         <!-- Table Header -->
-        <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] text-[var(--text-muted)] font-sans font-semibold text-[11px] shrink-0 sticky top-0">
+        <div class="grid grid-cols-12 gap-2 px-3 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] text-[var(--text-muted)] font-sans font-semibold text-[11px] shrink-0 sticky top-0 z-10 select-none">
           <button
-            class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors min-w-0"
-            on:click={() => sortIndexItems('name')}
+            type="button"
+            class="col-span-8 flex items-center gap-1 text-left hover:text-[var(--text-primary)] transition-colors min-w-0 cursor-pointer"
+            on:click={() => handleSort('name')}
             title="Sortera efter namn"
           >
             <span>Namn</span>
@@ -531,8 +542,9 @@
           </button>
 
           <button
-            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors"
-            on:click={() => sortIndexItems('size')}
+            type="button"
+            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            on:click={() => handleSort('size')}
             title="Sortera efter storlek"
           >
             <span>Storlek</span>
@@ -542,8 +554,9 @@
           </button>
 
           <button
-            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
-            on:click={() => sortIndexItems('modified')}
+            type="button"
+            class="col-span-2 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1 cursor-pointer"
+            on:click={() => handleSort('modified')}
             title="Sortera efter ändringsdatum"
           >
             <span>Ändrad</span>
@@ -555,6 +568,7 @@
 
         <!-- Files List with Virtual DOM Windowing -->
         <div
+          bind:this={filesContainerEl}
           bind:clientHeight={containerHeight}
           on:scroll={handleFilesScroll}
           class="flex-1 overflow-y-auto divide-y divide-[var(--border)]/40 font-mono text-xs relative"
