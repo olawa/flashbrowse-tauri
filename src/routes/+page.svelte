@@ -441,7 +441,7 @@
       <div class="flex-1 flex min-h-0 overflow-hidden">
         {#if $activeIndexMeta}
           <!-- RECURSIVE HUB INDEX VIEW -->
-          <div class="flex-1 flex min-w-0 h-full">
+          <div class="flex-1 flex min-w-0 min-h-0 h-full">
             <IndexBrowserView onSelectPreview={(item) => { leftPreviewItem = item; rightPreviewItem = item; }} />
           </div>
 

@@ -576,7 +576,7 @@
   </div>
 {:else}
   <!-- ROOT LEVEL TREE VIEW (Categorized Projects) -->
-  <div class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-y-auto text-xs font-mono select-none p-3 space-y-3.5">
+  <div class="flex-1 min-h-0 w-full bg-[var(--bg-base)] overflow-y-auto text-xs font-mono select-none p-3 pb-16 space-y-3.5" style="overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
     {#if detectedProjects.length === 0}
       <div class="p-12 text-center text-[var(--text-muted)] flex flex-col items-center justify-center space-y-2">
         <Folder size={32} class="opacity-20" />

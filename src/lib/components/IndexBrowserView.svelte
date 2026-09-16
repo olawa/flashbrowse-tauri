@@ -445,13 +445,15 @@
 
     <!-- Main Content Area: Project Tree View (Code) OR Split Columns (Flat List / other types) -->
     {#if isCodeCategory($activeIndexMeta.id) && isCodeTreeView}
-      <ProjectTreeView
-        groups={$indexedGroups}
-        rootPath={$indexRootPath}
-        searchQuery={$indexSearchQuery}
-        {onSelectPreview}
-        onNavigateFolder={jumpToFolder}
-      />
+      <div class="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
+        <ProjectTreeView
+          groups={$indexedGroups}
+          rootPath={$indexRootPath}
+          searchQuery={$indexSearchQuery}
+          {onSelectPreview}
+          onNavigateFolder={jumpToFolder}
+        />
+      </div>
     {:else}
       <!-- Main Split Columns Area: Folders | Files -->
       <div class="flex-1 flex min-h-0 overflow-hidden">
