@@ -32,7 +32,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { DirectoryIndexGroup } from '../types';
   import { favoriteEditor, openInFavoriteEditor } from '../stores/editorStore';
-  import { activeHoveredItem } from '../stores/navigation';
+  import { activeHoveredItem, triggerInspectorScroll } from '../stores/navigation';
   import { revealInOs } from '../invoke';
   import {
     Folder,
@@ -64,6 +64,7 @@
   export let handleFolderMouseLeave: () => void = () => {};
   export let handleFileHover: (item?: FileItem) => void = () => {};
   export let handleFileMouseLeave: () => void = () => {};
+  export let handleRowWheel: (e: WheelEvent) => void = () => {};
 
   let localExpandedPaths = new Set<string>();
   let expandedCategoryTypes = new Set<string>(['rust', 'pipeline', 'python', 'web', 'script']);
@@ -77,21 +78,21 @@
     clearTimeout(hoverPreviewTimer);
   });
 
+  function onLocalRowWheel(e: WheelEvent) {
+    if (e.ctrlKey) return;
+    // Cmd + scroll on row drives remote inspector scrolling!
+    if (e.metaKey && Math.abs(e.deltaY) > 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerInspectorScroll(e.deltaY);
+    }
+  }
+
   // Only run analysis if we are at root level
   $: detectedProjects = !treeNodes ? analyzeProjects(groups, rootPath, searchQuery) : [];
 
-  // Auto-expand all detected project roots initially so the first level is immediately visible
-  let hasAutoExpandedRoots = false;
-  $: if (detectedProjects.length > 0 && !hasAutoExpandedRoots) {
-    hasAutoExpandedRoots = true;
-    const initial = new Set(localExpandedPaths);
-    for (const p of detectedProjects) {
-      initial.add(p.path);
-    }
-    localExpandedPaths = initial;
-  }
-
-  // Auto-expand paths when user enters a search query
+  // Projects start in closed/collapsed view for a clean high-level list.
+  // When the user enters a search query, expand matching project paths automatically.
   $: if (searchQuery.trim() && detectedProjects.length > 0) {
     const query = searchQuery.trim().toLowerCase();
     const expanded = new Set(localExpandedPaths);
@@ -473,6 +474,7 @@
             on:mouseleave={handleFolderMouseLeave}
             on:click={(e) => toggleFolder(node.path, e)}
             on:dblclick={() => onNavigateFolder(node.path)}
+            on:wheel={handleRowWheel}
             role="treeitem"
             aria-expanded={isOpen}
             tabindex="-1"
@@ -527,6 +529,7 @@
                 {handleFolderMouseLeave}
                 {handleFileHover}
                 {handleFileMouseLeave}
+                {handleRowWheel}
               />
             </div>
           {/if}
@@ -539,6 +542,7 @@
           on:mouseleave={handleFileMouseLeave}
           on:click={() => node.item && onSelectPreview(node.item)}
           on:dblclick={() => node.item && openInFavoriteEditor(node.item.path)}
+          on:wheel={handleRowWheel}
           role="row"
           tabindex="-1"
         >
@@ -618,6 +622,7 @@
                   on:mouseleave={onLocalFolderMouseLeave}
                   on:click={(e) => onLocalToggleFolder(project.path, e)}
                   on:dblclick={() => onNavigateFolder(project.path)}
+                  on:wheel={onLocalRowWheel}
                   role="treeitem"
                   aria-expanded={isProjectOpen}
                   tabindex="-1"
@@ -686,6 +691,7 @@
                       handleFolderMouseLeave={onLocalFolderMouseLeave}
                       handleFileHover={onLocalFileMouseEnter}
                       handleFileMouseLeave={onLocalFileMouseLeave}
+                      handleRowWheel={onLocalRowWheel}
                     />
                   </div>
                 {/if}
@@ -729,6 +735,7 @@
                   on:mouseleave={onLocalFolderMouseLeave}
                   on:click={(e) => onLocalToggleFolder(project.path, e)}
                   on:dblclick={() => onNavigateFolder(project.path)}
+                  on:wheel={onLocalRowWheel}
                   role="treeitem"
                   aria-expanded={isProjectOpen}
                   tabindex="-1"
@@ -795,6 +802,7 @@
                       handleFolderMouseLeave={onLocalFolderMouseLeave}
                       handleFileHover={onLocalFileMouseEnter}
                       handleFileMouseLeave={onLocalFileMouseLeave}
+                      handleRowWheel={onLocalRowWheel}
                     />
                   </div>
                 {/if}
@@ -838,6 +846,7 @@
                   on:mouseleave={onLocalFolderMouseLeave}
                   on:click={(e) => onLocalToggleFolder(project.path, e)}
                   on:dblclick={() => onNavigateFolder(project.path)}
+                  on:wheel={onLocalRowWheel}
                   role="treeitem"
                   aria-expanded={isProjectOpen}
                   tabindex="-1"
@@ -904,6 +913,7 @@
                       handleFolderMouseLeave={onLocalFolderMouseLeave}
                       handleFileHover={onLocalFileMouseEnter}
                       handleFileMouseLeave={onLocalFileMouseLeave}
+                      handleRowWheel={onLocalRowWheel}
                     />
                   </div>
                 {/if}
@@ -947,6 +957,7 @@
                   on:mouseleave={onLocalFolderMouseLeave}
                   on:click={(e) => onLocalToggleFolder(project.path, e)}
                   on:dblclick={() => onNavigateFolder(project.path)}
+                  on:wheel={onLocalRowWheel}
                   role="treeitem"
                   aria-expanded={isProjectOpen}
                   tabindex="-1"
@@ -1013,6 +1024,7 @@
                       handleFolderMouseLeave={onLocalFolderMouseLeave}
                       handleFileHover={onLocalFileMouseEnter}
                       handleFileMouseLeave={onLocalFileMouseLeave}
+                      handleRowWheel={onLocalRowWheel}
                     />
                   </div>
                 {/if}
@@ -1058,6 +1070,7 @@
               handleFolderMouseLeave={onLocalFolderMouseLeave}
               handleFileHover={onLocalFileMouseEnter}
               handleFileMouseLeave={onLocalFileMouseLeave}
+              handleRowWheel={onLocalRowWheel}
             />
           </div>
         {/if}

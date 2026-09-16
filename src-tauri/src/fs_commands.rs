@@ -943,6 +943,73 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct CGPoint {
+    x: f64,
+    y: f64,
+}
+
+#[cfg(target_os = "macos")]
+#[link(name = "CoreGraphics", kind = "framework")]
+extern "C" {
+    fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
+}
+
+#[tauri::command]
+pub fn warp_mouse_to_client_pos(
+    app: tauri::AppHandle,
+    window_label: String,
+    client_x: f64,
+    client_y: f64,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window(&window_label) {
+            let win_pos = window.inner_position().or_else(|_| window.outer_position()).map_err(|e| e.to_string())?;
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let screen_x = (win_pos.x as f64 / scale) + client_x;
+            let screen_y = (win_pos.y as f64 / scale) + client_y;
+
+            unsafe {
+                CGWarpMouseCursorPosition(CGPoint { x: screen_x, y: screen_y });
+            }
+            let _ = window.set_focus();
+        }
+    }
+    let _ = (app, window_label, client_x, client_y);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn toggle_mouse_between_windows(app: tauri::AppHandle) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::Manager;
+        let main_win = app.get_webview_window("main");
+        let insp_win = app.get_webview_window("inspector");
+        if let (Some(main), Some(insp)) = (main_win, insp_win) {
+            let is_insp_focused = insp.is_focused().unwrap_or(false);
+            let target = if is_insp_focused { main } else { insp };
+            let pos = target.inner_position().or_else(|_| target.outer_position()).map_err(|e| e.to_string())?;
+            let size = target.inner_size().map_err(|e| e.to_string())?;
+            let scale = target.scale_factor().unwrap_or(1.0);
+
+            let center_x = (pos.x as f64 + size.width as f64 / 2.0) / scale;
+            let center_y = (pos.y as f64 + size.height as f64 / 2.0) / scale;
+
+            unsafe {
+                CGWarpMouseCursorPosition(CGPoint { x: center_x, y: center_y });
+            }
+            let _ = target.set_focus();
+        }
+    }
+    let _ = app;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn scan_directory_index(
     root_path: String,

@@ -84,7 +84,9 @@ pub fn run() {
             get_configured_genomes,
             save_configured_genome,
             detect_track_genomes,
-            get_subdirs_tree
+            get_subdirs_tree,
+            warp_mouse_to_client_pos,
+            toggle_mouse_between_windows
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

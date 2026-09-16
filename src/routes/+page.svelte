@@ -19,6 +19,7 @@
     transferProgress,
     cancelActiveTransfer,
     transferBetweenPanes,
+    triggerInspectorScroll,
   } from '$lib/stores/navigation';
   import {
     isTerminalOpen,
@@ -117,6 +118,54 @@
     ? ($activePaneId === 'right' ? 'Höger (hovrad)' : 'Vänster (hovrad)')
     : ($activePaneId === 'right' ? 'Höger' : 'Vänster');
 
+  let lastFocusedZone: 'list' | 'inspector' = 'list';
+
+  async function toggleFocusAndPointerBetweenListAndInspector() {
+    // 1. If Inspector is detached in its own window
+    if ($isInspectorDetached) {
+      try {
+        const { toggleMouseBetweenWindows } = await import('$lib/invoke');
+        await toggleMouseBetweenWindows();
+      } catch (err) {
+        console.warn('Failed to toggle mouse between windows:', err);
+      }
+      return;
+    }
+
+    // 2. If Inspector is visible in main window
+    const inspectorEl = document.querySelector('[data-inspector-root="true"]') as HTMLElement | null;
+    const fileTableEl = document.querySelector('[role="table"], [role="tree"], [data-file-table]') as HTMLElement | null;
+
+    if (!inspectorEl) return;
+
+    if (lastFocusedZone === 'list') {
+      const rect = inspectorEl.getBoundingClientRect();
+      const clientX = rect.left + rect.width / 2;
+      const clientY = Math.min(rect.top + 220, rect.top + rect.height / 2);
+      try {
+        const { warpMouseToClientPos } = await import('$lib/invoke');
+        await warpMouseToClientPos('main', clientX, clientY);
+      } catch (err) {
+        console.warn('Failed to warp mouse to inspector:', err);
+      }
+      inspectorEl.focus();
+      lastFocusedZone = 'inspector';
+    } else {
+      const targetEl = fileTableEl || document.body;
+      const rect = targetEl.getBoundingClientRect();
+      const clientX = rect.left + Math.min(250, rect.width / 2);
+      const clientY = Math.min(rect.top + 220, rect.top + rect.height / 2);
+      try {
+        const { warpMouseToClientPos } = await import('$lib/invoke');
+        await warpMouseToClientPos('main', clientX, clientY);
+      } catch (err) {
+        console.warn('Failed to warp mouse to file list:', err);
+      }
+      if (fileTableEl) fileTableEl.focus();
+      lastFocusedZone = 'list';
+    }
+  }
+
   function handleGlobalKeyDown(e: KeyboardEvent) {
     if (e.defaultPrevented) return;
     // Esc: Close Index View if open
@@ -151,27 +200,59 @@
       return;
     }
 
-    // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / Cmd + [ / Cmd + ] / Cmd + Alt + ArrowLeft/Right / Ctrl + Tab: Switch active pane focus
-    const isSwitchFocus =
+    // Cmd + < / Cmd + > / Cmd + § / Cmd + ` / IntlBackslash:
+    // Move focus AND mouse pointer between file list and inspector (matching Swift Flashbrowse toggleMouseBetweenScreens)
+    const isToggleInspectorMouse =
+      (e.metaKey || e.ctrlKey) &&
+      (e.key === '<' ||
+        e.key === '>' ||
+        e.key === '§' ||
+        e.key === '±' ||
+        e.key === '`' ||
+        e.key === '~' ||
+        e.code === 'IntlBackslash' ||
+        e.code === 'Backquote' ||
+        (e.code === 'Comma' && e.shiftKey));
+
+    if (isToggleInspectorMouse) {
+      e.preventDefault();
+      toggleFocusAndPointerBetweenListAndInspector();
+      return;
+    }
+
+    // Cmd + [ / Cmd + ] / Ctrl + Tab: Switch active browser pane focus (dual pane)
+    const isSwitchPane =
       ((e.metaKey || e.ctrlKey) &&
-        (e.key === '<' ||
-          e.key === '>' ||
-          e.key === '§' ||
-          e.key === '±' ||
-          e.key === '`' ||
-          e.key === '~' ||
-          e.key === '[' ||
+        (e.key === '[' ||
           e.key === ']' ||
-          e.code === 'IntlBackslash' ||
-          e.code === 'Backquote' ||
-          (e.code === 'Comma' && e.shiftKey) ||
           (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) ||
       (e.ctrlKey && e.key === 'Tab');
 
-    if (isSwitchFocus) {
+    if (isSwitchPane) {
       e.preventDefault();
       activePaneId.update((p) => (p === 'left' ? 'right' : 'left'));
       return;
+    }
+
+    // Option + Down / Option + Up / Option + PageDown / Option + PageUp: Scroll Inspector from keyboard (matching Swift Flashbrowse)
+    if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        triggerInspectorScroll(160);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        triggerInspectorScroll(-160);
+        return;
+      } else if (e.key === 'PageDown') {
+        e.preventDefault();
+        triggerInspectorScroll(450);
+        return;
+      } else if (e.key === 'PageUp') {
+        e.preventDefault();
+        triggerInspectorScroll(-450);
+        return;
+      }
     }
 
     // Cmd + 1 / Cmd + 2: Direct focus to left / right pane

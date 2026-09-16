@@ -301,7 +301,27 @@
   }
 </script>
 
-<div class="w-full h-full flex flex-col bg-[var(--bg-surface)] text-xs select-none relative overflow-hidden">
+<div
+  class="w-full h-full flex flex-col bg-[var(--bg-surface)] text-xs select-none relative overflow-hidden focus:outline-none"
+  data-inspector-root="true"
+  tabindex="-1"
+  on:keydown={(e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      handleRemoteScroll(80);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      handleRemoteScroll(-80);
+    } else if (e.key === 'PageDown') {
+      e.preventDefault();
+      handleRemoteScroll(350);
+    } else if (e.key === 'PageUp') {
+      e.preventDefault();
+      handleRemoteScroll(-350);
+    }
+  }}
+>
   <!-- Inspector Header -->
   <div class="flex flex-col items-stretch px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] gap-2 shrink-0">
     <div class="flex flex-col min-w-0 flex-1">

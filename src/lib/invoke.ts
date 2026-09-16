@@ -550,3 +550,12 @@ export async function ptyKill(sessionId: string): Promise<void> {
 export async function ptyHasSession(sessionId: string): Promise<boolean> {
   return await invoke<boolean>('pty_has_session', { sessionId });
 }
+
+export async function warpMouseToClientPos(windowLabel: string, clientX: number, clientY: number): Promise<void> {
+  await invoke('warp_mouse_to_client_pos', { windowLabel, clientX, clientY });
+}
+
+export async function toggleMouseBetweenWindows(): Promise<void> {
+  await invoke('toggle_mouse_between_windows');
+}
+
