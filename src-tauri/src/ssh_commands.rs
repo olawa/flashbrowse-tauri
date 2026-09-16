@@ -10,7 +10,7 @@ use std::process::Command;
 /// host, so it belongs in a directory only this user can enter. Created 0700 on
 /// first use; `%C` is OpenSSH's hash of (host, port, user, local host), which
 /// also keeps the path short enough for the 104-byte socket limit.
-fn control_path_option() -> String {
+pub fn control_path_option() -> String {
     let dir = crate::fs_commands::dirs_home().join(".ssh/flashbrowse");
     if !dir.is_dir() {
         let _ = std::fs::create_dir_all(&dir);

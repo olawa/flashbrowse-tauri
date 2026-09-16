@@ -13,10 +13,18 @@ let nextLineId = 1;
 
 export const isTerminalOpen = writable<boolean>(false);
 export const terminalDockPosition = writable<'bottom' | 'side'>('bottom');
+export const activeTerminalTab = writable<'local' | 'ssh'>('local');
+
+export interface PendingNavigation {
+  path: string;
+  isSSH: boolean;
+  timestamp: number;
+}
+
+export const pendingTerminalNav = writable<PendingNavigation | null>(null);
+
 export const terminalLines = writable<TerminalLine[]>([
-  { id: nextLineId++, text: '⚡ Flashbrowse Terminal (2-Way Synced: Local & SSH)', isPrompt: true },
-  { id: nextLineId++, text: 'Commands like "cd <dir>" update browser panels in real time.', isPrompt: true },
-  { id: nextLineId++, text: '---------------------------------------------------------', isPrompt: true },
+  { id: nextLineId++, text: '⚡ Flashbrowse Terminal (xterm.js + PTY)', isPrompt: true },
 ]);
 
 export const commandHistory = writable<string[]>([]);
@@ -40,14 +48,14 @@ export async function openTerminalAt(path: string) {
     await navigatePane(activeId, path, true);
   }
 
-  const promptPrefix = currentPane.isSSH
-    ? `[${currentPane.sshHost.split('.')[0]}] $`
-    : `$`;
+  const isSSH = currentPane.isSSH;
+  activeTerminalTab.set(isSSH ? 'ssh' : 'local');
 
-  terminalLines.update((lines) => [
-    ...lines,
-    { id: nextLineId++, text: `${promptPrefix} cd "${path}"`, isPrompt: true },
-  ]);
+  pendingTerminalNav.set({
+    path,
+    isSSH,
+    timestamp: Date.now(),
+  });
 }
 
 export async function executeTerminalCommand(input: string) {

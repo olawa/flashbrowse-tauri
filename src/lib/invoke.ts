@@ -455,3 +455,37 @@ export async function getSubdirsTree(
 ): Promise<import('./types').SubdirNode[]> {
   return await invoke('get_subdirs_tree', { path, maxDepth, maxPerLevel });
 }
+
+export async function ptySpawn(
+  sessionId: string,
+  sessionType: 'local' | 'ssh',
+  cwd?: string,
+  host?: string,
+  rows = 24,
+  cols = 80,
+): Promise<void> {
+  await invoke('pty_spawn', {
+    sessionId,
+    sessionType,
+    cwd: cwd || null,
+    host: host || null,
+    rows,
+    cols,
+  });
+}
+
+export async function ptyWrite(sessionId: string, data: string): Promise<void> {
+  await invoke('pty_write', { sessionId, data });
+}
+
+export async function ptyResize(sessionId: string, rows: number, cols: number): Promise<void> {
+  await invoke('pty_resize', { sessionId, rows, cols });
+}
+
+export async function ptyKill(sessionId: string): Promise<void> {
+  await invoke('pty_kill', { sessionId });
+}
+
+export async function ptyHasSession(sessionId: string): Promise<boolean> {
+  return await invoke<boolean>('pty_has_session', { sessionId });
+}
