@@ -40,6 +40,7 @@
   } from '../stores/navigation';
   import { openInDefault, launchRsnap, revealInOs, findRelatedBams, type RelatedBamResult } from '../invoke';
   import RelatedBamsModal from './RelatedBamsModal.svelte';
+  import ProjectTreeView from './ProjectTreeView.svelte';
   import { favoriteEditor, openInFavoriteEditor } from '../stores/editorStore';
   import type { FileItem, DirectoryIndexGroup } from '../types';
   import {
@@ -75,28 +76,31 @@
   let hoveredPath: string | null = null;
   let isRootMenuOpen = false;
   let filesContainerEl: HTMLElement | null = null;
+  let isCodeTreeView = true;
 
   const isCodeCategory = (id: string) => ['code', 'pipelines', 'rust', 'python', 'scripts'].includes(id);
 
-  function switchCodeCategory(catId: string) {
-    const catMap: Record<string, { label: string; extensions: string[]; badge: string; color: string }> = {
-      code: { label: 'Källkod & Projekt', extensions: ['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'snakefile', 'nf', 'makefile', 'cargo.toml'], badge: 'CODE', color: 'text-amber-400' },
-      pipelines: { label: 'Pipelines & Workflow', extensions: ['snakefile', 'smk', 'nf', 'nextflow.config', 'wdl', 'makefile'], badge: 'PIPE', color: 'text-emerald-400' },
-      rust: { label: 'Rust-projekt', extensions: ['rs', 'cargo.toml', 'cargo.lock'], badge: 'RUST', color: 'text-orange-400' },
-      python: { label: 'Python & Notebooks', extensions: ['py', 'ipynb', 'pyproject.toml', 'requirements.txt', 'environment.yml'], badge: 'PY', color: 'text-yellow-400' },
-      scripts: { label: 'Lösa skript & Shell', extensions: ['sh', 'bash', 'zsh', 'r', 'awk', 'pl'], badge: 'SH', color: 'text-cyan-400' },
+  function handleFolderHover(group: DirectoryIndexGroup) {
+    activeHighlightedParentDir.set(group.directory_path);
+    const folderItem: FileItem = {
+      name: group.directory_name,
+      path: group.directory_path,
+      is_dir: true,
+      is_symlink: false,
+      is_hidden: false,
+      size_bytes: 0,
+      formatted_size: '--',
+      modified_timestamp: 0,
+      formatted_modified: '--',
+      permissions: 'rwxr-xr-x',
+      extension: '',
     };
-    const target = catMap[catId];
-    if (target) {
-      openIndexScan({
-        id: catId,
-        name: target.label,
-        extensions: target.extensions,
-        badge: target.badge,
-        iconName: target.badge,
-        colorClass: target.color,
-      }, $indexRootPath, false);
-    }
+    activeHoveredItem.set(folderItem);
+    onSelectPreview(folderItem);
+  }
+
+  function handleFolderLeave() {
+    activeHighlightedParentDir.set(null);
   }
 
   function handleWindowKeyDown(e: KeyboardEvent) {
@@ -394,43 +398,24 @@
           </button>
         {/if}
 
-        <!-- Code & Project Subcategory Switcher Pills -->
+        <!-- Code & Project View Mode Toggle -->
         {#if isCodeCategory($activeIndexMeta.id)}
           <div class="flex items-center gap-0.5 bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border)] text-[11px] font-medium shrink-0">
             <button
-              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'code' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
-              on:click={() => switchCodeCategory('code')}
-              title="Visa all källkod och alla projekt"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
+              on:click={() => (isCodeTreeView = true)}
+              title="Hierarkisk projekt- och trädvy (standard)"
             >
-              Alla
+              <FolderTree size={12} />
+              <span>Trädvy</span>
             </button>
             <button
-              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'pipelines' ? 'bg-emerald-600 text-white font-bold' : 'text-emerald-400 hover:text-white'}"
-              on:click={() => switchCodeCategory('pipelines')}
-              title="Snakemake, Nextflow och WDL pipelines"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {!isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
+              on:click={() => (isCodeTreeView = false)}
+              title="Klassisk 2-kolumns platt fillista"
             >
-              🧬 Pipelines
-            </button>
-            <button
-              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'rust' ? 'bg-orange-600 text-white font-bold' : 'text-orange-400 hover:text-white'}"
-              on:click={() => switchCodeCategory('rust')}
-              title="Rust-projekt (Cargo.toml, .rs)"
-            >
-              🦀 Rust
-            </button>
-            <button
-              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'python' ? 'bg-yellow-600 text-white font-bold' : 'text-yellow-400 hover:text-white'}"
-              on:click={() => switchCodeCategory('python')}
-              title="Python-projekt och Jupyter Notebooks"
-            >
-              🐍 Python
-            </button>
-            <button
-              class="px-2 py-0.5 rounded transition-colors {$activeIndexMeta.id === 'scripts' ? 'bg-cyan-600 text-white font-bold' : 'text-cyan-400 hover:text-white'}"
-              on:click={() => switchCodeCategory('scripts')}
-              title="Shell, R och script"
-            >
-              📜 Skript
+              <Table size={12} />
+              <span>Platt lista</span>
             </button>
           </div>
         {/if}
@@ -458,8 +443,18 @@
       </div>
     </div>
 
-    <!-- Main Split Columns Area: Folders | Files -->
-    <div class="flex-1 flex min-h-0 overflow-hidden">
+    <!-- Main Content Area: Project Tree View (Code) OR Split Columns (Flat List / other types) -->
+    {#if isCodeCategory($activeIndexMeta.id) && isCodeTreeView}
+      <ProjectTreeView
+        groups={$indexedGroups}
+        rootPath={$indexRootPath}
+        searchQuery={$indexSearchQuery}
+        {onSelectPreview}
+        onNavigateFolder={jumpToFolder}
+      />
+    {:else}
+      <!-- Main Split Columns Area: Folders | Files -->
+      <div class="flex-1 flex min-h-0 overflow-hidden">
       <!-- 1. LEFT COLUMN: Directory Groups List -->
       <div class="w-64 lg:w-72 h-full flex flex-col border-r border-[var(--border)] bg-[var(--bg-surface)] shrink-0">
         <!-- Folder Selection Bar -->
@@ -539,6 +534,8 @@
             {@const isParentOfActive = $activeHighlightedParentDir === group.directory_path}
             <div
               class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
+              on:mouseenter={() => handleFolderHover(group)}
+              on:mouseleave={handleFolderLeave}
               on:click={(e) => handleFolderClick(group, e)}
               on:dblclick={() => jumpToFolder(group.directory_path)}
               title="Klicka för att filtrera, dubbelklicka för att öppna i fillistan"
@@ -733,6 +730,7 @@
         </div>
       </div>
     </div>
+    {/if}
   </div>
 {/if}
 

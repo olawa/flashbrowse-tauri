@@ -759,10 +759,10 @@
     hoveredPath = null;
     clearTimeout(hoverTimer);
     clearTimeout(hoverTreeTimer);
-    // Grace period: close tree after 150ms unless mouse entered tooltip
+    // Grace period: close tree after 350ms unless mouse entered tooltip
     hoverTreeCloseTimer = setTimeout(() => {
       hoverTreeItem = null;
-    }, 150);
+    }, 350);
     releaseHoverPreview();
   }
 
