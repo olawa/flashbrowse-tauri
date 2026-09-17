@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import {
     openInDefault,
     openFileWith,
@@ -359,6 +360,25 @@
     onClose();
   }
 
+  let canClose = false;
+  onMount(() => {
+    const t = setTimeout(() => {
+      canClose = true;
+    }, 150);
+    return () => clearTimeout(t);
+  });
+
+  function handleBackdrop(e: MouseEvent) {
+    if (!canClose) return;
+    onClose();
+  }
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }
+
   $: sshFolderName = currentPaneState.isSSH && currentPaneState.sshHost ? getSSHServerFolderName(currentPaneState.sshHost) : '';
   $: downloadButtonLabel = sshFolderName ? `Downloads/${sshFolderName}` : 'Downloads';
   $: downloadButtonTitle = sshFolderName 
@@ -369,20 +389,25 @@
   let adjustedX = x;
   let adjustedY = y;
   $: if (typeof window !== 'undefined') {
-    adjustedX = Math.max(8, Math.min(x, window.innerWidth - 245));
-    adjustedY = Math.max(8, Math.min(y, window.innerHeight - 490));
+    const menuWidth = 230;
+    const menuHeight = 360;
+    adjustedX = Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8));
+    if (y + menuHeight > window.innerHeight - 8) {
+      adjustedY = Math.max(8, window.innerHeight - menuHeight - 8);
+    } else {
+      adjustedY = Math.max(8, y);
+    }
   }
 </script>
+
+<svelte:window on:keydown={handleKeydown} />
 
 <!-- Full-screen invisible backdrop to capture and isolate pointer events exclusively to menu -->
 <div
   class="fixed inset-0 z-40 bg-transparent cursor-default select-none"
-  on:contextmenu|preventDefault|stopPropagation={onClose}
-  on:mousedown|stopPropagation={onClose}
-  on:click|stopPropagation={onClose}
-  on:mouseenter|stopPropagation
-  on:mousemove|stopPropagation
-  on:mouseover|stopPropagation
+  on:contextmenu|preventDefault|stopPropagation={handleBackdrop}
+  on:mousedown|stopPropagation={handleBackdrop}
+  on:click|stopPropagation={handleBackdrop}
 ></div>
 
 <div
@@ -390,9 +415,6 @@
   style="top: {adjustedY}px; left: {adjustedX}px;"
   on:click|stopPropagation
   on:mousedown|stopPropagation
-  on:mouseenter|stopPropagation
-  on:mousemove|stopPropagation
-  on:mouseover|stopPropagation
 >
   <!-- Save permanently to Downloads -->
   <button
@@ -522,11 +544,15 @@
   {/if}
 
   <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-amber-600 hover:text-white text-left text-amber-400 font-medium transition-colors"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-amber-600 hover:text-white text-left text-amber-400 font-medium transition-colors"
     on:click={handleCast}
+    title="Kasta fil till stort inspektörsfönster (⌘K, ⌥⏎ eller dra uppåt)"
   >
-    <Rocket size={13} />
-    <span>Kasta till Stort Fönster (Swipe ↑)</span>
+    <div class="flex items-center gap-2 min-w-0">
+      <Rocket size={13} class="shrink-0" />
+      <span class="truncate">Kasta till Stort Fönster</span>
+    </div>
+    <span class="text-[10px] font-mono opacity-80 shrink-0 ml-1">⌘K / ⌥⏎</span>
   </button>
 
   <button

@@ -631,8 +631,22 @@
     return list;
   })();
 
-  // MARK: - Drag and Drop between Panels
+  // MARK: - Drag and Drop between Panels & Grab-to-Cast
+  let dragStartY = 0;
+  let dragStartX = 0;
+  let dragLastY = 0;
+  let dragLastX = 0;
+  let isDraggingRow = false;
+  let draggedItem: FileItem | null = null;
+
   function handleRowDragStart(item: FileItem, e: DragEvent) {
+    dragStartY = e.clientY;
+    dragStartX = e.clientX;
+    dragLastY = e.clientY;
+    dragLastX = e.clientX;
+    isDraggingRow = true;
+    draggedItem = item;
+
     const selected = pane.selectedPaths.has(item.path)
       ? Array.from(pane.selectedPaths)
       : [item.path];
@@ -641,8 +655,30 @@
         'application/json',
         JSON.stringify({ sourcePaneId: paneId, paths: selected })
       );
-      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.effectAllowed = 'copyMove';
     }
+  }
+
+  function handleRowDrag(e: DragEvent) {
+    if (e.clientY > 0) {
+      dragLastY = e.clientY;
+      dragLastX = e.clientX;
+    }
+  }
+
+  function handleRowDragEnd(item: FileItem, e: DragEvent) {
+    const endY = e.clientY > 0 ? e.clientY : dragLastY;
+    const endX = e.clientX > 0 ? e.clientX : dragLastX;
+    const deltaY = endY - dragStartY;
+    const deltaX = endX - dragStartX;
+
+    // Grab & Cast: If dragged/flicked upward by at least 35px with predominantly vertical motion:
+    if (deltaY < -35 && Math.abs(deltaY) > Math.abs(deltaX) * 0.6) {
+      handleCastItem(item);
+    }
+
+    isDraggingRow = false;
+    draggedItem = null;
   }
 
   function handleContainerDragOver(e: DragEvent) {
@@ -1001,8 +1037,9 @@
   function handleRowWheel(item: FileItem, e: WheelEvent) {
     if (e.ctrlKey) return; // Keep ctrl+wheel for pinch in/out
 
-    // 1. If Alt is held with swipe UP, trigger cast
-    if (e.altKey && e.deltaY < -20) {
+    // 1. If Alt is held with swipe, trigger cast
+    // Checking Math.abs(e.deltaY) > 15 works for both natural and non-natural macOS trackpad scrolling!
+    if (e.altKey && Math.abs(e.deltaY) > 15) {
       e.preventDefault();
       handleCastItem(item);
       return;
@@ -1129,6 +1166,24 @@
       return;
     }
 
+    // Cast to secondary/large inspector: Cmd+K, Option+Enter, or Option+ArrowUp
+    if (
+      (e.metaKey && (e.key === 'k' || e.key === 'K')) ||
+      (e.altKey && e.key === 'Enter') ||
+      (e.altKey && e.key === 'ArrowUp')
+    ) {
+      const firstSelected = Array.from(pane.selectedPaths)[0] || hoveredPath;
+      const item = firstSelected
+        ? flattenedItems.find((i) => i.path === firstSelected) || pane.items.find((i) => i.path === firstSelected)
+        : null;
+      if (item) {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCastItem(item);
+        return;
+      }
+    }
+
     if (e.key === ' ' && pane.selectedPaths.size > 0) {
       e.preventDefault();
       const firstSelected = Array.from(pane.selectedPaths)[0];
@@ -1208,18 +1263,23 @@
     }
   }
 
+  let contextMenuOpenedAt = 0;
+
   function handleContextMenu(item: FileItem, event: MouseEvent) {
     event.preventDefault();
     event.stopPropagation();
     // Synchronously select this row and update preview so actions always target the right-clicked file
-    selectSingle(item.path);
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, selectedPaths: new Set([item.path]) }));
     activeHoveredItem.set(item);
     onSelectPreview(item);
     contextMenuItem = item;
     contextMenuPos = { x: event.clientX, y: event.clientY };
+    contextMenuOpenedAt = Date.now();
   }
 
   function closeContextMenu() {
+    if (Date.now() - contextMenuOpenedAt < 150) return;
     contextMenuItem = null;
   }
 </script>
@@ -1230,7 +1290,6 @@
   tabindex="0"
   class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
   class:pane-remote={pane.isSSH}
-  class:pointer-events-none={!!contextMenuItem}
   on:mouseleave={handleRowMouseLeave}
   on:mousedown={() => activePaneId.set(paneId)}
   on:wheel|passive={handleWheel}
@@ -1290,6 +1349,24 @@
       </button>
     </div>
   </div>
+
+  <!-- Cast drop zone when dragging a row upward -->
+  {#if isDraggingRow && draggedItem}
+    <div
+      class="mx-2.5 my-1.5 py-2 px-3 rounded-lg border-2 border-dashed border-amber-500/70 bg-amber-500/20 flex items-center justify-center gap-2 text-amber-300 text-xs font-semibold animate-pulse transition-all shadow-md select-none shrink-0"
+      on:dragover|preventDefault
+      on:drop|preventDefault={() => {
+        if (draggedItem) {
+          handleCastItem(draggedItem);
+          isDraggingRow = false;
+          draggedItem = null;
+        }
+      }}
+    >
+      <Rocket size={14} class="animate-bounce text-amber-400" />
+      <span>Släpp här för att Kasta till Stort Fönster</span>
+    </div>
+  {/if}
 
   {#if pane.errorMessage}
     <div class="p-4 m-3 rounded bg-red-900/20 border border-red-800 text-red-400 text-xs">
@@ -1401,6 +1478,8 @@
                 <div
                   draggable="true"
                   on:dragstart={(e) => handleRowDragStart(item, e)}
+                  on:drag={handleRowDrag}
+                  on:dragend={(e) => handleRowDragEnd(item, e)}
                   class="grid grid-cols-12 gap-2 px-3 py-1.5 items-center cursor-pointer transition-colors {isCasting ? '-translate-y-1 bg-amber-500/20 shadow-lg text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isRowHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-slate-300'}"
                   on:click={(e) => handleRowClick(item, e)}
                   on:dblclick={() => handleDoubleClick(item)}
@@ -1534,6 +1613,8 @@
                 use:registerRow={item.path}
                 draggable="true"
                 on:dragstart={(e) => handleRowDragStart(item, e)}
+                on:drag={handleRowDrag}
+                on:dragend={(e) => handleRowDragEnd(item, e)}
                 class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'} {depth > 0 ? 'bg-black/5' : ''}"
                 style="height: {ROW_HEIGHT}px;"
                 on:click={(e) => handleRowClick(item, e)}

@@ -498,7 +498,7 @@
         <button
           class="p-1 rounded hover:bg-[var(--bg-hover)] text-amber-400 hover:text-amber-300 transition-transform {castedAnimation ? 'scale-125 text-emerald-400' : ''}"
           on:click={handleCastToLarge}
-          title="Kasta uppåt till Stora Inspektörsfönstret (eller svep uppåt med 2 fingrar)"
+          title="Kasta till Stora Inspektörsfönstret (⌘K, ⌥⏎ eller dra filen uppåt)"
         >
           <Rocket size={12} class={castedAnimation ? 'animate-bounce' : ''} />
         </button>
