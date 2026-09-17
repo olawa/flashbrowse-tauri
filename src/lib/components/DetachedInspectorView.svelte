@@ -95,24 +95,8 @@
       }
     }
 
-    // 2. Listen to live sync & cast events from the main window!
+    // 2. Listen ONLY to active cast events from the main window (never update on incidental hover!)
     try {
-      unlistenSync = await listen<{ item: FileItem; titlePrefix: string }>('inspector-sync', async (event) => {
-        if (event.payload && event.payload.item) {
-          currentItem = event.payload.item;
-          if (event.payload.titlePrefix) {
-            titlePrefix = event.payload.titlePrefix;
-          }
-          await loadPreview(currentItem.path);
-        }
-      });
-
-      unlistenPathSync = await listen<string>('inspector-sync-path', async (event) => {
-        if (event.payload) {
-          setItemFromPath(event.payload);
-        }
-      });
-
       unlistenCastSync = await listen<string>('inspector-cast-path', async (event) => {
         if (event.payload) {
           setItemFromPath(event.payload, true);
@@ -128,13 +112,11 @@
         }
       });
     } catch (e) {
-      console.error('Failed to listen to inspector sync events:', e);
+      console.error('Failed to listen to inspector cast events:', e);
     }
   });
 
   onDestroy(() => {
-    if (unlistenSync) unlistenSync();
-    if (unlistenPathSync) unlistenPathSync();
     if (unlistenCastSync) unlistenCastSync();
     if (unlistenCastItem) unlistenCastItem();
   });
@@ -207,6 +189,9 @@
           {currentItem.extension.toUpperCase()}
         </span>
       {/if}
+      <span class="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/50 text-emerald-300 text-[10px] font-medium flex items-center gap-1" title="Detta fönster är statiskt och ändras inte vid hovring i fillistan - bara när du aktivt kastar en ny fil hit">
+        <span>📌 Låst till kastad fil</span>
+      </span>
     </div>
 
     {#if currentItem}

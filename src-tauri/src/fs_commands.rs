@@ -967,7 +967,6 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
 
     if let Some(window) = app.get_webview_window("inspector") {
         if let Some(ref p) = path {
-            let _ = app.emit("inspector-sync-path", p);
             let _ = app.emit("inspector-cast-path", p);
         }
         // If external monitor exists and window is not currently on it, move it there

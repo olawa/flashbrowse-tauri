@@ -185,9 +185,6 @@
     } else {
       preview = null;
     }
-    try {
-      emit('inspector-sync', { item, titlePrefix });
-    } catch {}
   } else {
     preview = null;
     dirSummary = null;
