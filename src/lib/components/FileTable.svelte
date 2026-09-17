@@ -700,6 +700,10 @@
 
   // MARK: - Single / Double Click & Shift / Cmd Multi-Selection
   function handleRowClick(item: FileItem, event: MouseEvent) {
+    if (contextMenuItem) {
+      closeContextMenu();
+      return;
+    }
     activePaneId.set(paneId);
     closeHoverTree();
     // An explicit click wins over any pending hover preview
@@ -817,6 +821,11 @@
 
   // MARK: - Smart Hover Live Preview with Lock and Cmd Support
   function handleRowMouseEnter(item: FileItem, e?: MouseEvent) {
+    // If context menu is open, pointer is only active in menu - completely ignore table hover!
+    if (contextMenuItem) {
+      return;
+    }
+
     // If a hover tree is currently open:
     if (hoverTreeItem) {
       if (hoverTreeItem.path === item.path) {
@@ -1201,6 +1210,11 @@
 
   function handleContextMenu(item: FileItem, event: MouseEvent) {
     event.preventDefault();
+    event.stopPropagation();
+    // Synchronously select this row and update preview so actions always target the right-clicked file
+    selectSingle(item.path);
+    activeHoveredItem.set(item);
+    onSelectPreview(item);
     contextMenuItem = item;
     contextMenuPos = { x: event.clientX, y: event.clientY };
   }
@@ -1216,6 +1230,7 @@
   tabindex="0"
   class="flex-1 flex flex-col h-full bg-[var(--bg-base)] overflow-hidden outline-none {isActive ? 'ring-1 ring-[var(--accent)]' : ''}"
   class:pane-remote={pane.isSSH}
+  class:pointer-events-none={!!contextMenuItem}
   on:mouseleave={handleRowMouseLeave}
   on:mousedown={() => activePaneId.set(paneId)}
   on:wheel|passive={handleWheel}

@@ -927,27 +927,81 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         }
     }
 
+    // Determine target monitor if an external screen exists
+    let main_window = app.get_webview_window("main");
+    let main_monitor = main_window.as_ref().and_then(|w| w.current_monitor().ok().flatten());
+    let available_monitors = app.available_monitors().unwrap_or_default();
+
+    let target_monitor = if available_monitors.len() > 1 {
+        if let Some(ref main_mon) = main_monitor {
+            available_monitors
+                .into_iter()
+                .find(|m| m.position() != main_mon.position() || m.name() != main_mon.name())
+        } else {
+            available_monitors.into_iter().nth(1)
+        }
+    } else {
+        None
+    };
+
+    let (target_pos, win_size) = if let Some(ref mon) = target_monitor {
+        let pos = mon.position();
+        let size = mon.size();
+        let scale = mon.scale_factor().max(1.0);
+
+        let mon_log_x = pos.x as f64 / scale;
+        let mon_log_y = pos.y as f64 / scale;
+        let mon_log_w = size.width as f64 / scale;
+        let mon_log_h = size.height as f64 / scale;
+
+        let win_w = 1050.0f64.min(mon_log_w - 60.0);
+        let win_h = 820.0f64.min(mon_log_h - 80.0);
+
+        let target_x = mon_log_x + ((mon_log_w - win_w) / 2.0).max(30.0);
+        let target_y = mon_log_y + ((mon_log_h - win_h) / 2.0).max(30.0);
+
+        (Some((target_x, target_y)), (win_w, win_h))
+    } else {
+        (None, (950.0, 720.0))
+    };
+
     if let Some(window) = app.get_webview_window("inspector") {
         if let Some(ref p) = path {
             let _ = app.emit("inspector-sync-path", p);
             let _ = app.emit("inspector-cast-path", p);
+        }
+        // If external monitor exists and window is not currently on it, move it there
+        if let Some((tx, ty)) = target_pos {
+            let win_mon = window.current_monitor().ok().flatten();
+            let is_on_target = if let (Some(wm), Some(ref tm)) = (win_mon, &target_monitor) {
+                wm.position() == tm.position()
+            } else {
+                false
+            };
+            if !is_on_target {
+                let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(tx, ty)));
+            }
         }
         if !window.is_visible().unwrap_or(false) {
             let _ = window.show();
         }
         let _ = window.set_focus();
     } else {
-        let _win = tauri::WebviewWindowBuilder::new(
+        let mut builder = tauri::WebviewWindowBuilder::new(
             &app,
             "inspector",
             tauri::WebviewUrl::default(),
         )
         .title("Flashbrowse Inspector")
-        .inner_size(950.0, 720.0)
+        .inner_size(win_size.0, win_size.1)
         .min_inner_size(500.0, 400.0)
-        .initialization_script("window.__FLASHBROWSE_WINDOW__ = 'inspector';")
-        .build()
-        .map_err(|e| e.to_string())?;
+        .initialization_script("window.__FLASHBROWSE_WINDOW__ = 'inspector';");
+
+        if let Some((tx, ty)) = target_pos {
+            builder = builder.position(tx, ty);
+        }
+
+        let _win = builder.build().map_err(|e| e.to_string())?;
     }
     Ok(())
 }

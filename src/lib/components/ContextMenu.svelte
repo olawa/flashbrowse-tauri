@@ -364,12 +364,35 @@
   $: downloadButtonTitle = sshFolderName 
     ? `Spara permanent till Downloads/${sshFolderName}` 
     : `Spara permanent lokal kopia till ${$downloadDirectory || '~/Downloads'}`;
+
+  // Viewport clamping so menu never overflows off-screen
+  let adjustedX = x;
+  let adjustedY = y;
+  $: if (typeof window !== 'undefined') {
+    adjustedX = Math.max(8, Math.min(x, window.innerWidth - 245));
+    adjustedY = Math.max(8, Math.min(y, window.innerHeight - 490));
+  }
 </script>
+
+<!-- Full-screen invisible backdrop to capture and isolate pointer events exclusively to menu -->
+<div
+  class="fixed inset-0 z-40 bg-transparent cursor-default select-none"
+  on:contextmenu|preventDefault|stopPropagation={onClose}
+  on:mousedown|stopPropagation={onClose}
+  on:click|stopPropagation={onClose}
+  on:mouseenter|stopPropagation
+  on:mousemove|stopPropagation
+  on:mouseover|stopPropagation
+></div>
 
 <div
   class="fixed z-50 w-56 py-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-md shadow-2xl text-xs text-[var(--text-primary)] select-none backdrop-blur-md"
-  style="top: {y}px; left: {x}px;"
+  style="top: {adjustedY}px; left: {adjustedX}px;"
   on:click|stopPropagation
+  on:mousedown|stopPropagation
+  on:mouseenter|stopPropagation
+  on:mousemove|stopPropagation
+  on:mouseover|stopPropagation
 >
   <!-- Save permanently to Downloads -->
   <button
