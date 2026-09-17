@@ -69,6 +69,8 @@
   $: remotePath = item.path.startsWith('ssh://')
     ? item.path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
     : item.path;
+  $: isMultiSelect = currentPaneState.selectedPaths.has(item.path) && currentPaneState.selectedPaths.size > 1;
+  $: multiCount = isMultiSelect ? currentPaneState.selectedPaths.size : 1;
 
   const ext = item.extension.toLowerCase();
   const isBamOrCram = ext === 'bam' || ext === 'cram' || item.name.endsWith('.bam') || item.name.endsWith('.cram');
@@ -188,8 +190,14 @@
   }
 
   async function handleTrash() {
-    await trashItems([item.path]);
-    await refreshPane(paneId);
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+      ? Array.from(store.selectedPaths)
+      : [item.path];
+    if (confirm(`Flytta ${paths.length} ${paths.length === 1 ? 'fil' : 'filer'} till papperskorgen?`)) {
+      await trashItems(paths);
+      await refreshPane(paneId);
+    }
     onClose();
   }
 
@@ -350,7 +358,11 @@
 
   async function handleTransferToOtherPane() {
     const otherPane = paneId === 'left' ? 'right' : 'left';
-    await transferBetweenPanes(paneId, otherPane, [item.path]);
+    const store = paneId === 'left' ? $leftPane : $rightPane;
+    const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
+      ? Array.from(store.selectedPaths)
+      : [item.path];
+    await transferBetweenPanes(paneId, otherPane, paths);
     onClose();
   }
 
@@ -434,11 +446,11 @@
     <button
       class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-cyan-600 hover:text-white text-left transition-colors font-medium text-cyan-400"
       on:click={handleTransferToOtherPane}
-      title="Överför/kopiera till motsatt panel"
+      title="Överför till motsatt panel"
     >
       <div class="flex items-center gap-2 min-w-0">
         <ArrowRightLeft size={13} class="text-cyan-400 shrink-0" />
-        <span class="truncate">Överför till andra panelen</span>
+        <span class="truncate">{isMultiSelect ? `Flytta ${multiCount} filer till ${paneId === 'left' ? 'höger' : 'vänster'}` : `Flytta till ${paneId === 'left' ? 'höger' : 'vänster'}`}</span>
       </div>
       <kbd class="text-[9px] font-mono opacity-70">F5</kbd>
     </button>
@@ -817,11 +829,14 @@
   <div class="h-px my-1 bg-[var(--border)]"></div>
 
   <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-red-600 hover:text-white text-red-400 text-left"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-white text-red-400 text-left transition-colors"
     on:click={handleTrash}
   >
-    <Trash2 size={13} />
-    <span>Move to Trash</span>
+    <div class="flex items-center gap-2 min-w-0">
+      <Trash2 size={13} class="shrink-0" />
+      <span class="truncate">{isMultiSelect ? `Flytta ${multiCount} filer till Papperskorg` : 'Flytta till Papperskorg'}</span>
+    </div>
+    <kbd class="text-[9px] font-mono opacity-80 shrink-0 ml-1">⌘⌫</kbd>
   </button>
 </div>
 

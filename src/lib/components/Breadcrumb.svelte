@@ -136,9 +136,13 @@
     }
   }
 
+  let copiedPath = false;
+
   async function copyCurrentPath() {
     try {
       await navigator.clipboard.writeText(pane.currentPath);
+      copiedPath = true;
+      setTimeout(() => (copiedPath = false), 2000);
     } catch (err) {
       console.error('Kunde inte kopiera sökväg:', err);
     }
@@ -157,7 +161,10 @@
   }
 
   function navigateToSegment(index: number) {
-    const target = '/' + pathSegments.slice(0, index + 1).join('/');
+    let target = '/' + pathSegments.slice(0, index + 1).join('/');
+    if (pane.isSSH && pane.currentPath.startsWith('~')) {
+      target = '~/' + pathSegments.slice(0, index + 1).join('/');
+    }
     navigatePane(paneId, target);
   }
 
@@ -260,50 +267,22 @@
       </button>
     </div>
   {:else}
-    <div
-      class="flex items-center gap-1 overflow-x-auto whitespace-nowrap flex-1 py-0.5 cursor-pointer rounded px-1 hover:bg-[var(--bg-hover)]/40 transition-colors min-w-0"
-      on:click={(e) => {
-        const target = e.target as HTMLElement;
-        if (target === e.currentTarget || target.tagName === 'DIV' || target.classList.contains('breadcrumb-space')) {
-          startEditing();
-        }
-      }}
-      on:contextmenu={handleContextMenu}
-      title="Klicka för att skriva eller klistra in sökväg (Högerklicka för meny)"
-      role="button"
-      tabindex="-1"
-    >
-      <!-- Host / Connection Badge with Switcher -->
+    <!-- SSH Server Switcher / Badge (Only when remote SSH) -->
+    {#if pane.isSSH}
       <div class="relative shrink-0">
-        {#if pane.isSSH}
-          <button
-            class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-950/60 text-green-400 font-semibold border border-green-800/60 hover:bg-green-900/60 transition-colors"
-            on:click={(e) => {
-              e.stopPropagation();
-              loadSavedServers();
-              isServerMenuOpen = !isServerMenuOpen;
-            }}
-            title="Klicka för att växla mellan servrar eller lokal disk"
-          >
-            <Server size={12} />
-            <span class="max-w-[140px] truncate">{pane.sshHost}</span>
-          </button>
-        {:else}
-          <button
-            class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#1e2330] hover:bg-[#252c3d] text-slate-300 font-medium border border-[#2d354a] transition-colors"
-            on:click={(e) => {
-              e.stopPropagation();
-              loadSavedServers();
-              isServerMenuOpen = !isServerMenuOpen;
-            }}
-            title="Klicka för att ansluta panelen till en SSH-server"
-          >
-            <Laptop size={12} class="text-blue-400" />
-            <span>Lokal (Mac)</span>
-          </button>
-        {/if}
+        <button
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded bg-green-950/60 text-green-400 font-semibold border border-green-800/60 hover:bg-green-900/60 transition-colors text-[11px]"
+          on:click={(e) => {
+            e.stopPropagation();
+            loadSavedServers();
+            isServerMenuOpen = !isServerMenuOpen;
+          }}
+          title="Ansluten till {pane.sshHost} (klicka för att växla)"
+        >
+          <Server size={11} />
+          <span class="max-w-[100px] truncate">{pane.sshHost.split('.')[0]}</span>
+        </button>
 
-        <!-- Server Switcher Dropdown Menu -->
         {#if isServerMenuOpen}
           <div
             class="absolute top-full left-0 mt-1 w-56 py-1 bg-[var(--bg-surface)] border border-[var(--border)] rounded-md shadow-2xl z-50 text-xs text-[var(--text-primary)]"
@@ -312,20 +291,17 @@
             tabindex="-1"
           >
             <div class="px-2 py-1 text-[10px] font-semibold text-[var(--text-muted)] uppercase tracking-wider border-b border-[var(--border)]">
-              Växla anslutning i denna panel
+              Växla anslutning
             </div>
 
             <button
-              class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-[var(--bg-hover)] text-left {!pane.isSSH ? 'text-[var(--accent)] font-semibold bg-[var(--accent-subtle)]' : ''}"
+              class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-[var(--bg-hover)] text-left"
               on:click={switchToLocal}
             >
               <div class="flex items-center gap-2">
                 <Laptop size={13} class="text-blue-400" />
                 <span>Lokal disk (Macintosh)</span>
               </div>
-              {#if !pane.isSSH}
-                <Check size={12} />
-              {/if}
             </button>
 
             <div class="my-1 border-t border-[var(--border)]"></div>
@@ -349,57 +325,66 @@
           </div>
         {/if}
       </div>
+    {/if}
 
-      <ChevronRight size={12} class="opacity-40 shrink-0" />
-
-      <!-- Root button -->
+    <!-- Clickable POSIX Path Bar (/data/analysis/folder) -->
+    <div
+      class="flex-1 flex items-center min-w-0 font-mono text-[11.5px] bg-[var(--bg-panel)]/80 hover:bg-[var(--bg-panel)] border border-[var(--border)] rounded px-2 py-1 transition-colors cursor-text overflow-x-auto whitespace-nowrap scrollbar-none shadow-inner"
+      on:click={(e) => {
+        const target = e.target as HTMLElement;
+        if (target === e.currentTarget || target.classList.contains('path-divider')) {
+          startEditing();
+        }
+      }}
+      on:contextmenu={handleContextMenu}
+      title="Klicka för att redigera eller klistra in sökväg (⌘L)"
+      role="textbox"
+      tabindex="-1"
+    >
+      <!-- Root slash or tilde -->
       <button
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-primary)] shrink-0"
+        class="px-1 py-0.2 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white transition-colors font-mono font-bold shrink-0"
         on:click={(e) => {
           e.stopPropagation();
           navigatePane(paneId, pane.isSSH ? '~' : '/');
         }}
+        title="Gå till {pane.isSSH ? '~' : '/'}"
       >
-        <HardDrive size={11} />
-        <span>{pane.isSSH ? '~' : 'Root'}</span>
+        {pane.isSSH && pane.currentPath.startsWith('~') ? '~' : '/'}
       </button>
 
-      {#if pathSegments.length > 0}
-        <ChevronRight size={12} class="opacity-40 shrink-0" />
-      {/if}
-
-      <!-- Dynamic Path Segments -->
       {#each pathSegments as segment, index}
+        <span class="path-divider text-slate-600 font-mono select-none px-0.5 shrink-0">/</span>
+
+        {@const isLast = index === pathSegments.length - 1}
         <button
-          class="px-1.5 py-0.5 rounded hover:bg-[var(--bg-hover)] transition-colors shrink-0 {index === pathSegments.length - 1 ? 'font-semibold text-[var(--accent)]' : 'text-[var(--text-primary)]'}"
+          class="px-1 py-0.2 rounded transition-colors shrink-0 {isLast ? 'font-bold text-white bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-slate-300 hover:text-white hover:bg-[var(--bg-hover)]'}"
           on:click={(e) => {
             e.stopPropagation();
             navigateToSegment(index);
           }}
+          title="Gå till {pathSegments.slice(0, index + 1).join('/')}"
         >
           {segment}
         </button>
-        {#if index < pathSegments.length - 1}
-          <ChevronRight size={12} class="opacity-40 shrink-0" />
-        {/if}
       {/each}
-
-      <!-- Edit icon button on right edge of breadcrumb -->
-      <button
-        class="ml-1 p-0.5 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] shrink-0 opacity-70 hover:opacity-100 transition-opacity"
-        on:click={(e) => {
-          e.stopPropagation();
-          startEditing();
-        }}
-        title="Redigera sökväg direkt (eller klicka på listen)"
-      >
-        <Edit3 size={11} />
-      </button>
     </div>
   {/if}
 
-  <!-- Dual Inspector toggle & Action -->
-  <div class="flex items-center gap-1.5 ml-auto shrink-0">
+  <!-- Compact Right Utility Icons (Copy & Terminal) -->
+  <div class="flex items-center gap-0.5 shrink-0 ml-1">
+    <button
+      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] transition-colors {copiedPath ? 'text-green-400 bg-green-950/40' : ''}"
+      on:click={copyCurrentPath}
+      title={copiedPath ? 'Sökväg kopierad!' : 'Kopiera fullständig sökväg'}
+    >
+      {#if copiedPath}
+        <Check size={12} class="text-green-400" />
+      {:else}
+        <Copy size={12} />
+      {/if}
+    </button>
+
     <button
       class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)]"
       on:click={pastePathAndGo}
@@ -409,31 +394,14 @@
     </button>
 
     <button
-      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)]"
-      on:click={() => startEditing()}
-      title="Redigera sökväg manuellt (⌘L)"
-    >
-      <Edit3 size={12} />
-    </button>
-
-    <button
       class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] transition-colors {$isTerminalOpen && $activePaneId === paneId ? 'text-amber-400 bg-amber-500/20' : ''}"
       on:click={() => {
         activePaneId.set(paneId);
         toggleTerminal();
       }}
-      title="Öppna/Stäng Terminal (⌘J)"
+      title="Öppna/Stäng Terminal här (⌘J)"
     >
       <TerminalIcon size={12} />
-    </button>
-
-    <button
-      class="px-2 py-0.5 rounded border border-[var(--border)] text-[11px] hover:bg-[var(--bg-hover)] flex items-center gap-1 {$isDualInspector ? 'bg-[var(--accent-subtle)] text-[var(--accent)] border-[var(--accent)]' : ''}"
-      on:click={() => isDualInspector.update((v) => !v)}
-      title="Växla Dual Inspector"
-    >
-      <LayoutGrid size={11} />
-      <span>Dual Inspector</span>
     </button>
   </div>
 </div>

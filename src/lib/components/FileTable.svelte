@@ -27,6 +27,7 @@
     quickLook,
     renameItem,
     trashItems,
+    createZipArchive,
     sshOpenFileLocally,
     listDirectory,
     sshListDirectory,
@@ -57,6 +58,9 @@
     ChevronRight,
     CheckSquare,
     Square,
+    Trash2,
+    Archive,
+    CheckCheck,
   } from 'lucide-svelte';
 
   export let paneId: 'left' | 'right' = 'left';
@@ -710,6 +714,83 @@
     }
   }
 
+  // MARK: - Batch Selection & Actions (Select All Filtered, Trash, Move, Zip)
+  function handleSelectAllFiltered() {
+    if (filteredItems.length === 0) return;
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({
+      ...s,
+      selectedPaths: new Set(filteredItems.map((i) => i.path)),
+    }));
+  }
+
+  function clearSelection() {
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, selectedPaths: new Set() }));
+  }
+
+  async function handleBatchTrash() {
+    const paths = Array.from(pane.selectedPaths);
+    if (paths.length === 0) return;
+    if (confirm(`Flytta ${paths.length} ${paths.length === 1 ? 'objekt' : 'objekt'} till papperskorgen?`)) {
+      await trashItems(paths);
+      clearSelection();
+      await refreshPane(paneId);
+    }
+  }
+
+  async function handleBatchTransfer() {
+    const paths = Array.from(pane.selectedPaths);
+    if (paths.length === 0) return;
+    const otherPane = paneId === 'left' ? 'right' : 'left';
+    await transferBetweenPanes(paneId, otherPane, paths);
+    clearSelection();
+  }
+
+  async function handleBatchZip() {
+    const paths = Array.from(pane.selectedPaths);
+    if (paths.length === 0) return;
+    try {
+      await createZipArchive(paths);
+      await refreshPane(paneId);
+    } catch (e: any) {
+      alert(`Kunde inte skapa zip-arkiv: ${e}`);
+    }
+  }
+
+  function getSelectedTotalSize(paths: Set<string>): number {
+    let sum = 0;
+    for (const p of paths) {
+      const item = pane.items.find((i) => i.path === p) || flattenedItems.find((i) => i.path === p);
+      if (item && !item.is_dir) sum += item.size_bytes;
+    }
+    return sum;
+  }
+
+  $: topExtensions = (() => {
+    const counts = new Map<string, number>();
+    for (const item of pane.items) {
+      if (!item.is_dir && item.extension) {
+        const ext = item.extension.toLowerCase();
+        counts.set(ext, (counts.get(ext) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .filter(([_, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+  })();
+
+  function applyQuickFilter(ext: string) {
+    if (filterText.toLowerCase() === ext) {
+      filterText = '';
+    } else {
+      filterText = ext;
+    }
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, filterQuery: filterText }));
+  }
+
   function getFileIcon(item: FileItem) {
     if (item.is_dir) return Folder;
     const ext = item.extension.toLowerCase();
@@ -1310,7 +1391,17 @@
           const store = paneId === 'left' ? leftPane : rightPane;
           store.update((s) => ({ ...s, filterQuery: filterText }));
         }}
-        placeholder="Filtrera… (t.ex. *.png, test)"
+        on:keydown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSelectAllFiltered();
+          } else if (e.key === 'Escape') {
+            filterText = '';
+            const store = paneId === 'left' ? leftPane : rightPane;
+            store.update((s) => ({ ...s, filterQuery: '' }));
+          }
+        }}
+        placeholder="Filtrera… (t.ex. *.png, test, vcf)"
         class="w-full bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] pl-7 pr-6 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none placeholder:text-[var(--text-muted)] font-mono"
       />
       {#if filterText}
@@ -1327,6 +1418,31 @@
         </button>
       {/if}
     </div>
+
+    <!-- Quick Select All Filtered Button (when filter query exists) -->
+    {#if filterText.trim().length > 0}
+      <button
+        class="px-2 py-1 rounded text-[11px] font-semibold bg-emerald-800/90 hover:bg-emerald-700 text-white flex items-center gap-1 transition-all shrink-0 border border-emerald-600/60 shadow-sm"
+        on:click={handleSelectAllFiltered}
+        title="Markera alla {filteredItems.length} matchande filer (Enter)"
+      >
+        <CheckCheck size={12} />
+        <span>Välj alla ({filteredItems.length})</span>
+      </button>
+    {:else if topExtensions.length > 0}
+      <!-- Quick Type Filter Chips when not filtering -->
+      <div class="hidden sm:flex items-center gap-1 shrink-0 overflow-x-auto scrollbar-none">
+        {#each topExtensions as [ext, cnt]}
+          <button
+            class="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white border border-[var(--border)] text-[10px] font-mono transition-colors"
+            on:click={() => applyQuickFilter(ext)}
+            title="Filtrera på .{ext} ({cnt} filer)"
+          >
+            .{ext}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <!-- View Mode Selector (List vs Grouped Clusters) -->
     <div class="flex items-center gap-1 shrink-0">
@@ -1349,6 +1465,66 @@
       </button>
     </div>
   </div>
+
+  <!-- Batch Selection Action Bar when multiple files are selected -->
+  {#if pane.selectedPaths.size > 1}
+    {@const count = pane.selectedPaths.size}
+    {@const totalBytes = getSelectedTotalSize(pane.selectedPaths)}
+    <div
+      class="mx-2.5 my-1.5 px-3 py-1.5 rounded-lg bg-[#141b29] border border-blue-500/50 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg select-none shrink-0 animate-fadeIn"
+    >
+      <!-- Info -->
+      <div class="flex items-center gap-2 text-blue-300 font-medium min-w-0">
+        <CheckCheck size={14} class="text-blue-400 shrink-0" />
+        <span class="truncate"><b>{count} filer</b> markerade</span>
+        {#if totalBytes > 0}
+          <span class="text-[10px] text-slate-400 font-mono shrink-0">({formatBytes(totalBytes)})</span>
+        {/if}
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <!-- Delete -->
+        <button
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white border border-red-800/80 font-semibold text-[11px] transition-colors shadow-sm"
+          on:click={handleBatchTrash}
+          title="Flytta markerade filer till papperskorgen (⌘⌫)"
+        >
+          <Trash2 size={11} />
+          <span>Ta bort ({count})</span>
+        </button>
+
+        <!-- Move to other pane -->
+        <button
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-900/60 hover:bg-blue-800 text-blue-200 hover:text-white border border-blue-700/60 font-medium text-[11px] transition-colors shadow-sm"
+          on:click={handleBatchTransfer}
+          title="Flytta alla markerade filer till den andra panelen"
+        >
+          <ArrowRightLeft size={11} />
+          <span>Flytta till {paneId === 'left' ? 'höger' : 'vänster'}</span>
+        </button>
+
+        <!-- Zip -->
+        <button
+          class="flex items-center gap-1 px-2 py-1 rounded bg-[#202738] hover:bg-[#2b354a] text-slate-300 hover:text-white border border-[var(--border)] text-[11px] transition-colors"
+          on:click={handleBatchZip}
+          title="Skapa zip-arkiv av markerade filer"
+        >
+          <Archive size={11} />
+          <span>Packa (.zip)</span>
+        </button>
+
+        <!-- Clear selection -->
+        <button
+          class="p-1 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white text-[11px] transition-colors ml-1"
+          on:click={clearSelection}
+          title="Avmarkera alla (Esc)"
+        >
+          <X size={13} />
+        </button>
+      </div>
+    </div>
+  {/if}
 
   <!-- Cast drop zone when dragging a row upward -->
   {#if isDraggingRow && draggedItem}
