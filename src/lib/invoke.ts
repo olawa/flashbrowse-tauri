@@ -16,6 +16,7 @@ import type {
   TabCompletionResult,
   TerminalOutput,
   TrackGenomeDetection,
+  DeskStatus,
 } from './types';
 
 export async function getHomeDirectory(): Promise<string> {
@@ -223,8 +224,13 @@ export async function sshRunCommand(host: string, cmd: string, cwd: string): Pro
   return await invoke<TerminalOutput>('ssh_run_command', { host, cmd, cwd });
 }
 
-export async function sshOpenFileLocally(host: string, remotePath: string, appName?: string): Promise<string> {
-  return await invoke<string>('ssh_open_file_locally', { host, remotePath, appName });
+export async function sshOpenFileLocally(
+  host: string,
+  remotePath: string,
+  appName?: string,
+  targetDir?: string
+): Promise<string> {
+  return await invoke<string>('ssh_open_file_locally', { host, remotePath, appName, targetDir });
 }
 
 export async function quickLook(path: string): Promise<void> {
@@ -559,3 +565,7 @@ export async function toggleMouseBetweenWindows(): Promise<void> {
   await invoke('toggle_mouse_between_windows');
 }
 
+/** Läget i sekvenseringspipelinen plus sammanfattad post, ur CGU-lagret. */
+export async function cguDeskStatus(days = 7, store?: string): Promise<DeskStatus> {
+  return await invoke<DeskStatus>('cgu_desk_status', { days, store });
+}

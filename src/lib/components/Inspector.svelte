@@ -54,6 +54,7 @@
     setDownloadDirectory,
     initDownloadStore,
     getSSHServerFolderName,
+    getSSHDownloadDirectory,
   } from '../stores/downloadStore';
 
   export let item: FileItem | null = null;
@@ -283,7 +284,8 @@
         const remotePath = item.path.startsWith('ssh://')
           ? item.path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
           : item.path;
-        await sshOpenFileLocally(host, remotePath, appName);
+        const targetDir = getSSHDownloadDirectory(host);
+        await sshOpenFileLocally(host, remotePath, appName, targetDir);
       } else {
         await openFileWith(item.path, appName);
       }

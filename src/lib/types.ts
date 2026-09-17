@@ -217,3 +217,50 @@ export interface SubdirNode {
   children: SubdirNode[];
   has_more: boolean;
 }
+
+// --- CGU: läget i sekvenseringspipelinen -----------------------------------
+// Speglar desk_commands.rs. Lagret fylls av CGU-verktygens schemalagda
+// körning; appen läser bara.
+
+export interface PipelineEvent {
+  sent: string;
+  status: string;
+  sample: string;
+  wp: string;
+  assay: string;
+  folder: string;
+  execution: string;
+  source: string;
+  subject: string;
+}
+
+export interface SampleState {
+  sample: string;
+  state: string;
+  note: string;
+  wp: string;
+  assay: string;
+  first: string;
+  last: string;
+  events: number;
+  folder: string;
+  execution: string;
+}
+
+export interface MailSummary {
+  subject: string;
+  sender: string;
+  kind: string;
+  lage: string;
+  datum: string;
+  covers_to: string;
+  model: string;
+}
+
+export interface DeskStatus {
+  store: string;
+  samples: SampleState[];
+  counts: Record<string, number>;
+  mail: MailSummary[];
+  timeline: PipelineEvent[];
+}

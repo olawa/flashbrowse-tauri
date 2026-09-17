@@ -1,5 +1,6 @@
 pub mod bio_commands;
 pub mod companion_commands;
+pub mod desk_commands;
 pub mod fs_commands;
 pub mod models;
 pub mod preview_commands;
@@ -12,6 +13,7 @@ pub mod transfer_commands;
 
 use bio_commands::*;
 use companion_commands::*;
+use desk_commands::*;
 use fs_commands::*;
 use preview_commands::*;
 use qc_commands::*;
@@ -26,6 +28,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            cgu_desk_status,
             pty_spawn,
             pty_write,
             pty_resize,

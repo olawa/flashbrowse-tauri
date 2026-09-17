@@ -31,7 +31,7 @@
     listDirectory,
     sshListDirectory,
   } from '../invoke';
-  import { saveNotification } from '../stores/downloadStore';
+  import { saveNotification, getSSHDownloadDirectory } from '../stores/downloadStore';
   import ContextMenu from './ContextMenu.svelte';
   import HoverDirTree from './HoverDirTree.svelte';
   import type { FileItem } from '../types';
@@ -792,7 +792,11 @@
         success: true,
       });
       try {
-        const localPath = await sshOpenFileLocally(pane.sshHost, item.path);
+        const cleanRemotePath = item.path.startsWith('ssh://')
+          ? item.path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
+          : item.path;
+        const targetDir = getSSHDownloadDirectory(pane.sshHost);
+        const localPath = await sshOpenFileLocally(pane.sshHost, cleanRemotePath, undefined, targetDir);
         saveNotification.set({
           text: `🚀 Öppnade ${item.name} lokalt`,
           path: localPath,

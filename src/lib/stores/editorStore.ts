@@ -1,6 +1,6 @@
 import { writable, get } from 'svelte/store';
 import { openFileWith, sshOpenFileLocally } from '../invoke';
-import { saveNotification } from './downloadStore';
+import { saveNotification, getSSHDownloadDirectory } from './downloadStore';
 
 export interface EditorOption {
   id: string;
@@ -46,7 +46,11 @@ export async function openInFavoriteEditor(path: string, isSSH = false, host = '
       success: true,
     });
     try {
-      const localPath = await sshOpenFileLocally(host, path, editor);
+      const cleanRemotePath = path.startsWith('ssh://')
+        ? path.replace(new RegExp(`^ssh://[^/]+`), '') || '/'
+        : path;
+      const targetDir = getSSHDownloadDirectory(host);
+      const localPath = await sshOpenFileLocally(host, cleanRemotePath, editor, targetDir);
       saveNotification.set({
         text: `🚀 Öppnade ${fileName} i ${editor}`,
         path: localPath,

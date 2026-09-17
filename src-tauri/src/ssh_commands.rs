@@ -629,28 +629,49 @@ pub async fn ssh_run_command(host: String, cmd: String, cwd: String) -> Result<T
     .map_err(|e| e.to_string())?
 }
 
+fn default_ssh_download_dir(host: &str) -> std::path::PathBuf {
+    let clean_host = host.replace(['/', '\\', ':', '@'], "_");
+    crate::fs_commands::dirs_home()
+        .join("Downloads")
+        .join("Flashbrowse")
+        .join(clean_host)
+}
+
 #[tauri::command]
 pub async fn ssh_open_file_locally(
     host: String,
     remote_path: String,
     app_name: Option<String>,
+    target_dir: Option<String>,
 ) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        let cache_dir = std::env::temp_dir().join("flashbrowse_ssh_cache");
-        let _ = std::fs::create_dir_all(&cache_dir);
-
         let safe_name = Path::new(&remote_path)
             .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("file");
 
-        let host_short = host.split('.').next().unwrap_or(&host);
-        let local_target = cache_dir.join(format!("{}_{}", host_short, safe_name));
+        // Sandboxed apps (Microsoft Excel, Microsoft Word, Numbers, etc.) cannot access files
+        // inside private temporary directories like /var/folders/ (causes LaunchServices error -54 permErr).
+        // Therefore we place remote files in ~/Downloads/Flashbrowse/<server>/ or the user-specified target_dir.
+        let dest_dir = if let Some(ref dir) = target_dir {
+            let trimmed = dir.trim();
+            if !trimmed.is_empty() {
+                crate::fs_commands::resolve_path(trimmed)
+            } else {
+                default_ssh_download_dir(&host)
+            }
+        } else {
+            default_ssh_download_dir(&host)
+        };
+
+        std::fs::create_dir_all(&dest_dir)
+            .map_err(|e| format!("Kunde inte skapa lokal mapp {}: {}", dest_dir.display(), e))?;
+
+        let local_target = dest_dir.join(safe_name);
         let local_str = local_target.to_string_lossy().to_string();
 
-        let mut args = vec!["-r".to_string()];
-        args.extend(scp_base_args());
         let remote_src = scp_remote_spec(&host, &remote_path);
+        let mut args = scp_base_args();
         args.push(remote_src);
         args.push(local_str.clone());
 
@@ -661,26 +682,46 @@ pub async fn ssh_open_file_locally(
 
         if !out.status.success() {
             let err = String::from_utf8_lossy(&out.stderr);
-            return Err(format!("Nedladdning misslyckades: {}", err));
+            // Fall back to preview cache if scp fails but file was already fetched
+            let cache_dir = std::env::temp_dir().join("flashbrowse_ssh_cache");
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            std::hash::Hash::hash(&(&host, &remote_path), &mut hasher);
+            let hash = std::hash::Hasher::finish(&hasher);
+            let cached_path = cache_dir.join(format!("{:x}_{}", hash, safe_name));
+            if cached_path.is_file() {
+                let _ = std::fs::copy(&cached_path, &local_target);
+            } else {
+                return Err(format!("Nedladdning misslyckades: {}", err));
+            }
         }
 
         #[cfg(target_os = "macos")]
         {
-            let opened = if let Some(ref app) = app_name {
-                if !app.is_empty() && app != "default" {
-                    match Command::new("open").args(["-a", app, &local_str]).status() {
-                        Ok(st) => st.success(),
-                        Err(_) => false,
+            let mut opened = false;
+            if let Some(ref app) = app_name {
+                let trimmed = app.trim();
+                if !trimmed.is_empty() && trimmed != "default" && trimmed != "standardprogram" {
+                    let res = Command::new("open").args(["-a", trimmed, &local_str]).output();
+                    if let Ok(out) = res {
+                        if out.status.success() {
+                            opened = true;
+                        } else {
+                            let err_msg = String::from_utf8_lossy(&out.stderr);
+                            eprintln!("open -a {} misslyckades: {}", trimmed, err_msg);
+                        }
                     }
-                } else {
-                    false
                 }
-            } else {
-                false
-            };
+            }
 
             if !opened {
-                let _ = Command::new("open").arg(&local_str).spawn();
+                let out = Command::new("open")
+                    .arg(&local_str)
+                    .output()
+                    .map_err(|e| format!("Kunde inte starta 'open': {}", e))?;
+                if !out.status.success() {
+                    let err_msg = String::from_utf8_lossy(&out.stderr);
+                    return Err(format!("Kunde inte öppna filen: {}", err_msg));
+                }
             }
         }
         #[cfg(not(target_os = "macos"))]

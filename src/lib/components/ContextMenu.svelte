@@ -45,7 +45,7 @@
     ChevronRight,
     GitBranch,
   } from 'lucide-svelte';
-  import { saveRemoteOrLocalItem, downloadDirectory, saveNotification, getSSHServerFolderName } from '../stores/downloadStore';
+  import { saveRemoteOrLocalItem, downloadDirectory, saveNotification, getSSHServerFolderName, getSSHDownloadDirectory } from '../stores/downloadStore';
   import {
     favoriteEditor,
     setFavoriteEditor,
@@ -74,42 +74,51 @@
   const isGenomics = isBamOrCram || ['vcf', 'bcf', 'bed', 'bw', 'bigwig'].includes(ext) || item.name.endsWith('.vcf.gz');
 
   const isTable = ['xlsx', 'xls', 'csv', 'tsv', 'tab', 'ods'].includes(ext) || item.name.endsWith('.csv.gz') || item.name.endsWith('.tsv.gz');
-  const isDoc = ['docx', 'doc', 'rtf', 'odt', 'txt', 'pages', 'pdf'].includes(ext);
-  const isCode = ['py', 'rs', 'sh', 'json', 'yaml', 'yml', 'toml', 'md', 'c', 'cpp', 'h', 'swift', 'js', 'ts', 'r', 'smk'].includes(ext);
+  const isDocx = ['docx', 'doc', 'rtf', 'odt', 'pages'].includes(ext);
+  const isPdf = ext === 'pdf';
+  const isCode = ['py', 'rs', 'sh', 'bash', 'zsh', 'json', 'yaml', 'yml', 'toml', 'md', 'c', 'cpp', 'cc', 'h', 'hpp', 'swift', 'js', 'ts', 'jsx', 'tsx', 'svelte', 'vue', 'html', 'css', 'scss', 'r', 'smk', 'nf', 'wdl', 'txt', 'log', 'conf', 'cfg', 'ini', 'xml', 'sql'].includes(ext);
 
   async function handleOpenWith(appName?: string) {
+    const host = sshHost;
+    const path = remotePath;
+    const name = item.name;
+    const isRemote = isSSH;
+    const isDir = item.is_dir;
+    const fullPath = item.path;
+    const targetDir = getSSHDownloadDirectory(host);
     onClose();
-    if (item.is_dir) {
-      if (!isSSH) {
-        await openFileWith(item.path, appName);
+
+    if (isDir) {
+      if (!isRemote) {
+        await openFileWith(fullPath, appName);
       }
       return;
     }
 
-    if (isSSH) {
+    if (isRemote) {
       const appDisplay = appName || 'standardprogram';
       saveNotification.set({
-        text: `⬇️ Hämtar ${item.name} för att öppna i ${appDisplay}...`,
+        text: `⬇️ Hämtar ${name} för att öppna i ${appDisplay}...`,
         success: true,
       });
       try {
-        const localPath = await sshOpenFileLocally(sshHost, remotePath, appName);
+        const localPath = await sshOpenFileLocally(host, path, appName, targetDir);
         saveNotification.set({
-          text: `🚀 Öppnade ${item.name} lokalt (${appDisplay})`,
+          text: `🚀 Öppnade ${name} lokalt (${appDisplay})`,
           path: localPath,
           success: true,
         });
         setTimeout(() => saveNotification.set(null), 4000);
       } catch (err: any) {
         saveNotification.set({
-          text: `❌ Kunde inte öppna lokalt: ${err}`,
+          text: `❌ Kunde inte öppna: ${err?.message || err}`,
           success: false,
         });
         setTimeout(() => saveNotification.set(null), 5000);
       }
     } else {
       try {
-        await openFileWith(item.path, appName);
+        await openFileWith(fullPath, appName);
       } catch (err: any) {
         alert(`Kunde inte öppna med ${appName || 'standardprogram'}: ${err}`);
       }
@@ -153,8 +162,11 @@
     if (editorName) {
       setFavoriteEditor(editorName);
     }
-    await openInFavoriteEditor(item.path, isSSH, currentPaneState.sshHost);
+    const path = item.path;
+    const isRemote = isSSH;
+    const host = currentPaneState.sshHost;
     onClose();
+    await openInFavoriteEditor(path, isRemote, host);
   }
 
   async function handleCopyPath() {
@@ -505,129 +517,217 @@
   <div class="h-px my-1 bg-[var(--border)]"></div>
 
   {#if !item.is_dir}
-    <!-- Smart primary action depending on file type -->
+    <!-- Smart contextual primary action based on file type -->
     {#if isTable}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400 cursor-pointer"
         on:click={() => handleOpenWith('Microsoft Excel')}
-        title="Öppna i Microsoft Excel lokalt på din Mac"
+        title="Öppna i Microsoft Excel"
       >
         <div class="flex items-center gap-2 min-w-0">
           <Table size={13} class="text-emerald-400 shrink-0" />
           <span class="truncate font-semibold">Öppna i Excel</span>
         </div>
-        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-700/60 text-emerald-300">
-          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
-        </span>
+        {#if isSSH}
+          <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-700/60 text-emerald-300">
+            SSH ➔ Mac
+          </span>
+        {/if}
       </button>
-    {:else if isDoc}
+    {:else if isDocx}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-left transition-colors font-medium text-blue-400"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-left transition-colors font-medium text-blue-400 cursor-pointer"
         on:click={() => handleOpenWith('Microsoft Word')}
-        title="Öppna i Microsoft Word lokalt på din Mac"
+        title="Öppna i Microsoft Word"
       >
         <div class="flex items-center gap-2 min-w-0">
           <FileText size={13} class="text-blue-400 shrink-0" />
           <span class="truncate font-semibold">Öppna i Word</span>
         </div>
-        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-950/80 border border-blue-700/60 text-blue-300">
-          {isSSH ? 'SSH ➔ Mac' : 'Lokalt'}
+        {#if isSSH}
+          <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-950/80 border border-blue-700/60 text-blue-300">
+            SSH ➔ Mac
+          </span>
+        {/if}
+      </button>
+    {:else if isPdf}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-rose-600 hover:text-white text-left transition-colors font-medium text-rose-400 cursor-pointer"
+        on:click={handleOpen}
+        title="Öppna PDF"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <FileText size={13} class="text-rose-400 shrink-0" />
+          <span class="truncate font-semibold">Öppna PDF</span>
+        </div>
+        {#if isSSH}
+          <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-rose-950/80 border border-rose-700/60 text-rose-300">
+            SSH ➔ Mac
+          </span>
+        {/if}
+      </button>
+    {:else if isCode}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
+        on:click={() => handleOpenInEditor()}
+        title="Öppna filen i {$favoriteEditor} (Kortkommando: ⌘E)"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <Code size={13} class="text-sky-400 shrink-0" />
+          <span class="truncate font-semibold">Öppna i {$favoriteEditor}</span>
+        </div>
+        <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300 shrink-0">
+          ⌘E
         </span>
       </button>
+    {:else}
+      <button
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors font-medium text-slate-200 cursor-pointer"
+        on:click={handleOpen}
+        title="Öppna filen"
+      >
+        <div class="flex items-center gap-2 min-w-0">
+          <ExternalLink size={13} class="shrink-0" />
+          <span class="truncate font-semibold">Öppna</span>
+        </div>
+        {#if isSSH}
+          <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-950/80 border border-amber-700/60 text-amber-300">
+            SSH ➔ Mac
+          </span>
+        {/if}
+      </button>
     {/if}
-
-    <!-- Primary Open in Favorite Editor -->
-    <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
-      on:click={() => handleOpenInEditor()}
-      title="Öppna {item.is_dir ? 'projektmappen' : 'filen'} i {$favoriteEditor} (Kortkommando: ⌘E)"
-    >
-      <div class="flex items-center gap-2 min-w-0">
-        <Code size={13} class="text-sky-400 shrink-0" />
-        <span class="truncate font-semibold">Öppna i {$favoriteEditor}</span>
-      </div>
-      <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300 shrink-0">
-        ⌘E
-      </span>
-    </button>
 
     <!-- Open with submenu -->
     <div class="relative">
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-200 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-300 cursor-pointer"
         on:click={() => (isOpenWithSubmenu = !isOpenWithSubmenu)}
       >
         <div class="flex items-center gap-2 min-w-0">
-          <ExternalLink size={13} class="text-amber-400 shrink-0" />
-          <span>Öppna lokalt med...</span>
+          <ExternalLink size={13} class="text-slate-400 shrink-0" />
+          <span>Öppna med...</span>
         </div>
         <ChevronRight size={12} class="text-slate-400 {isOpenWithSubmenu ? 'rotate-90' : ''} transition-transform" />
       </button>
 
       {#if isOpenWithSubmenu}
         <div class="bg-[var(--bg-panel)] border-y border-[var(--border)] py-1 pl-3 pr-2 text-[11px] flex flex-col gap-0.5">
-          <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Editorer</div>
-          {#each SUPPORTED_EDITORS as ed}
+          {#if isTable}
+            <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Kalkylark</div>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith('Microsoft Excel')}
+            >
+              <div class="flex items-center gap-2">
+                <Table size={12} />
+                <span>Microsoft Excel</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Excel</span>
+            </button>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-700 hover:text-white text-emerald-300 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith('Numbers')}
+            >
+              <div class="flex items-center gap-2">
+                <Table size={12} />
+                <span>Apple Numbers</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Numbers</span>
+            </button>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith(undefined)}
+            >
+              <div class="flex items-center gap-2">
+                <ExternalLink size={12} />
+                <span>Standardprogram</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Standard</span>
+            </button>
+            <div class="h-px my-1 bg-[var(--border)]"></div>
+            <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Text / Rådata</div>
             <button
               class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-slate-200 text-left transition-colors cursor-pointer"
-              on:click={() => handleOpenInEditor(ed.appName)}
-              title="Öppna och sätt {ed.name} som standard (⌘E)"
+              on:click={() => handleOpenInEditor('Visual Studio Code')}
             >
               <div class="flex items-center gap-2 min-w-0">
                 <Code size={12} class="text-sky-400 shrink-0" />
-                <span class="truncate">{ed.name}</span>
-                {#if $favoriteEditor === ed.appName}
-                  <span class="text-[8.5px] text-amber-400 font-bold shrink-0">★ Standard</span>
-                {/if}
+                <span class="truncate">Visual Studio Code</span>
               </div>
-              <span class="text-[9px] font-mono opacity-60 shrink-0">{ed.badge}</span>
+              <span class="text-[9px] font-mono opacity-60 shrink-0">VSCode</span>
             </button>
-          {/each}
-
-          <div class="h-px my-1 bg-[var(--border)]"></div>
-          <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Dokument & Kalkylark</div>
-          <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors cursor-pointer"
-            on:click={() => handleOpenWith('Microsoft Excel')}
-          >
-            <div class="flex items-center gap-2">
-              <Table size={12} />
-              <span>Microsoft Excel</span>
-            </div>
-            <span class="text-[9px] font-mono opacity-70">Excel</span>
-          </button>
-          <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors cursor-pointer"
-            on:click={() => handleOpenWith('Microsoft Word')}
-          >
-            <div class="flex items-center gap-2">
-              <FileText size={12} />
-              <span>Microsoft Word</span>
-            </div>
-            <span class="text-[9px] font-mono opacity-70">Word</span>
-          </button>
-          <button
-            class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors cursor-pointer"
-            on:click={() => handleOpenWith(undefined)}
-          >
-            <div class="flex items-center gap-2">
-              <ExternalLink size={12} />
-              <span>Standardprogram</span>
-            </div>
-            <span class="text-[9px] font-mono opacity-70">Default</span>
-          </button>
+          {:else if isDocx}
+            <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Dokument</div>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith('Microsoft Word')}
+            >
+              <div class="flex items-center gap-2">
+                <FileText size={12} />
+                <span>Microsoft Word</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Word</span>
+            </button>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith(undefined)}
+            >
+              <div class="flex items-center gap-2">
+                <ExternalLink size={12} />
+                <span>Standardprogram</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Standard</span>
+            </button>
+          {:else}
+            <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Editorer</div>
+            {#each SUPPORTED_EDITORS as ed}
+              <button
+                class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-slate-200 text-left transition-colors cursor-pointer"
+                on:click={() => handleOpenInEditor(ed.appName)}
+                title="Öppna och sätt {ed.name} som standard (⌘E)"
+              >
+                <div class="flex items-center gap-2 min-w-0">
+                  <Code size={12} class="text-sky-400 shrink-0" />
+                  <span class="truncate">{ed.name}</span>
+                  {#if $favoriteEditor === ed.appName}
+                    <span class="text-[8.5px] text-amber-400 font-bold shrink-0">★ Standard</span>
+                  {/if}
+                </div>
+                <span class="text-[9px] font-mono opacity-60 shrink-0">{ed.badge}</span>
+              </button>
+            {/each}
+            <div class="h-px my-1 bg-[var(--border)]"></div>
+            <button
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors cursor-pointer"
+              on:click={() => handleOpenWith(undefined)}
+            >
+              <div class="flex items-center gap-2">
+                <ExternalLink size={12} />
+                <span>Standardprogram</span>
+              </div>
+              <span class="text-[9px] font-mono opacity-70">Default</span>
+            </button>
+          {/if}
         </div>
       {/if}
     </div>
+  {:else}
+    <!-- Directory actions -->
+    <button
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
+      on:click={() => handleOpenInEditor()}
+      title="Öppna projektmappen i {$favoriteEditor} (Kortkommando: ⌘E)"
+    >
+      <div class="flex items-center gap-2 min-w-0">
+        <Code size={13} class="text-sky-400 shrink-0" />
+        <span class="truncate font-semibold">Öppna projekt i {$favoriteEditor}</span>
+      </div>
+      <span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-950/80 border border-sky-700/60 text-sky-300 shrink-0">
+        ⌘E
+      </span>
+    </button>
   {/if}
-
-  <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
-    on:click={handleOpen}
-  >
-    <ExternalLink size={13} />
-    <span>{isSSH && !item.is_dir ? 'Öppna lokalt (Standard)' : 'Öppna'}</span>
-  </button>
 
   {#if !isSSH}
     <button

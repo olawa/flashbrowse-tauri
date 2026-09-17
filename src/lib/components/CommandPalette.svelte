@@ -64,6 +64,7 @@
       { id: 'theme-cyber', title: 'Theme: Cyberpunk Neon', category: 'Utseende', icon: Palette, action: () => setTheme('cyberpunk') },
       { id: 'theme-retro', title: 'Theme: Retro Mac 1995', category: 'Utseende', icon: Monitor, action: () => setTheme('retro-mac') },
       { id: 'theme-kids', title: 'Theme: 🎈 Barn-läge (Kids Mode)', category: 'Utseende', icon: Baby, action: () => setTheme('kids-mode') },
+      { id: 'cgu-desk', title: 'CGU: Pipelineläge (DUCTUS-notiser och post)', category: 'Vy', icon: Activity, action: () => { window.location.href = '/desk'; } },
       { id: 'reset-layout', title: 'Layout: Återställ panelbredder till standard', category: 'Vy', icon: LayoutGrid, action: () => resetLayoutWidths() },
       { id: 'toggle-terminal', title: 'Toggle Terminal (Cmd+J)', category: 'Vy', icon: Terminal, action: () => toggleTerminal() },
       { id: 'toggle-dock', title: 'Toggle Terminal Dock Position', category: 'Vy', icon: Terminal, action: () => toggleTerminalDock() },
