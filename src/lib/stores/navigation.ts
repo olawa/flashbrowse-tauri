@@ -84,6 +84,8 @@ export async function castToSecondaryInspector(item: FileItem) {
   try {
     const { toggleDetachedInspector } = await import('../invoke');
     await toggleDetachedInspector(item.path);
+    const { emit } = await import('@tauri-apps/api/event');
+    await emit('inspector-cast-item', item);
   } catch (err) {
     console.error('Failed to cast to secondary inspector:', err);
   }

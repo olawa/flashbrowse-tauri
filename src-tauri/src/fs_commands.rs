@@ -910,14 +910,22 @@ pub fn quick_look(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+static LAST_CASTED_PATH: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+#[tauri::command]
+pub fn get_inspector_initial_path() -> Option<String> {
+    LAST_CASTED_PATH.lock().unwrap().clone()
+}
+
 #[tauri::command]
 pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
     use tauri::{Emitter, Manager};
-    let target_url = if let Some(ref p) = path {
-        format!("index.html?window=inspector&path={}", urlencoding::encode(p))
-    } else {
-        "index.html?window=inspector".to_string()
-    };
+
+    if let Some(ref p) = path {
+        if let Ok(mut lock) = LAST_CASTED_PATH.lock() {
+            *lock = Some(p.clone());
+        }
+    }
 
     if let Some(window) = app.get_webview_window("inspector") {
         if let Some(ref p) = path {
@@ -932,10 +940,10 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         let _win = tauri::WebviewWindowBuilder::new(
             &app,
             "inspector",
-            tauri::WebviewUrl::App(target_url.into()),
+            tauri::WebviewUrl::App("inspector/index.html".into()),
         )
         .title("Flashbrowse Inspector")
-        .inner_size(850.0, 650.0)
+        .inner_size(950.0, 720.0)
         .min_inner_size(500.0, 400.0)
         .build()
         .map_err(|e| e.to_string())?;

@@ -67,6 +67,7 @@ pub fn run() {
             ssh_open_file_locally,
             quick_look,
             toggle_detached_inspector,
+            get_inspector_initial_path,
             get_bam_header,
             generate_rsnap_snapshot,
             launch_rsnap,

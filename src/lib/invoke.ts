@@ -241,6 +241,10 @@ export async function toggleDetachedInspector(path?: string): Promise<void> {
   await invoke('toggle_detached_inspector', { path });
 }
 
+export async function getInspectorInitialPath(): Promise<string | null> {
+  return await invoke<string | null>('get_inspector_initial_path');
+}
+
 export async function getBamHeader(path: string): Promise<BamHeaderData> {
   return await invoke<BamHeaderData>('get_bam_header', { path });
 }

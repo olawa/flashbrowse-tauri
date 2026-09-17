@@ -1,7 +1,15 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { listen } from '@tauri-apps/api/event';
-  import { getPreview, calculateDirSize, revealInOs, openInDefault, toggleDetachedInspector } from '../invoke';
+  import {
+    getPreview,
+    sshGetPreview,
+    calculateDirSize,
+    revealInOs,
+    openInDefault,
+    toggleDetachedInspector,
+    getInspectorInitialPath,
+  } from '../invoke';
   import { renderMarkdown } from '../markdown';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
@@ -35,6 +43,7 @@
   let unlistenSync: (() => void) | null = null;
   let unlistenPathSync: (() => void) | null = null;
   let unlistenCastSync: (() => void) | null = null;
+  let unlistenCastItem: (() => void) | null = null;
   let castAlert = false;
 
   // View Mode Toggles
@@ -70,11 +79,20 @@
   }
 
   onMount(async () => {
-    // 1. Check if an initial path was provided in URL query
+    // 1. Check if an initial path was provided in URL query or from backend
     const urlParams = new URLSearchParams(window.location.search);
     const p = urlParams.get('path');
     if (p) {
       setItemFromPath(decodeURIComponent(p));
+    } else {
+      try {
+        const initPath = await getInspectorInitialPath();
+        if (initPath) {
+          setItemFromPath(initPath);
+        }
+      } catch (e) {
+        console.warn('Could not get initial path:', e);
+      }
     }
 
     // 2. Listen to live sync & cast events from the main window!
@@ -100,6 +118,15 @@
           setItemFromPath(event.payload, true);
         }
       });
+
+      unlistenCastItem = await listen<FileItem>('inspector-cast-item', async (event) => {
+        if (event.payload) {
+          currentItem = event.payload;
+          castAlert = true;
+          setTimeout(() => (castAlert = false), 2500);
+          await loadPreview(currentItem.path);
+        }
+      });
     } catch (e) {
       console.error('Failed to listen to inspector sync events:', e);
     }
@@ -109,6 +136,7 @@
     if (unlistenSync) unlistenSync();
     if (unlistenPathSync) unlistenPathSync();
     if (unlistenCastSync) unlistenCastSync();
+    if (unlistenCastItem) unlistenCastItem();
   });
 
   async function loadPreview(path: string) {
@@ -116,7 +144,15 @@
     isLoading = true;
     dirSummary = null;
     try {
-      preview = await getPreview(path);
+      if (path.startsWith('ssh://')) {
+        const clean = path.replace(/^ssh:\/\//, '');
+        const slashIdx = clean.indexOf('/');
+        const host = slashIdx > 0 ? clean.slice(0, slashIdx) : clean;
+        const remotePath = slashIdx > 0 ? clean.slice(slashIdx) : '/';
+        preview = await sshGetPreview(host, remotePath);
+      } else {
+        preview = await getPreview(path);
+      }
     } catch (e: any) {
       preview = {
         kind: 'error',
