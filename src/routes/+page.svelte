@@ -74,7 +74,11 @@
   let leftPreviewItem: FileItem | null = null;
   let rightPreviewItem: FileItem | null = null;
   let isPaletteOpen = false;
-  let isDetachedWindowMode = false;
+  let isDetachedWindowMode = typeof window !== 'undefined' && (
+    (window as any).__FLASHBROWSE_WINDOW__ === 'inspector' ||
+    (window as any).__TAURI_INTERNALS__?.metadata?.currentWindow?.label === 'inspector' ||
+    new URLSearchParams(window.location.search).get('window') === 'inspector'
+  );
 
   // Kids Mode Pin Lock
   let isPinModalOpen = false;
@@ -82,12 +86,18 @@
   let pinError = '';
 
   onMount(async () => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('window') === 'inspector') {
-        isDetachedWindowMode = true;
-        return;
-      }
+    if (!isDetachedWindowMode && typeof window !== 'undefined') {
+      try {
+        const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+        const win = getCurrentWebviewWindow();
+        if (win && win.label === 'inspector') {
+          isDetachedWindowMode = true;
+        }
+      } catch {}
+    }
+
+    if (isDetachedWindowMode) {
+      return;
     }
 
     await initNavigation();
@@ -167,6 +177,7 @@
   }
 
   function handleGlobalKeyDown(e: KeyboardEvent) {
+    if (isDetachedWindowMode) return;
     if (e.defaultPrevented) return;
     // Esc: Close Index View if open
     if (e.key === 'Escape' && $activeIndexMeta) {

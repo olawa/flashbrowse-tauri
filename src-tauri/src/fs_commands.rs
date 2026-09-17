@@ -940,11 +940,12 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         let _win = tauri::WebviewWindowBuilder::new(
             &app,
             "inspector",
-            tauri::WebviewUrl::App("inspector/index.html".into()),
+            tauri::WebviewUrl::default(),
         )
         .title("Flashbrowse Inspector")
         .inner_size(950.0, 720.0)
         .min_inner_size(500.0, 400.0)
+        .initialization_script("window.__FLASHBROWSE_WINDOW__ = 'inspector';")
         .build()
         .map_err(|e| e.to_string())?;
     }
