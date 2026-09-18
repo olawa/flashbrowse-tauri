@@ -158,6 +158,70 @@ export async function selectModelWithAutoEvict(newModel: string): Promise<void> 
   } catch {}
 }
 
+/**
+ * The model clean mode reaches for when nobody has picked one.
+ *
+ * Small enough to load quickly and answer questions about a file listing;
+ * anything installed is used if it is missing.
+ */
+export const PREFERRED_MODELS = ['gemma4:latest', 'gemma4', 'llama3:latest'];
+
+/**
+ * Make sure there is a daemon running and a model selected.
+ *
+ * Returns a line describing what had to be done, or null when everything was
+ * already in place. The model is warmed with an empty generate call so the
+ * first real question does not pay the load time.
+ */
+export async function ensureLocalModelReady(): Promise<string | null> {
+  let note: string | null = null;
+
+  if (!(await checkOllamaConnection())) {
+    const { ensureOllamaRunning } = await import('../invoke');
+    const startup = await ensureOllamaRunning();
+    if (!startup.running) {
+      throw new Error(startup.message);
+    }
+    note = startup.started ? startup.message : null;
+    if (!(await checkOllamaConnection())) {
+      throw new Error('Ollama svarar inte trots att processen kördes igång.');
+    }
+  }
+
+  const installed = get(installedModels).map((m) => m.name);
+  if (installed.length === 0) {
+    throw new Error('Ollama kör men har inga modeller. Hämta en med: ollama pull gemma4');
+  }
+
+  let model = get(selectedModel);
+  if (!model || !installed.includes(model)) {
+    model =
+      PREFERRED_MODELS.find((candidate) => installed.includes(candidate)) ??
+      installed.find((name) => PREFERRED_MODELS.some((p) => name.startsWith(p.split(':')[0]))) ??
+      installed[0];
+    selectedModel.set(model);
+    note = note ? `${note} · valde ${model}` : `Valde modellen ${model}`;
+  }
+
+  // Warm it: a loaded model answers the next question without the load wait.
+  const running = get(runningModels).map((m) => m.name);
+  if (!running.includes(model)) {
+    const endpoint = get(ollamaEndpoint);
+    try {
+      await fetch(`${endpoint}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, prompt: '', keep_alive: '10m', stream: false }),
+      });
+      note = note ? `${note} · laddade in den` : `Laddade in ${model}`;
+    } catch (e) {
+      console.warn('Kunde inte förladda modellen:', e);
+    }
+  }
+
+  return note;
+}
+
 export async function askOllamaStream(
   prompt: string,
   systemContext = '',

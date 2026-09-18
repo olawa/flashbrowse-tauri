@@ -332,6 +332,17 @@ export async function checkIgvStatus(port?: number): Promise<boolean> {
   return await invoke<boolean>('check_igv_status', { port });
 }
 
+export interface OllamaStartup {
+  running: boolean;
+  started: boolean;
+  message: string;
+}
+
+/** Start the local Ollama daemon if nothing is listening on its port. */
+export async function ensureOllamaRunning(): Promise<OllamaStartup> {
+  return await invoke<OllamaStartup>('ensure_ollama_running');
+}
+
 /** What kind of sequencing data an alignment holds. */
 export interface AlignmentClass {
   path: string;

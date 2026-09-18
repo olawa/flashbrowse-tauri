@@ -11,6 +11,7 @@
     getInspectorInitialPath,
   } from '../invoke';
   import { renderMarkdown } from '../markdown';
+  import ImagePreview from './ImagePreview.svelte';
   import BioInspector from './BioInspector.svelte';
   import ArchiveInspector from './ArchiveInspector.svelte';
   import FolderInspector from './FolderInspector.svelte';
@@ -435,11 +436,10 @@
 
       <!-- 7. IMAGE PREVIEW -->
       {:else if preview.kind === 'image' && preview.image_base64}
-        <div class="flex-1 flex items-center justify-center bg-black/50 p-6">
-          <img
+        <div class="flex-1 flex flex-col min-h-0">
+          <ImagePreview
             src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
             alt={currentItem.name}
-            class="max-h-[85vh] max-w-full object-contain rounded-lg shadow-2xl"
           />
         </div>
 

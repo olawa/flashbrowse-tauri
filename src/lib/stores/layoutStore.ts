@@ -41,3 +41,10 @@ export function resetLayoutWidths() {
   terminalHeight.set(240);
   terminalWidth.set(400);
 }
+
+/**
+ * The inspector is the point of clean mode - it is where the file is actually
+ * looked at - so it starts wider than the workstation's, and may grow further
+ * before the browser gets cramped.
+ */
+export const cleanInspectorWidth = createPersistentStore<number>('flashbrowse_clean_inspector_width', 680);

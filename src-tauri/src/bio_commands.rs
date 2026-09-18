@@ -1341,3 +1341,80 @@ mod tests {
         assert_eq!(writable_output_dir(Some(&dir)), dir);
     }
 }
+
+/// Whether a local Ollama daemon is answering on its port.
+///
+/// A TCP probe rather than an HTTP request: the frontend already speaks HTTP
+/// to Ollama, and this only needs to know whether there is anything there to
+/// speak to.
+fn ollama_port_open() -> bool {
+    use std::net::{SocketAddr, TcpStream};
+    use std::time::Duration;
+
+    let addr: SocketAddr = "127.0.0.1:11434".parse().expect("static address");
+    TcpStream::connect_timeout(&addr, Duration::from_millis(400)).is_ok()
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct OllamaStartup {
+    pub running: bool,
+    /// True when this call is what started it.
+    pub started: bool,
+    pub message: String,
+}
+
+/// Start the local Ollama daemon if it is not already up.
+///
+/// Loading a model is left to the frontend, which already talks to Ollama over
+/// HTTP and knows which model is wanted - this only makes sure there is a
+/// daemon listening.
+#[tauri::command]
+pub async fn ensure_ollama_running() -> Result<OllamaStartup, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        if ollama_port_open() {
+            return Ok(OllamaStartup {
+                running: true,
+                started: false,
+                message: "Ollama körde redan".to_string(),
+            });
+        }
+
+        let Some(binary) = find_tool_executable("ollama") else {
+            return Ok(OllamaStartup {
+                running: false,
+                started: false,
+                message: "Hittade inte ollama. Installera det (brew install ollama) eller starta det själv.".to_string(),
+            });
+        };
+
+        Command::new(binary)
+            .arg("serve")
+            .current_dir(writable_output_dir(None))
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| format!("Kunde inte starta ollama serve: {e}"))?;
+
+        // The daemon takes a moment to bind. Poll rather than sleep a fixed
+        // amount, so a fast machine is not made to wait.
+        for _ in 0..40 {
+            if ollama_port_open() {
+                return Ok(OllamaStartup {
+                    running: true,
+                    started: true,
+                    message: "Startade Ollama".to_string(),
+                });
+            }
+            std::thread::sleep(std::time::Duration::from_millis(250));
+        }
+
+        Ok(OllamaStartup {
+            running: false,
+            started: true,
+            message: "Ollama startades men svarade inte inom 10 sekunder".to_string(),
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

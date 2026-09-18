@@ -16,6 +16,7 @@
   import CodeViewer from './CodeViewer.svelte';
   import SpreadsheetViewer from './SpreadsheetViewer.svelte';
   import NotebookViewer from './NotebookViewer.svelte';
+  import ImagePreview from './ImagePreview.svelte';
   import AIInspector from './AIInspector.svelte';
   import NotesInspector from './NotesInspector.svelte';
   import MultiItemInspector from './MultiItemInspector.svelte';
@@ -768,13 +769,10 @@
 
       <!-- 7. IMAGE PREVIEW -->
       {:else if preview.kind === 'image' && preview.image_base64}
-        <div class="p-3 flex items-center justify-center bg-black/40 min-h-[180px]">
-          <img
-            src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
-            alt={item.name}
-            class="max-h-64 object-contain rounded shadow"
-          />
-        </div>
+        <ImagePreview
+          src="data:{preview.image_mime || 'image/png'};base64,{preview.image_base64}"
+          alt={item.name}
+        />
 
       <!-- 8. JUPYTER NOTEBOOK PREVIEW -->
       {:else if preview.kind === 'notebook'}

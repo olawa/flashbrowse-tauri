@@ -954,11 +954,15 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
         let mon_log_w = size.width as f64 / scale;
         let mon_log_h = size.height as f64 / scale;
 
+        // Use the screen's full height: this window exists to look at one file
+        // on a second monitor, and a tall window is what that is for. The menu
+        // bar and dock are the only things left room for.
+        const VERTICAL_CHROME: f64 = 64.0;
         let win_w = 1050.0f64.min(mon_log_w - 60.0);
-        let win_h = 820.0f64.min(mon_log_h - 80.0);
+        let win_h = (mon_log_h - VERTICAL_CHROME).max(400.0);
 
         let target_x = mon_log_x + ((mon_log_w - win_w) / 2.0).max(30.0);
-        let target_y = mon_log_y + ((mon_log_h - win_h) / 2.0).max(30.0);
+        let target_y = mon_log_y + (VERTICAL_CHROME / 2.0);
 
         (Some((target_x, target_y)), (win_w, win_h))
     } else {
@@ -979,6 +983,11 @@ pub fn toggle_detached_inspector(app: tauri::AppHandle, path: Option<String>) ->
             };
             if !is_on_target {
                 let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(tx, ty)));
+                // Resize too: a window built before this sizing existed would
+                // otherwise keep its old, shorter height forever.
+                let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+                    win_size.0, win_size.1,
+                )));
             }
         }
         if !window.is_visible().unwrap_or(false) {
@@ -1017,6 +1026,48 @@ struct CGPoint {
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     fn CGWarpMouseCursorPosition(new_cursor_position: CGPoint) -> i32;
+    /// After a warp the system stops associating the physical mouse with the
+    /// cursor for about a quarter of a second. Re-associating immediately
+    /// makes the next movement take effect from the new position.
+    fn CGAssociateMouseAndMouseCursorPosition(connected: i32) -> i32;
+    fn CGEventCreateMouseEvent(
+        source: *const std::ffi::c_void,
+        mouse_type: u32,
+        mouse_cursor_position: CGPoint,
+        mouse_button: u32,
+    ) -> *const std::ffi::c_void;
+    fn CGEventPost(tap: u32, event: *const std::ffi::c_void);
+    fn CFRelease(cf: *const std::ffi::c_void);
+}
+
+/// Move the cursor and make it visible there straight away.
+///
+/// `CGWarpMouseCursorPosition` alone moves the cursor without telling anything
+/// that it moved: the pointer stays drawn where it was until the user nudges
+/// the mouse, which reads as the pointer having vanished. Posting a
+/// mouse-moved event at the destination redraws it and lets the window under
+/// it update its hover state.
+#[cfg(target_os = "macos")]
+fn warp_cursor(point: CGPoint) {
+    const K_CG_EVENT_MOUSE_MOVED: u32 = 5;
+    const K_CG_HID_EVENT_TAP: u32 = 0;
+    const K_CG_MOUSE_BUTTON_LEFT: u32 = 0;
+
+    unsafe {
+        CGWarpMouseCursorPosition(point);
+        CGAssociateMouseAndMouseCursorPosition(1);
+
+        let event = CGEventCreateMouseEvent(
+            std::ptr::null(),
+            K_CG_EVENT_MOUSE_MOVED,
+            point,
+            K_CG_MOUSE_BUTTON_LEFT,
+        );
+        if !event.is_null() {
+            CGEventPost(K_CG_HID_EVENT_TAP, event);
+            CFRelease(event);
+        }
+    }
 }
 
 #[tauri::command]
@@ -1035,9 +1086,7 @@ pub fn warp_mouse_to_client_pos(
             let screen_x = (win_pos.x as f64 / scale) + client_x;
             let screen_y = (win_pos.y as f64 / scale) + client_y;
 
-            unsafe {
-                CGWarpMouseCursorPosition(CGPoint { x: screen_x, y: screen_y });
-            }
+            warp_cursor(CGPoint { x: screen_x, y: screen_y });
             let _ = window.set_focus();
         }
     }
@@ -1062,9 +1111,7 @@ pub fn toggle_mouse_between_windows(app: tauri::AppHandle) -> Result<(), String>
             let center_x = (pos.x as f64 + size.width as f64 / 2.0) / scale;
             let center_y = (pos.y as f64 + size.height as f64 / 2.0) / scale;
 
-            unsafe {
-                CGWarpMouseCursorPosition(CGPoint { x: center_x, y: center_y });
-            }
+            warp_cursor(CGPoint { x: center_x, y: center_y });
             let _ = target.set_focus();
         }
     }

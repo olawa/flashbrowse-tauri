@@ -37,6 +37,7 @@
     dualInspectorWidth,
     terminalHeight,
     terminalWidth,
+    cleanInspectorWidth,
   } from '$lib/stores/layoutStore';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
   import Sidebar from '$lib/components/Sidebar.svelte';
@@ -61,7 +62,14 @@
   import type { FileItem, SearchMatch } from '$lib/types';
   import { get } from 'svelte/store';
   import { openInDefault } from '$lib/invoke';
-  import { askOllamaStream, isOllamaOnline, selectedModel, isAiGenerating, aiChatMessages } from '$lib/stores/ollamaStore';
+  import {
+    askOllamaStream,
+    ensureLocalModelReady,
+    isOllamaOnline,
+    selectedModel,
+    isAiGenerating,
+    aiChatMessages,
+  } from '$lib/stores/ollamaStore';
   import {
     Lock,
     Unlock,
@@ -91,6 +99,8 @@
   let cleanAnswer = '';
   let cleanAskError = '';
   let cleanAskSeconds: number | null = null;
+  /** What had to be started or loaded before the question could be asked. */
+  let cleanStartupNote = '';
 
   $: cleanRootLabel = (() => {
     const path = $leftPane.currentPath;
@@ -136,8 +146,12 @@
     cleanAskError = '';
     cleanAskSeconds = null;
 
-    if (!$isOllamaOnline || !$selectedModel) {
-      cleanAskError = 'Ingen lokal modell är igång. Starta Ollama och välj en modell i pro-läget.';
+    // Starting Ollama and loading a model is work the app can do itself; being
+    // told to go and do it by hand is not an answer to a question.
+    try {
+      cleanStartupNote = (await ensureLocalModelReady()) ?? '';
+    } catch (e: any) {
+      cleanAskError = String(e?.message ?? e);
       return;
     }
 
@@ -162,6 +176,7 @@
   }
 
   function closeCleanAnswer() {
+    cleanStartupNote = '';
     cleanQuestion = '';
     cleanAnswer = '';
     cleanAskError = '';
@@ -226,6 +241,29 @@
 
   let lastFocusedZone: 'list' | 'inspector' = 'list';
 
+  // Where the pointer was when it last left each zone, so toggling back puts
+  // it where the user left it rather than at a computed spot in the middle.
+  let pointerHome: { list: { x: number; y: number } | null; inspector: { x: number; y: number } | null } = {
+    list: null,
+    inspector: null,
+  };
+
+  function rememberPointer(e: MouseEvent) {
+    const inspectorEl = document.querySelector('[data-inspector-root="true"]');
+    const zone = inspectorEl && inspectorEl.contains(e.target as Node) ? 'inspector' : 'list';
+    pointerHome[zone] = { x: e.clientX, y: e.clientY };
+  }
+
+  /** A remembered spot, if it is still inside the element it belongs to. */
+  function homeInside(el: HTMLElement | null, zone: 'list' | 'inspector') {
+    const home = pointerHome[zone];
+    if (!el || !home) return null;
+    const rect = el.getBoundingClientRect();
+    const inside =
+      home.x >= rect.left && home.x <= rect.right && home.y >= rect.top && home.y <= rect.bottom;
+    return inside ? home : null;
+  }
+
   async function toggleFocusAndPointerBetweenListAndInspector() {
     // 1. If Inspector is detached in its own window
     if ($isInspectorDetached) {
@@ -246,8 +284,9 @@
 
     if (lastFocusedZone === 'list') {
       const rect = inspectorEl.getBoundingClientRect();
-      const clientX = rect.left + rect.width / 2;
-      const clientY = Math.min(rect.top + 220, rect.top + rect.height / 2);
+      const home = homeInside(inspectorEl, 'inspector');
+      const clientX = home?.x ?? rect.left + rect.width / 2;
+      const clientY = home?.y ?? Math.min(rect.top + 220, rect.top + rect.height / 2);
       try {
         const { warpMouseToClientPos } = await import('$lib/invoke');
         await warpMouseToClientPos('main', clientX, clientY);
@@ -259,8 +298,9 @@
     } else {
       const targetEl = fileTableEl || document.body;
       const rect = targetEl.getBoundingClientRect();
-      const clientX = rect.left + Math.min(250, rect.width / 2);
-      const clientY = Math.min(rect.top + 220, rect.top + rect.height / 2);
+      const home = homeInside(targetEl, 'list');
+      const clientX = home?.x ?? rect.left + Math.min(250, rect.width / 2);
+      const clientY = home?.y ?? Math.min(rect.top + 220, rect.top + rect.height / 2);
       try {
         const { warpMouseToClientPos } = await import('$lib/invoke');
         await warpMouseToClientPos('main', clientX, clientY);
@@ -442,7 +482,7 @@
   }
 </script>
 
-<svelte:window on:keydown={handleGlobalKeyDown} />
+<svelte:window on:keydown={handleGlobalKeyDown} on:mousemove={rememberPointer} />
 
 {#if isDetachedWindowMode}
   <!-- Standalone Detached Inspector Window View -->
@@ -473,6 +513,7 @@
           error={cleanAskError}
           seconds={cleanAskSeconds}
           modelName={$selectedModel}
+          startupNote={cleanStartupNote}
           onClose={closeCleanAnswer}
         />
       {/if}
@@ -503,12 +544,12 @@
 
         <ResizeHandle
           direction="vertical"
-          onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
-          onReset={() => inspectorWidth.set(452)}
+          onResize={(delta) => cleanInspectorWidth.update((w) => Math.max(320, Math.min(1200, w - delta)))}
+          onReset={() => cleanInspectorWidth.set(680)}
         />
         <div
           class="h-full shrink-0 flex flex-col bg-[var(--bg-base)] border-l border-[var(--border)]"
-          style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+          style="width: {$cleanInspectorWidth}px; min-width: 320px; max-width: 1200px;"
         >
           <Inspector item={leftPreviewItem} titlePrefix="Fil" />
         </div>

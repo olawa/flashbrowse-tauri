@@ -50,6 +50,7 @@ pub fn run() {
             cancel_transfer,
             transfer_backend,
             find_companions,
+            ensure_ollama_running,
             find_related_bams,
             classify_alignments,
             qc_status,

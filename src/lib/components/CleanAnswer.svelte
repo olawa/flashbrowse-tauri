@@ -10,6 +10,8 @@
   /** Elapsed time, so the cost of asking is visible. */
   export let seconds: number | null = null;
   export let modelName = '';
+  /** What the app had to start or load before it could ask. */
+  export let startupNote = '';
   export let onClose: () => void;
 
   // The frame and the label are the point: an answer from a model must never
@@ -22,7 +24,7 @@
     <span class="text-[11px] font-semibold uppercase tracking-wider text-blue-300 shrink-0">Fråga</span>
     <span class="flex-1 min-w-0 truncate text-xs text-[var(--text-primary)]">{question}</span>
     {#if modelName}
-      <span class="shrink-0 text-[10px] font-mono text-blue-300/70">
+      <span class="shrink-0 text-[10px] font-mono text-blue-300/70" title={startupNote}>
         {modelName}{seconds !== null ? ` · ${seconds.toFixed(1)} s` : ''}
       </span>
     {/if}
@@ -47,7 +49,7 @@
     {:else if isGenerating}
       <div class="flex items-center gap-2 text-[var(--text-muted)]">
         <div class="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-        <span>Läser och svarar…</span>
+        <span>{startupNote ? `${startupNote} — läser och svarar…` : 'Läser och svarar…'}</span>
       </div>
     {/if}
   </div>

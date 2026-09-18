@@ -129,7 +129,6 @@
           <button
             class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isExpanded ? 'bg-[var(--bg-hover)] text-white' : ''}"
             on:click={(e) => navigate(node.path, e)}
-            title="{node.path} (Klicka för att hoppa hit)"
           >
             <Folder size={13} class="shrink-0 text-amber-400 group-hover:text-amber-300" />
             <span class="truncate flex-1 font-medium text-xs">{node.name}</span>
@@ -160,7 +159,6 @@
                   <button
                     class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isL2Expanded ? 'bg-[var(--bg-hover)] text-white' : ''}"
                     on:click={(e) => navigate(child.path, e)}
-                    title="{child.path} (Klicka för att hoppa hit)"
                   >
                     <Folder size={11} class="shrink-0 text-amber-400/80 group-hover:text-amber-300" />
                     <span class="truncate flex-1 text-[11.5px]">{child.name}</span>
@@ -180,7 +178,6 @@
                         <button
                           class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-secondary)] hover:text-white text-left text-[11px] cursor-pointer"
                           on:click={(e) => navigate(grandchild.path, e)}
-                          title="{grandchild.path} (Klicka för att hoppa hit)"
                         >
                           <Folder size={10} class="shrink-0 text-amber-400/60" />
                           <span class="truncate flex-1">{grandchild.name}</span>
