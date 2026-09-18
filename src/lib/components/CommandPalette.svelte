@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { setTheme } from '../stores/theme';
   import { resetLayoutWidths } from '../stores/layoutStore';
-  import { isDualInspector, isDualPane, showHiddenFiles, navigatePane, activePaneId, leftPane, rightPane } from '../stores/navigation';
+  import { isDualInspector, isDualPane, showHiddenFiles, navigatePane, activePaneId, leftPane, rightPane, setLayoutMode } from '../stores/navigation';
   import { isTerminalOpen, toggleTerminal, toggleTerminalDock } from '../stores/terminal';
   import { isGenomicsHubOpen, addTracksToHub, isRsnapServerRunning } from '../stores/genomicsStore';
   import { getHomeDirectory, deepSearch, startRsnapServer, stopRsnapServer, launchRsnap, sendToIgv } from '../invoke';
@@ -67,6 +67,8 @@
       { id: 'reset-layout', title: 'Layout: Återställ panelbredder till standard', category: 'Vy', icon: LayoutGrid, action: () => resetLayoutWidths() },
       { id: 'toggle-terminal', title: 'Toggle Terminal (Cmd+J)', category: 'Vy', icon: Terminal, action: () => toggleTerminal() },
       { id: 'toggle-dock', title: 'Toggle Terminal Dock Position', category: 'Vy', icon: Terminal, action: () => toggleTerminalDock() },
+      { id: 'layout-clean', title: 'Läge: Clean (en filbrowser, sökfältet i centrum)', category: 'Vy', icon: LayoutGrid, action: () => setLayoutMode('clean') },
+      { id: 'layout-pro', title: 'Läge: Pro (två paneler, terminal, bioinformatik)', category: 'Vy', icon: LayoutGrid, action: () => setLayoutMode('pro') },
       { id: 'toggle-panes', title: 'Växla mellan en och två filbrowsers (⌘⇧D)', category: 'Vy', icon: LayoutGrid, action: () => isDualPane.update((v) => { if (v) activePaneId.set('left'); return !v; }) },
       { id: 'toggle-inspector', title: 'Toggle Dual Inspector', category: 'Vy', icon: LayoutGrid, action: () => isDualInspector.update((v) => !v) },
       { id: 'toggle-dotfiles', title: 'Toggle Hidden Files', category: 'Vy', icon: Eye, action: () => showHiddenFiles.update((v) => !v) },

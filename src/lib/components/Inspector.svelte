@@ -19,7 +19,7 @@
   import AIInspector from './AIInspector.svelte';
   import NotesInspector from './NotesInspector.svelte';
   import MultiItemInspector from './MultiItemInspector.svelte';
-  import { leftPane, rightPane, activePaneId, activeHoveredItem } from '../stores/navigation';
+  import { leftPane, rightPane, activePaneId, activeHoveredItem, layoutMode } from '../stores/navigation';
   import { isOllamaOnline } from '../stores/ollamaStore';
   import type { FileItem, PreviewContent, DirectorySummary } from '../types';
   import {
@@ -176,7 +176,12 @@
   }
 
   $: ext = item?.extension.toLowerCase() || '';
-  $: isBam = !!item && (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
+  // Clean mode has no genomics: a BAM there is a large binary file like any
+  // other, previewed the ordinary way rather than opened in the BAM inspector.
+  $: isBam =
+    $layoutMode !== 'clean' &&
+    !!item &&
+    (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
   $: isArchive = !!item && (ext === 'zip' || ext === 'tar' || ext === 'tgz' || item.name.endsWith('.tar.gz') || item.name.endsWith('.tar.bz2') || item.name.endsWith('.tar.xz'));
 
   $: if (item) {

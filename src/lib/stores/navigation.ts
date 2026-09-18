@@ -54,6 +54,24 @@ export const rightPane = writable<PaneState>(createDefaultPaneState());
 export type InspectorPreset = 'center' | 'right' | 'dual' | 'none';
 
 export const activePaneId = writable<'left' | 'right'>('left');
+/**
+ * Which shell the app wears.
+ *
+ * `pro` is everything: two browsers, inspector presets, the terminal, the
+ * bioinformatics tools. `clean` is one browser with the search field as the
+ * main surface - the layout for someone who is only trying to find a file.
+ * It is a layout, not a theme: both modes use the same palette.
+ */
+export type LayoutMode = 'pro' | 'clean';
+
+export const layoutMode = createPersistentStore<LayoutMode>('flashbrowse_layout_mode', 'pro');
+
+export function setLayoutMode(mode: LayoutMode) {
+  layoutMode.set(mode);
+  // Clean has one browser, so the keyboard must not act on a hidden one.
+  if (mode === 'clean') activePaneId.set('left');
+}
+
 /** One or two file browsers. Remembered between sessions. */
 export const isDualPane = createPersistentStore<boolean>('flashbrowse_dual_pane', true);
 export const isDualInspector = writable<boolean>(false);

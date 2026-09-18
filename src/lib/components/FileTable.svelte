@@ -12,6 +12,7 @@
     refreshPane,
     activeHoveredItem,
     isInspectorLocked,
+    layoutMode,
     castToSecondaryInspector,
     triggerInspectorScroll,
     reloadPane,
@@ -1378,8 +1379,13 @@
   role="region"
   aria-label="File table for {paneId} pane"
 >
-  <!-- Search / Quick Filter & View Mode Bar -->
-  <div class="px-2.5 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex flex-wrap items-center justify-between gap-2 shrink-0">
+  <!-- Search / Quick Filter & View Mode Bar.
+       Clean mode has its own search field above the list, and none of the
+       grouping or genomics controls, so the whole bar stands down there. -->
+  <div
+    class="px-2.5 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] flex flex-wrap items-center justify-between gap-2 shrink-0"
+    class:hidden={$layoutMode === 'clean'}
+  >
     <div class="relative flex-1 min-w-0 flex items-center">
       <Search size={13} class="text-[var(--text-muted)] absolute left-2 pointer-events-none" />
       <input

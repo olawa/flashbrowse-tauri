@@ -20,6 +20,9 @@
     cancelActiveTransfer,
     transferBetweenPanes,
     triggerInspectorScroll,
+    navigatePane,
+    layoutMode,
+    setLayoutMode,
   } from '$lib/stores/navigation';
   import {
     isTerminalOpen,
@@ -45,13 +48,20 @@
   import Terminal from '$lib/components/Terminal.svelte';
   import StashShelf from '$lib/components/StashShelf.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
+  import CleanSidebar from '$lib/components/CleanSidebar.svelte';
+  import CleanSearchBar from '$lib/components/CleanSearchBar.svelte';
+  import CleanSearchResults from '$lib/components/CleanSearchResults.svelte';
+  import CleanAnswer from '$lib/components/CleanAnswer.svelte';
   import GenomicsTrackHub from '$lib/components/GenomicsTrackHub.svelte';
   import { toggleStash } from '$lib/stores/stash';
   import { isGenomicsHubOpen } from '$lib/stores/genomicsStore';
   import { activeIndexMeta, closeIndexView, refreshCurrentIndex } from '$lib/stores/indexStore';
   import { saveNotification } from '$lib/stores/downloadStore';
   import { openInFavoriteEditor } from '$lib/stores/editorStore';
-  import type { FileItem } from '$lib/types';
+  import type { FileItem, SearchMatch } from '$lib/types';
+  import { get } from 'svelte/store';
+  import { openInDefault } from '$lib/invoke';
+  import { askOllamaStream, isOllamaOnline, selectedModel, isAiGenerating, aiChatMessages } from '$lib/stores/ollamaStore';
   import {
     Lock,
     Unlock,
@@ -70,6 +80,92 @@
     EyeOff,
     Terminal as TerminalIcon,
   } from 'lucide-svelte';
+
+  // MARK: - Clean mode
+  //
+  // The search field owns the main surface here, so its state lives with the
+  // shell rather than inside the browser pane.
+  let cleanMatches: SearchMatch[] | null = null;
+  let cleanSearchBar: CleanSearchBar;
+  let cleanQuestion = '';
+  let cleanAnswer = '';
+  let cleanAskError = '';
+  let cleanAskSeconds: number | null = null;
+
+  $: cleanRootLabel = (() => {
+    const path = $leftPane.currentPath;
+    if (!path) return 'mappen';
+    const name = path.split('/').filter(Boolean).pop();
+    return name || '/';
+  })();
+
+  /** A search hit shown as the inspector's subject. */
+  function searchMatchToItem(match: SearchMatch): FileItem {
+    const extension = match.is_dir ? '' : (match.name.split('.').pop() ?? '');
+    return {
+      name: match.name,
+      path: match.path,
+      is_dir: match.is_dir,
+      is_symlink: false,
+      size_bytes: 0,
+      formatted_size: match.formatted_size,
+      modified_timestamp: 0,
+      formatted_modified: '',
+      extension,
+      permissions: '',
+    } as FileItem;
+  }
+
+  function openSearchMatch(match: SearchMatch) {
+    if (match.is_dir) {
+      navigatePane('left', match.path);
+      cleanSearchBar?.clear();
+    } else {
+      openInDefault(match.path).catch((e) => console.warn('Kunde inte öppna:', e));
+    }
+  }
+
+  /**
+   * The model answers questions about content; it never navigates and never
+   * moves anything. The answer appears in its own framed panel, beside the
+   * files it is about.
+   */
+  async function askAboutFiles(question: string) {
+    cleanQuestion = question;
+    cleanAnswer = '';
+    cleanAskError = '';
+    cleanAskSeconds = null;
+
+    if (!$isOllamaOnline || !$selectedModel) {
+      cleanAskError = 'Ingen lokal modell är igång. Starta Ollama och välj en modell i pro-läget.';
+      return;
+    }
+
+    const started = performance.now();
+    const listing = $leftPane.items
+      .slice(0, 200)
+      .map((i) => `${i.is_dir ? 'MAPP' : 'FIL '} ${i.name} (${i.formatted_size}, ${i.formatted_modified})`)
+      .join('\n');
+
+    try {
+      await askOllamaStream(
+        question,
+        'Du svarar på frågor om filer i en mapp. Svara kort på svenska. Om listan inte räcker för att svara, säg det rakt ut i stället för att gissa.',
+        `Mapp: ${$leftPane.currentPath}\n\n${listing}`
+      );
+      const last = get(aiChatMessages).filter((m) => m.role === 'assistant').pop();
+      cleanAnswer = last?.content ?? '';
+      cleanAskSeconds = (performance.now() - started) / 1000;
+    } catch (e: any) {
+      cleanAskError = String(e?.message ?? e);
+    }
+  }
+
+  function closeCleanAnswer() {
+    cleanQuestion = '';
+    cleanAnswer = '';
+    cleanAskError = '';
+  }
 
   let leftPreviewItem: FileItem | null = null;
   let rightPreviewItem: FileItem | null = null;
@@ -351,6 +447,76 @@
 {#if isDetachedWindowMode}
   <!-- Standalone Detached Inspector Window View -->
   <DetachedInspectorView />
+{:else if $layoutMode === 'clean'}
+  <!-- Clean: one browser, the search field as the main surface, inspector to
+       the right. Same palette as pro - this is a layout, not a theme. -->
+  <div class="flex h-screen w-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
+    <div class="h-full shrink-0" style="width: 200px;">
+      <CleanSidebar />
+    </div>
+
+    <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+      <CleanSearchBar
+        bind:this={cleanSearchBar}
+        rootPath={$leftPane.currentPath}
+        rootLabel={cleanRootLabel}
+        isAsking={$isAiGenerating}
+        onResults={(matches) => (cleanMatches = matches)}
+        onAsk={askAboutFiles}
+      />
+
+      {#if cleanQuestion}
+        <CleanAnswer
+          question={cleanQuestion}
+          answer={cleanAnswer}
+          isGenerating={$isAiGenerating}
+          error={cleanAskError}
+          seconds={cleanAskSeconds}
+          modelName={$selectedModel}
+          onClose={closeCleanAnswer}
+        />
+      {/if}
+
+      <div class="flex-1 flex min-h-0 overflow-hidden">
+        <div class="flex-1 flex flex-col min-w-0 h-full">
+          {#if cleanMatches}
+            <div class="flex items-center gap-2 px-4 py-1.5 border-b border-[var(--border)] bg-[var(--bg-surface)] text-xs shrink-0">
+              <span class="text-[var(--text-secondary)]">Träffar i {cleanRootLabel}</span>
+              <button
+                class="ml-auto text-[11px] text-[var(--accent)] hover:underline"
+                on:click={() => cleanSearchBar?.clear()}
+              >
+                Tillbaka till mappen
+              </button>
+            </div>
+            <CleanSearchResults
+              matches={cleanMatches}
+              rootLabel={cleanRootLabel}
+              onSelect={(m) => (leftPreviewItem = searchMatchToItem(m))}
+              onOpen={(m) => openSearchMatch(m)}
+            />
+          {:else}
+            <Breadcrumb paneId="left" />
+            <FileTable paneId="left" onSelectPreview={(item) => (leftPreviewItem = item)} />
+          {/if}
+        </div>
+
+        <ResizeHandle
+          direction="vertical"
+          onResize={(delta) => inspectorWidth.update((w) => Math.max(280, Math.min(950, w - delta)))}
+          onReset={() => inspectorWidth.set(452)}
+        />
+        <div
+          class="h-full shrink-0 flex flex-col bg-[var(--bg-base)] border-l border-[var(--border)]"
+          style="width: {$inspectorWidth}px; min-width: 280px; max-width: 950px;"
+        >
+          <Inspector item={leftPreviewItem} titlePrefix="Fil" />
+        </div>
+      </div>
+    </div>
+
+    <StashShelf />
+  </div>
 {:else}
   <!-- Main Workstation Window -->
   <div class="flex h-screen w-screen bg-[var(--bg-base)] text-[var(--text-primary)] overflow-hidden font-sans select-none">
@@ -466,6 +632,16 @@
             <TerminalIcon size={13} class={$isTerminalOpen ? 'text-black' : 'text-amber-400'} />
             <span class="font-mono">Terminal</span>
             <kbd class="px-1 py-0.2 rounded text-[9px] font-mono {$isTerminalOpen ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-400'}">⌘J</kbd>
+          </button>
+
+          <!-- Leave the workstation for the stripped-down layout -->
+          <button
+            class="flex items-center gap-1 px-2 py-1 rounded border border-[#252d3d] bg-[#141822] text-slate-400 hover:text-white hover:border-[var(--accent)] text-[10.5px] shrink-0 transition-colors"
+            on:click={() => setLayoutMode('clean')}
+            title="Clean-läge: en filbrowser, sökfältet i centrum, inga bioinformatikverktyg"
+          >
+            <Square size={11} />
+            <span class="hidden md:inline">Clean</span>
           </button>
 
           <!-- Browser Count: one or two file panes -->
