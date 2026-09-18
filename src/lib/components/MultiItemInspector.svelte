@@ -215,6 +215,7 @@
   // by hand.
   $: qcCandidates = items.filter((i) => {
     if (i.is_dir) return false;
+    // Same rule the backend applies: rs-qc reads alignments and reads.
     return /\.(bam|cram)$/i.test(i.path) || /\.(fastq|fq)(\.gz)?$/i.test(i.path);
   });
 

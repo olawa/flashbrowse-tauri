@@ -239,9 +239,15 @@ fn results_for(path: &Path) -> Vec<QcResult> {
 }
 
 /// Which module fits this file, from its type and - for alignments - its header.
-fn suggested_module(path: &str) -> QcModule {
+///
+/// None means rs-qc has nothing to say about this file. Answering "dna" for a
+/// text file would put a QC button on something that can only fail.
+fn suggested_module(path: &str) -> Option<QcModule> {
     if is_fastq_path(path) {
-        return QcModule::Fastq;
+        return Some(QcModule::Fastq);
+    }
+    if !is_alignment_path(path) {
+        return None;
     }
 
     let samtools = find_tool_executable("samtools");
@@ -250,14 +256,14 @@ fn suggested_module(path: &str) -> QcModule {
             if out.status.success() {
                 let header = String::from_utf8_lossy(&out.stdout);
                 if classify_header(path, &header).read_type == ReadType::Rna {
-                    return QcModule::Rna;
+                    return Some(QcModule::Rna);
                 }
             }
         }
     }
     // Coverage QC is the useful default for a DNA alignment; `align` adds
     // nothing it does not already cover.
-    QcModule::Dna
+    Some(QcModule::Dna)
 }
 
 /// Report what QC exists for these files, and what would run for them.
@@ -274,7 +280,9 @@ pub async fn qc_status(paths: Vec<String>) -> Result<Vec<QcStatus>, String> {
                         .file_name()
                         .map(|n| n.to_string_lossy().to_string())
                         .unwrap_or_default(),
-                    suggested_module: suggested_module(&path).subcommand().to_string(),
+                    suggested_module: suggested_module(&path)
+                        .map(|m| m.subcommand().to_string())
+                        .unwrap_or_default(),
                     results: results_for(&resolved),
                     path,
                 }
@@ -358,7 +366,13 @@ pub async fn run_qc_batch(
 
             let path = resolve_path(raw);
             let path_str = path.to_string_lossy().to_string();
-            let module = forced.unwrap_or_else(|| suggested_module(&path_str));
+            let Some(module) = forced.or_else(|| suggested_module(&path_str)) else {
+                progress.failures.push(format!(
+                    "{}: rs-qc läser BAM, CRAM och FASTQ - inte den här filtypen",
+                    path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+                ));
+                continue;
+            };
             let (dir, stem) = output_prefix(&path);
 
             progress.files_done = index;
@@ -505,8 +519,16 @@ mod tests {
 
     #[test]
     fn reads_get_the_fastq_module_without_reading_a_header() {
-        assert_eq!(suggested_module("/data/reads_R1.fastq.gz"), QcModule::Fastq);
-        assert_eq!(suggested_module("/data/reads.fq"), QcModule::Fastq);
+        assert_eq!(suggested_module("/data/reads_R1.fastq.gz"), Some(QcModule::Fastq));
+        assert_eq!(suggested_module("/data/reads.fq"), Some(QcModule::Fastq));
+    }
+
+    #[test]
+    fn a_file_rs_qc_cannot_read_gets_no_module() {
+        // Without this, every text file in a listing offered a QC run that
+        // could only fail.
+        assert_eq!(suggested_module("/data/notes.txt"), None);
+        assert_eq!(suggested_module("/data/report.pdf"), None);
     }
 
     #[test]
