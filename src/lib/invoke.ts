@@ -16,7 +16,6 @@ import type {
   TabCompletionResult,
   TerminalOutput,
   TrackGenomeDetection,
-  DeskStatus,
 } from './types';
 
 export async function getHomeDirectory(): Promise<string> {
@@ -569,7 +568,3 @@ export async function toggleMouseBetweenWindows(): Promise<void> {
   await invoke('toggle_mouse_between_windows');
 }
 
-/** Läget i sekvenseringspipelinen plus sammanfattad post, ur CGU-lagret. */
-export async function cguDeskStatus(days = 7, store?: string): Promise<DeskStatus> {
-  return await invoke<DeskStatus>('cgu_desk_status', { days, store });
-}
