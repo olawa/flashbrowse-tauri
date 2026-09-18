@@ -10,6 +10,7 @@
     clickMode,
     smartHoverPreview,
     companionMode,
+    connectToSshHost,
   } from '../stores/navigation';
   import { currentTheme, setTheme, isKidsMode } from '../stores/theme';
   import DiskBar from './DiskBar.svelte';
@@ -111,14 +112,14 @@
 
   function jumpTo(path: string, isSSH = false, host = '') {
     closeIndexView();
-    const paneId = $activePaneId;
     if (isSSH) {
-      const store = paneId === 'left' ? leftPane : rightPane;
-      store.update((s) => ({ ...s, isSSH: true, sshHost: host }));
-    } else {
-      const store = paneId === 'left' ? leftPane : rightPane;
-      store.update((s) => ({ ...s, isSSH: false }));
+      // A host gets its own pane, so the local folder stays on screen.
+      connectToSshHost(host, path);
+      return;
     }
+    const paneId = $activePaneId;
+    const store = paneId === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, isSSH: false }));
     navigatePane(paneId, path);
   }
 

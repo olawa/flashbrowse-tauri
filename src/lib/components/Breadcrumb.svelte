@@ -9,6 +9,7 @@
     rightPane,
     isDualInspector,
     activePaneId,
+    connectToSshHost,
   } from '../stores/navigation';
   import {
     ChevronRight,
@@ -176,10 +177,9 @@
   }
 
   function switchToSSH(host: string) {
-    const store = paneId === 'left' ? leftPane : rightPane;
-    store.update((s) => ({ ...s, isSSH: true, sshHost: host }));
+    // This menu belongs to one pane, so the host goes in that pane.
+    connectToSshHost(host, '~', paneId);
     isServerMenuOpen = false;
-    navigatePane(paneId, '~');
   }
 </script>
 

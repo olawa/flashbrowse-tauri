@@ -72,8 +72,38 @@ export function setLayoutMode(mode: LayoutMode) {
   if (mode === 'clean') activePaneId.set('left');
 }
 
-/** One or two file browsers. Remembered between sessions. */
-export const isDualPane = createPersistentStore<boolean>('flashbrowse_dual_pane', true);
+/**
+ * One or two file browsers. Remembered between sessions.
+ *
+ * One by default: two panes on the same folder is the same listing twice, and
+ * the width it costs is width the inspector could have had. The second pane
+ * appears when there is something to put in it - a remote host - or when it is
+ * asked for. The key is versioned because the old default was two, and a
+ * remembered `true` would otherwise outlive the decision.
+ */
+export const isDualPane = createPersistentStore<boolean>('flashbrowse_dual_pane_v2', false);
+
+/**
+ * Open a host in a browser, giving it a pane of its own.
+ *
+ * Local and remote side by side is what the second pane is for, so connecting
+ * opens one rather than replacing the folder the user was looking at. An
+ * explicit pane choice is honoured as it is.
+ */
+export function connectToSshHost(host: string, path = '~', paneId?: 'left' | 'right') {
+    let target = paneId ?? get(activePaneId);
+
+    if (!paneId && !get(isDualPane)) {
+        isDualPane.set(true);
+        // Keep what is on screen where it is and put the host beside it.
+        target = get(activePaneId) === 'left' ? 'right' : 'left';
+    }
+
+    const store = target === 'left' ? leftPane : rightPane;
+    store.update((s) => ({ ...s, isSSH: true, sshHost: host }));
+    activePaneId.set(target);
+    navigatePane(target, path);
+}
 export const isDualInspector = writable<boolean>(false);
 export const inspectorPreset = writable<InspectorPreset>('center');
 export const isInspectorDetached = writable<boolean>(false);
