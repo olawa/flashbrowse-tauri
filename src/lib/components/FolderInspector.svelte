@@ -187,7 +187,7 @@
     if (categoryCounts.fastq > 0) list.push({ key: 'fastq', label: `${categoryCounts.fastq} FASTQ`, count: categoryCounts.fastq, icon: Dna, color: 'text-cyan-400 bg-cyan-950/40 border-cyan-800/60' });
     if (categoryCounts.table > 0) list.push({ key: 'table', label: `${categoryCounts.table} Tabeller`, count: categoryCounts.table, icon: Table, color: 'text-blue-400 bg-blue-950/40 border-blue-800/60' });
     if (categoryCounts.code > 0) list.push({ key: 'code', label: `${categoryCounts.code} Kod/Script`, count: categoryCounts.code, icon: Code, color: 'text-yellow-400 bg-yellow-950/40 border-yellow-800/60' });
-    if (categoryCounts.text > 0) list.push({ key: 'text', label: `${categoryCounts.text} Dokument`, count: categoryCounts.text, icon: FileText, color: 'text-slate-300 bg-slate-800/40 border-slate-700/60' });
+    if (categoryCounts.text > 0) list.push({ key: 'text', label: `${categoryCounts.text} Dokument`, count: categoryCounts.text, icon: FileText, color: 'text-[var(--text-primary)] bg-slate-800/40 border-slate-700/60' });
     if (categoryCounts.image > 0) list.push({ key: 'image', label: `${categoryCounts.image} Bilder`, count: categoryCounts.image, icon: ImageIcon, color: 'text-pink-400 bg-pink-950/40 border-pink-800/60' });
     if (categoryCounts.archive > 0) list.push({ key: 'archive', label: `${categoryCounts.archive} Arkiv`, count: categoryCounts.archive, icon: Archive, color: 'text-orange-400 bg-orange-950/40 border-orange-800/60' });
     return list;
@@ -244,13 +244,13 @@
     if (['zip', 'tar', 'gz', 'tgz'].includes(ext)) {
       return { icon: Archive, color: 'text-orange-400' };
     }
-    return { icon: FileText, color: 'text-slate-400' };
+    return { icon: FileText, color: 'text-[var(--text-secondary)]' };
   }
 </script>
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-[#0d0f14] text-slate-200">
+<div class="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)]">
   <!-- Folder Overview Header -->
-  <div class="px-3 py-2.5 bg-[#151922] border-b border-[#252d3d] flex flex-col gap-2">
+  <div class="px-3 py-2.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex flex-col gap-2">
     <!-- Title & Navigation -->
     <div class="flex items-start justify-between gap-2">
       <div class="flex items-start gap-2 min-w-0 flex-1">
@@ -259,17 +259,17 @@
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
-            <span class="font-bold text-xs text-white break-all select-text" title={item.path}>
+            <span class="font-bold text-xs text-[var(--text-primary)] break-all select-text" title={item.path}>
               {item.name}
             </span>
             <span class="px-1.5 py-0.2 rounded bg-amber-950 text-amber-400 text-[10px] font-mono border border-amber-800/80 shrink-0">
               MAPP
             </span>
           </div>
-          <div class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+          <div class="text-[11px] text-[var(--text-secondary)] font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
             <span>{children.length} objekt ({folderCount} mappar, {fileCount} filer)</span>
             {#if hiddenCount > 0}
-              <span class="text-slate-500 font-normal">• {hiddenCount} dolda</span>
+              <span class="text-[var(--text-muted)] font-normal">• {hiddenCount} dolda</span>
             {/if}
           </div>
         </div>
@@ -286,24 +286,24 @@
     </div>
 
     <!-- Mode Toggle: Summering vs Fillista -->
-    <div class="flex items-center justify-between pt-1 border-t border-[#252d3d]/60">
-      <div class="flex items-center p-0.5 rounded-lg bg-[#0e1015] border border-[#252d3d]">
+    <div class="flex items-center justify-between pt-1 border-t border-[var(--border)]/60">
+      <div class="flex items-center p-0.5 rounded-lg bg-[var(--bg-base)] border border-[var(--border)]">
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'summary' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-white'}"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'summary' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-white'}"
           on:click={() => (viewMode = 'summary')}
         >
           <LayoutDashboard size={11} />
           <span>Summering</span>
         </button>
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'list' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-white'}"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'list' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-white'}"
           on:click={() => (viewMode = 'list')}
         >
           <List size={11} />
           <span>Fillista ({children.length})</span>
         </button>
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'notes' ? 'bg-amber-600 text-white shadow-sm font-semibold' : 'text-slate-400 hover:text-amber-400'}"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'notes' ? 'bg-amber-600 text-[var(--text-primary)] shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-amber-400'}"
           on:click={() => (viewMode = 'notes')}
         >
           <NotebookPen size={11} />
@@ -314,7 +314,7 @@
       <!-- Quick Action Buttons -->
       <div class="flex items-center gap-1">
         <button
-          class="flex items-center gap-1 px-2 py-1 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-slate-300 hover:text-white text-[10.5px] transition-colors"
+          class="flex items-center gap-1 px-2 py-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-[var(--text-primary)] hover:text-[var(--text-primary)] text-[10.5px] transition-colors"
           on:click={handleOpenTerminal}
           title="Öppna integrerad terminal och kör cd till denna mapp"
         >
@@ -324,7 +324,7 @@
 
         {#if fileCount > 0}
           <button
-            class="flex items-center gap-1 px-2 py-1 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-slate-300 hover:text-white text-[10.5px] transition-colors {stashedDone ? 'border-emerald-500 text-emerald-300' : ''}"
+            class="flex items-center gap-1 px-2 py-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-[var(--text-primary)] hover:text-[var(--text-primary)] text-[10.5px] transition-colors {stashedDone ? 'border-emerald-500 text-emerald-300' : ''}"
             on:click={handleStashAll}
             title="Lägg alla filer i denna mapp i Samlingsfacket (Stash Shelf)"
           >
@@ -344,7 +344,7 @@
   <!-- Content Section -->
   <div class="flex-1 overflow-auto p-3 text-xs select-text space-y-3.5">
     {#if isLoadingChildren}
-      <div class="h-40 flex items-center justify-center text-slate-400 gap-2">
+      <div class="h-40 flex items-center justify-center text-[var(--text-secondary)] gap-2">
         <RefreshCw size={14} class="animate-spin text-[var(--accent)]" />
         <span>Läser in mappöversikt...</span>
       </div>
@@ -358,7 +358,7 @@
       <div class="space-y-3">
         <!-- 1. Content Distribution Cards -->
         <div>
-          <div class="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-1.5 flex items-center gap-1">
+          <div class="text-[11px] font-bold tracking-wider text-[var(--text-secondary)] uppercase mb-1.5 flex items-center gap-1">
             <TrendingUp size={12} class="text-[var(--accent)]" />
             <span>Innehållsfördelning</span>
           </div>
@@ -382,9 +382,9 @@
             {/each}
 
             {#if hiddenCount > 0}
-              <div class="flex items-center justify-between p-2 rounded-lg border border-slate-800 bg-slate-900/50 text-slate-400">
+              <div class="flex items-center justify-between p-2 rounded-lg border border-slate-800 bg-slate-900/50 text-[var(--text-secondary)]">
                 <div class="flex items-center gap-1.5 truncate">
-                  <EyeOff size={13} class="shrink-0 text-slate-500" />
+                  <EyeOff size={13} class="shrink-0 text-[var(--text-muted)]" />
                   <span class="font-medium text-[11px]">Dolda filer</span>
                 </div>
                 <span class="font-bold font-mono text-xs">{hiddenCount}</span>
@@ -396,12 +396,12 @@
         <!-- 2. Top Largest Files -->
         {#if topLargestFiles.length > 0}
           <div class="space-y-1.5">
-            <div class="text-[11px] font-bold tracking-wider text-slate-400 uppercase flex items-center justify-between">
+            <div class="text-[11px] font-bold tracking-wider text-[var(--text-secondary)] uppercase flex items-center justify-between">
               <span>Största filerna i mappen</span>
-              <span class="text-[10px] text-slate-500 font-normal">Topp {topLargestFiles.length}</span>
+              <span class="text-[10px] text-[var(--text-muted)] font-normal">Topp {topLargestFiles.length}</span>
             </div>
 
-            <div class="border border-[#252d3d] rounded-lg bg-[#0e1015] divide-y divide-[#1f2533]/60 overflow-hidden">
+            <div class="border border-[var(--border)] rounded-lg bg-[var(--bg-base)] divide-y divide-[#1f2533]/60 overflow-hidden">
               {#each topLargestFiles as f}
                 {@const iconInfo = getFileIcon(f)}
                 <div
@@ -411,9 +411,9 @@
                 >
                   <div class="flex items-center gap-1.5 truncate min-w-0 pr-2">
                     <svelte:component this={iconInfo.icon} size={13} class="{iconInfo.color} shrink-0" />
-                    <span class="font-mono text-slate-200 truncate group-hover:text-[var(--accent)]">{f.name}</span>
+                    <span class="font-mono text-[var(--text-primary)] truncate group-hover:text-[var(--accent)]">{f.name}</span>
                   </div>
-                  <span class="font-mono font-semibold text-slate-300 shrink-0 {f.size_bytes >= 50_000_000 ? 'text-amber-400 font-bold' : ''}">
+                  <span class="font-mono font-semibold text-[var(--text-primary)] shrink-0 {f.size_bytes >= 50_000_000 ? 'text-amber-400 font-bold' : ''}">
                     {f.formatted_size}
                   </span>
                 </div>
@@ -437,7 +437,7 @@
             </div>
           {:else}
             <button
-              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-slate-300 hover:text-white font-medium text-xs shadow-sm transition-colors disabled:opacity-50"
+              class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-[var(--text-primary)] hover:text-[var(--text-primary)] font-medium text-xs shadow-sm transition-colors disabled:opacity-50"
               disabled={isCalculatingDu}
               on:click={calculateFolderDu}
             >
@@ -453,16 +453,16 @@
         <!-- Search & Filter Controls -->
         <div class="flex items-center gap-2">
           <div class="relative flex-1">
-            <Search size={11} class="absolute left-2.5 top-2 text-slate-500" />
+            <Search size={11} class="absolute left-2.5 top-2 text-[var(--text-muted)]" />
             <input
               type="text"
               bind:value={filterText}
               placeholder="Sök i mappen (t.ex. *.bam, test)..."
-              class="w-full bg-[#0e1015] border border-[#252d3d] rounded-md pl-7 pr-7 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[var(--accent)]"
+              class="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-md pl-7 pr-7 py-1 text-xs text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:border-[var(--accent)]"
             />
             {#if filterText}
               <button
-                class="absolute right-2 top-1.5 text-slate-500 hover:text-white"
+                class="absolute right-2 top-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 on:click={() => (filterText = '')}
               >
                 <X size={12} />
@@ -471,7 +471,7 @@
           </div>
 
           <button
-            class="p-1 rounded hover:bg-[#1f2533] text-slate-400 hover:text-white"
+            class="p-1 rounded hover:bg-[var(--bg-active)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             on:click={() => loadChildren(item.path)}
             title="Ladda om mappinnehåll"
           >
@@ -496,7 +496,7 @@
 
             {#if selectedCategoryFilter}
               <button
-                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-slate-400 hover:text-white bg-slate-800/50"
+                class="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] bg-slate-800/50"
                 on:click={() => (selectedCategoryFilter = null)}
               >
                 <X size={10} />
@@ -508,15 +508,15 @@
 
         <!-- List Table -->
         {#if filteredChildren.length === 0}
-          <div class="h-32 flex flex-col items-center justify-center text-slate-500 text-center">
+          <div class="h-32 flex flex-col items-center justify-center text-[var(--text-muted)] text-center">
             <Folder size={24} class="opacity-20 mb-1" />
             <span class="text-[11px]">{children.length === 0 ? 'Mappen är tom' : 'Inga matchande filer'}</span>
           </div>
         {:else}
-          <div class="border border-[#252d3d] rounded-lg bg-[#0e1015] overflow-hidden shadow-inner">
+          <div class="border border-[var(--border)] rounded-lg bg-[var(--bg-base)] overflow-hidden shadow-inner">
             <table class="w-full text-left font-mono text-[11px] border-collapse">
               <thead>
-                <tr class="border-b border-[#252d3d] bg-[#161a24] text-slate-400 text-[10px]">
+                <tr class="border-b border-[var(--border)] bg-[var(--bg-panel)] text-[var(--text-secondary)] text-[10px]">
                   <th class="p-1.5 pl-2.5">Innehåll ({filteredChildren.length})</th>
                   <th class="p-1.5 text-right w-16">Storlek</th>
                   <th class="p-1.5 text-right pr-2.5 w-24">Ändrad</th>
@@ -526,20 +526,20 @@
                 {#each filteredChildren as child}
                   {@const iconInfo = getFileIcon(child)}
                   <tr
-                    class="border-b border-[#1f2533]/50 hover:bg-[var(--bg-hover)] cursor-pointer group transition-colors"
+                    class="border-b border-[var(--border)]/50 hover:bg-[var(--bg-hover)] cursor-pointer group transition-colors"
                     on:dblclick={() => handleNavigateToChild(child)}
                     title="{child.name} - Dubbelklicka för att {child.is_dir ? 'öppna mapp' : 'öppna fil'}"
                   >
                     <td class="p-1.5 pl-2.5 flex items-center gap-1.5 truncate max-w-[180px]">
                       <svelte:component this={iconInfo.icon} size={13} class="{iconInfo.color} shrink-0" />
-                      <span class="truncate {child.is_dir ? 'font-semibold text-white group-hover:text-[var(--accent)]' : 'text-slate-300'}">
+                      <span class="truncate {child.is_dir ? 'font-semibold text-[var(--text-primary)] group-hover:text-[var(--accent)]' : 'text-[var(--text-primary)]'}">
                         {child.name}
                       </span>
                     </td>
-                    <td class="p-1.5 text-right text-slate-400 font-mono text-[10px]">
+                    <td class="p-1.5 text-right text-[var(--text-secondary)] font-mono text-[10px]">
                       {child.is_dir ? '--' : child.formatted_size}
                     </td>
-                    <td class="p-1.5 text-right pr-2.5 text-slate-500 font-mono text-[10px]">
+                    <td class="p-1.5 text-right pr-2.5 text-[var(--text-muted)] font-mono text-[10px]">
                       {child.formatted_modified.split(' ')[0]}
                     </td>
                   </tr>

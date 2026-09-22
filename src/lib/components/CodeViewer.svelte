@@ -102,14 +102,14 @@
       if (commentIdx !== -1) {
         const before = line.slice(0, commentIdx);
         const comment = line.slice(commentIdx);
-        return colorizeCode(before, lang) + `<span class="text-slate-500 italic">${escapeHtml(comment)}</span>`;
+        return colorizeCode(before, lang) + `<span class="text-[var(--text-muted)] italic">${escapeHtml(comment)}</span>`;
       }
     } else if (['c', 'cpp', 'rust', 'swift', 'go', 'javascript', 'typescript', 'java', 'kotlin', 'svelte'].includes(lang)) {
       const commentIdx = line.indexOf('//');
       if (commentIdx !== -1) {
         const before = line.slice(0, commentIdx);
         const comment = line.slice(commentIdx);
-        return colorizeCode(before, lang) + `<span class="text-slate-500 italic">${escapeHtml(comment)}</span>`;
+        return colorizeCode(before, lang) + `<span class="text-[var(--text-muted)] italic">${escapeHtml(comment)}</span>`;
       }
     }
 
@@ -161,18 +161,18 @@
   }
 </script>
 
-<div class="flex flex-col h-full min-h-0 bg-[#12151c] text-slate-200 select-text overflow-hidden font-mono">
+<div class="flex flex-col h-full min-h-0 bg-[var(--bg-surface)] text-[var(--text-primary)] select-text overflow-hidden font-mono">
   <!-- Code Header Toolbar -->
-  <div class="flex items-center justify-between px-3 py-1.5 bg-[#171b24] border-b border-[#252d3d] shrink-0 select-none text-[11px]">
+  <div class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] shrink-0 select-none text-[11px]">
     <div class="flex items-center gap-2 min-w-0">
       <!-- Language Pill -->
-      <span class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#202634] text-cyan-300 font-bold border border-[#2c3547] text-[10.5px]">
+      <span class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-active)] text-cyan-300 font-bold border border-[var(--border)] text-[10.5px]">
         <span>{languageEmoji}</span>
         <span>{languageName}</span>
       </span>
 
       <!-- Stats Pill -->
-      <span class="text-[10px] text-slate-400 truncate">
+      <span class="text-[10px] text-[var(--text-secondary)] truncate">
         {lineCount} {lineCount === 1 ? 'rad' : 'rader'} • {formattedSize}
       </span>
     </div>
@@ -181,7 +181,7 @@
     <div class="flex items-center gap-1 shrink-0">
       <!-- Line Numbers Toggle -->
       <button
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {showLineNumbers ? 'bg-[#202634] text-slate-300 border border-[#2c3547]' : 'text-slate-500 hover:text-slate-300'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {showLineNumbers ? 'bg-[var(--bg-active)] text-[var(--text-primary)] border border-[var(--border)]' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'}"
         on:click={() => (showLineNumbers = !showLineNumbers)}
         title="Växla radnummer"
       >
@@ -191,7 +191,7 @@
 
       <!-- Search Button -->
       <button
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {isSearchOpen ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {isSearchOpen ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] border border-[var(--border)]'}"
         on:click={toggleSearch}
         title="Sök i kod"
       >
@@ -201,7 +201,7 @@
 
       <!-- Wrap Lines Toggle -->
       <button
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[#202634] hover:bg-[#2c3547] text-slate-300 border border-[#2c3547]'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-white border border-[var(--border)]'}"
         on:click={() => (wrapLines = !wrapLines)}
         title="Växla radbrytning (Wrap lines)"
       >
@@ -211,7 +211,7 @@
 
       <!-- Copy Button -->
       <button
-        class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#202634] hover:bg-[#2c3547] text-slate-300 hover:text-white border border-[#2c3547] transition-colors"
+        class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] hover:text-[var(--text-primary)] border border-[var(--border)] transition-colors"
         on:click={copyCode}
         title="Kopiera all källkod"
       >
@@ -228,21 +228,21 @@
 
   <!-- Search Bar (Collapsible) -->
   {#if isSearchOpen}
-    <div class="flex items-center gap-2 px-3 py-1.5 bg-[#1b202c] border-b border-[#2c3547] shrink-0 text-xs">
+    <div class="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] shrink-0 text-xs">
       <Search size={12} class="text-amber-400" />
       <input
         bind:this={searchInputEl}
         type="text"
         placeholder="Sök i filen..."
         bind:value={searchQuery}
-        class="flex-1 bg-[#12151c] text-white px-2 py-0.5 rounded border border-[#2c3547] focus:outline-none focus:border-amber-400 text-xs"
+        class="flex-1 bg-[var(--bg-surface)] text-[var(--text-primary)] px-2 py-0.5 rounded border border-[var(--border)] focus:outline-none focus:border-amber-400 text-xs"
       />
       {#if searchQuery}
-        <span class="text-[10px] text-slate-400 font-mono">
+        <span class="text-[10px] text-[var(--text-secondary)] font-mono">
           {matchedLines.length} {matchedLines.length === 1 ? 'träff' : 'träffar'}
         </span>
       {/if}
-      <button class="p-1 text-slate-400 hover:text-white" on:click={toggleSearch}>
+      <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]" on:click={toggleSearch}>
         <X size={12} />
       </button>
     </div>
@@ -251,14 +251,14 @@
   <!-- Unified Code Body with Inline Row Numbers (Single Scroll Container) -->
   <div
     bind:this={scrollContainerEl}
-    class="flex-1 overflow-auto py-2 px-2 text-[11.5px] leading-5 font-mono select-text bg-[#0d1017] min-h-0"
+    class="flex-1 overflow-auto py-2 px-2 text-[11.5px] leading-5 font-mono select-text bg-[var(--bg-base)] min-h-0"
   >
     {#each lines as line, idx}
       {@const lineNum = idx + 1}
       {@const isMatch = matchedLines.includes(lineNum)}
       <div class="flex items-start hover:bg-white/[0.04] transition-colors {isMatch ? 'bg-amber-400/10' : ''}">
         {#if showLineNumbers}
-          <span class="select-none text-right text-slate-600 w-11 pr-2 shrink-0 border-r border-[#202533] mr-2.5 font-mono text-[11px]">
+          <span class="select-none text-right text-[var(--text-muted)] w-11 pr-2 shrink-0 border-r border-[var(--border)] mr-2.5 font-mono text-[11px]">
             {lineNum}
           </span>
         {/if}

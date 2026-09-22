@@ -1617,7 +1617,7 @@
               </div>
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-2">
-                  <span class="font-semibold text-xs text-white truncate">{group.label}</span>
+                  <span class="font-semibold text-xs text-[var(--text-primary)] truncate">{group.label}</span>
                   <span class="px-1.5 py-0.2 rounded-full bg-[#202738] text-purple-300 font-mono text-[10px] font-bold border border-[#2b354c]">
                     {group.count} {group.count === 1 ? 'fil' : 'filer'}
                   </span>
@@ -1797,7 +1797,7 @@
                 on:dragstart={(e) => handleRowDragStart(item, e)}
                 on:drag={handleRowDrag}
                 on:dragend={(e) => handleRowDragEnd(item, e)}
-                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'} {depth > 0 ? 'bg-black/5' : ''}"
+                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-white'} {depth > 0 ? 'bg-black/5' : ''}"
                 style="height: {ROW_HEIGHT}px;"
                 on:click={(e) => handleRowClick(item, e)}
                 on:dblclick={() => handleDoubleClick(item)}

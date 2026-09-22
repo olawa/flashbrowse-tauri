@@ -168,7 +168,7 @@
       {/if}
 
       <button
-        class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-white transition-colors"
+        class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         on:click={() => checkOllamaConnection()}
         title="Uppdatera modeller från Ollama"
       >
@@ -245,7 +245,7 @@
         <div class="space-y-1 max-w-xs">
           <p class="font-bold text-xs text-[var(--text-primary)]">Ollama är inte igång</p>
           <p class="text-[11px] text-[var(--text-secondary)]">
-            Starta Ollama i Terminalen med <code class="px-1.5 py-0.5 rounded bg-black/40 text-amber-300 font-mono">ollama serve</code>
+            Starta Ollama i Terminalen med <code class="px-1.5 py-0.5 rounded bg-[var(--bg-active)] text-amber-300 font-mono">ollama serve</code>
           </p>
         </div>
         <button
@@ -264,7 +264,7 @@
           <p class="font-bold text-xs text-[var(--text-primary)]">Lokal AI-Assistent</p>
           <p class="text-[11px] text-[var(--text-secondary)]">
             {#if item}
-              Klicka på snabbknapparna ovan eller ställ en fråga om <span class="font-mono text-white font-semibold">{item.name}</span>.
+              Klicka på snabbknapparna ovan eller ställ en fråga om <span class="font-mono text-[var(--text-primary)] font-semibold">{item.name}</span>.
             {:else}
               Välj en fil i filutforskaren för att analysera den med din lokala modell ({$selectedModel}).
             {/if}
@@ -288,7 +288,7 @@
                 <span>{$selectedModel.split(':')[0]}</span>
               </div>
               <button
-                class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-white transition-opacity"
+                class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
                 on:click={() => copyMessage(msg.content, msg.id)}
                 title="Kopiera svar"
               >
@@ -331,7 +331,7 @@
         <button
           type="button"
           on:click={stopAiGeneration}
-          class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1 shadow transition-colors"
+          class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-[var(--text-primary)] text-xs font-bold flex items-center gap-1 shadow transition-colors"
           title="Stoppa generering"
         >
           <Square size={11} />

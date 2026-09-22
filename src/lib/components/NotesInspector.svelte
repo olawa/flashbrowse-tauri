@@ -167,22 +167,22 @@
 
 <svelte:window on:keydown={handleKeyDown} />
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-[#0d0f14] text-slate-200 text-xs select-none">
+<div class="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)] text-xs select-none">
   <!-- Top Toolbar -->
-  <div class="px-3 py-2 bg-[#151922] border-b border-[#252d3d] flex items-center justify-between gap-2 shrink-0">
+  <div class="px-3 py-2 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between gap-2 shrink-0">
     <div class="flex items-center gap-2 min-w-0">
       <div class="w-6 h-6 rounded bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
         <NotebookPen size={14} />
       </div>
       <div class="min-w-0 flex-1">
         <div class="flex items-center gap-1.5 flex-wrap">
-          <span class="font-bold text-xs text-white">{notes?.filename || 'NOTES.md'}</span>
+          <span class="font-bold text-xs text-[var(--text-primary)]">{notes?.filename || 'NOTES.md'}</span>
           {#if isDirty}
             <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" title="Osparade ändringar"></span>
           {/if}
-          <span class="text-[10px] text-slate-400 font-mono">{lastSavedText}</span>
+          <span class="text-[10px] text-[var(--text-secondary)] font-mono">{lastSavedText}</span>
         </div>
-        <div class="text-[10px] text-slate-500 font-mono truncate" title={dirPath}>
+        <div class="text-[10px] text-[var(--text-muted)] font-mono truncate" title={dirPath}>
           {dirPath}
         </div>
       </div>
@@ -191,9 +191,9 @@
     <!-- Right: View Mode, Save, Actions -->
     <div class="flex items-center gap-1.5 shrink-0">
       <!-- Mode Toggle -->
-      <div class="flex items-center bg-[#0e1015] rounded-md p-0.5 border border-[#252d3d]">
+      <div class="flex items-center bg-[var(--bg-base)] rounded-md p-0.5 border border-[var(--border)]">
         <button
-          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {viewMode === 'rendered' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-slate-400 hover:text-white'}"
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {viewMode === 'rendered' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (viewMode = 'rendered')}
           title="Visa formaterad Markdown"
         >
@@ -202,7 +202,7 @@
         </button>
 
         <button
-          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {viewMode === 'edit' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-slate-400 hover:text-white'}"
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors flex items-center gap-1 {viewMode === 'edit' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (viewMode = 'edit')}
           title="Redigera Markdown-källkod"
         >
@@ -211,7 +211,7 @@
         </button>
 
         <button
-          class="hidden sm:flex px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors items-center gap-1 {viewMode === 'split' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-slate-400 hover:text-white'}"
+          class="hidden sm:flex px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors items-center gap-1 {viewMode === 'split' ? 'bg-amber-500/20 text-amber-300 font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (viewMode = 'split')}
           title="Delad vy med editor och förhandsgranskning"
         >
@@ -222,7 +222,7 @@
 
       <!-- Save button -->
       <button
-        class="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow transition-colors flex items-center gap-1 disabled:opacity-50"
+        class="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] font-semibold text-xs shadow transition-colors flex items-center gap-1 disabled:opacity-50"
         on:click={saveNotes}
         disabled={isSaving}
         title="Spara (Cmd+S)"
@@ -237,7 +237,7 @@
 
       <!-- Copy -->
       <button
-        class="p-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-400 hover:text-white transition-colors"
+        class="p-1 rounded bg-[var(--bg-base)] hover:bg-white/10 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         on:click={copyAll}
         title="Kopiera anteckningar"
       >
@@ -251,7 +251,7 @@
       <!-- Reveal in Finder -->
       {#if notes?.exists}
         <button
-          class="p-1 rounded bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-400 hover:text-white transition-colors"
+          class="p-1 rounded bg-[var(--bg-base)] hover:bg-white/10 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
           on:click={() => notes && revealInOs(notes.path)}
           title="Visa NOTES.md i Finder"
         >
@@ -262,12 +262,12 @@
   </div>
 
   <!-- Template Snippet Bar -->
-  <div class="px-3 py-1 bg-[#12151c] border-b border-[#252d3d] flex items-center justify-between gap-2 overflow-x-auto text-[11px] shrink-0">
+  <div class="px-3 py-1 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between gap-2 overflow-x-auto text-[11px] shrink-0">
     <div class="flex items-center gap-1.5">
-      <span class="text-slate-500 text-[10px] uppercase font-mono tracking-wider mr-1">Mallar:</span>
+      <span class="text-[var(--text-muted)] text-[10px] uppercase font-mono tracking-wider mr-1">Mallar:</span>
 
       <button
-        class="px-2 py-0.5 rounded bg-[#181d27] hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-[#252d3d] flex items-center gap-1 transition-colors"
+        class="px-2 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-amber-500/20 text-[var(--text-primary)] hover:text-amber-300 border border-[var(--border)] flex items-center gap-1 transition-colors"
         on:click={() => insertTemplate('experiment')}
       >
         <FlaskConical size={11} class="text-emerald-400" />
@@ -275,7 +275,7 @@
       </button>
 
       <button
-        class="px-2 py-0.5 rounded bg-[#181d27] hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-[#252d3d] flex items-center gap-1 transition-colors"
+        class="px-2 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-amber-500/20 text-[var(--text-primary)] hover:text-amber-300 border border-[var(--border)] flex items-center gap-1 transition-colors"
         on:click={() => insertTemplate('todo')}
       >
         <CheckSquare size={11} class="text-sky-400" />
@@ -283,7 +283,7 @@
       </button>
 
       <button
-        class="px-2 py-0.5 rounded bg-[#181d27] hover:bg-amber-500/20 text-slate-300 hover:text-amber-300 border border-[#252d3d] flex items-center gap-1 transition-colors"
+        class="px-2 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-amber-500/20 text-[var(--text-primary)] hover:text-amber-300 border border-[var(--border)] flex items-center gap-1 transition-colors"
         on:click={() => insertTemplate('timestamp')}
       >
         <Clock size={11} class="text-amber-400" />
@@ -307,7 +307,7 @@
   <!-- Body Content -->
   <div class="flex-1 min-h-0 flex overflow-hidden">
     {#if isLoading}
-      <div class="flex-1 flex items-center justify-center text-slate-400 gap-2">
+      <div class="flex-1 flex items-center justify-center text-[var(--text-secondary)] gap-2">
         <RefreshCw size={16} class="animate-spin text-amber-400" />
         <span>Laddar anteckningar...</span>
       </div>
@@ -316,15 +316,15 @@
       <!-- Rendered Markdown View -->
       <div class="flex-1 overflow-y-auto p-4 select-text leading-relaxed">
         {#if noteContent.trim()}
-          <div class="prose prose-invert max-w-none text-slate-200">
+          <div class="prose prose-invert max-w-none text-[var(--text-primary)]">
             {@html renderMarkdown(noteContent)}
           </div>
         {:else}
-          <div class="h-full flex flex-col items-center justify-center p-8 text-center text-slate-500 space-y-3">
+          <div class="h-full flex flex-col items-center justify-center p-8 text-center text-[var(--text-muted)] space-y-3">
             <FileText size={32} class="opacity-30" />
             <p>Inga anteckningar i denna mapp ännu.</p>
             <button
-              class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs shadow flex items-center gap-1.5 transition-colors"
+              class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] font-semibold text-xs shadow flex items-center gap-1.5 transition-colors"
               on:click={() => (viewMode = 'edit')}
             >
               <Edit3 size={13} />
@@ -336,13 +336,13 @@
 
     {:else if viewMode === 'edit'}
       <!-- Full-height Editor -->
-      <div class="flex-1 flex flex-col p-2 bg-[#0c0e14]">
+      <div class="flex-1 flex flex-col p-2 bg-[var(--bg-base)]">
         <textarea
           bind:this={textareaEl}
           bind:value={noteContent}
           on:input={handleInput}
           placeholder="Skriv dina Markdown-anteckningar här... (Cmd+S för att spara)"
-          class="flex-1 w-full bg-transparent text-slate-200 font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-slate-600 select-text"
+          class="flex-1 w-full bg-transparent text-[var(--text-primary)] font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-[var(--text-muted)] select-text"
           spellcheck="false"
         ></textarea>
       </div>
@@ -350,18 +350,18 @@
     {:else if viewMode === 'split'}
       <!-- Split Editor & Rendered View -->
       <div class="flex-1 flex divide-x divide-[#252d3d] overflow-hidden">
-        <div class="w-1/2 flex flex-col p-2 bg-[#0c0e14] overflow-hidden">
+        <div class="w-1/2 flex flex-col p-2 bg-[var(--bg-base)] overflow-hidden">
           <textarea
             bind:this={textareaEl}
             bind:value={noteContent}
             on:input={handleInput}
             placeholder="Skriv dina Markdown-anteckningar här..."
-            class="flex-1 w-full bg-transparent text-slate-200 font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-slate-600 select-text"
+            class="flex-1 w-full bg-transparent text-[var(--text-primary)] font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-[var(--text-muted)] select-text"
             spellcheck="false"
           ></textarea>
         </div>
-        <div class="w-1/2 overflow-y-auto p-4 select-text leading-relaxed bg-[#0d0f14]">
-          <div class="prose prose-invert max-w-none text-slate-200">
+        <div class="w-1/2 overflow-y-auto p-4 select-text leading-relaxed bg-[var(--bg-base)]">
+          <div class="prose prose-invert max-w-none text-[var(--text-primary)]">
             {@html renderMarkdown(noteContent)}
           </div>
         </div>

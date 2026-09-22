@@ -108,7 +108,7 @@
     if (fastq > 0) list.push({ id: 'fastq', label: `${fastq} FASTQ`, icon: Dna, color: 'text-cyan-400 bg-cyan-950/40 border-cyan-800/60' });
     if (tables > 0) list.push({ id: 'tables', label: `${tables} Tabeller`, icon: Table, color: 'text-blue-400 bg-blue-950/40 border-blue-800/60' });
     if (code > 0) list.push({ id: 'code', label: `${code} Kod/Script`, icon: Code, color: 'text-yellow-400 bg-yellow-950/40 border-yellow-800/60' });
-    if (docs > 0) list.push({ id: 'docs', label: `${docs} Dokument`, icon: FileText, color: 'text-slate-300 bg-slate-800/40 border-slate-700/60' });
+    if (docs > 0) list.push({ id: 'docs', label: `${docs} Dokument`, icon: FileText, color: 'text-[var(--text-primary)] bg-slate-800/40 border-slate-700/60' });
     if (img > 0) list.push({ id: 'img', label: `${img} Bilder`, icon: ImageIcon, color: 'text-pink-400 bg-pink-950/40 border-pink-800/60' });
     if (arc > 0) list.push({ id: 'arc', label: `${arc} Arkiv`, icon: Archive, color: 'text-orange-400 bg-orange-950/40 border-orange-800/60' });
     return list;
@@ -328,25 +328,25 @@
     if (['rs', 'py', 'ts', 'js', 'sh', 'c', 'cpp', 'swift', 'r', 'json'].includes(ext)) return { icon: Code, color: 'text-yellow-400' };
     if (['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif'].includes(ext)) return { icon: ImageIcon, color: 'text-pink-400' };
     if (['zip', 'tar', 'gz', 'tgz', 'bz2'].includes(ext)) return { icon: Archive, color: 'text-orange-400' };
-    return { icon: FileText, color: 'text-slate-300' };
+    return { icon: FileText, color: 'text-[var(--text-primary)]' };
   }
 </script>
 
-<div class="flex-1 flex flex-col h-full overflow-hidden bg-[#0d0f14] text-slate-200 text-xs select-none">
+<div class="flex-1 flex flex-col h-full overflow-hidden bg-[var(--bg-base)] text-[var(--text-primary)] text-xs select-none">
   <!-- Header Card -->
-  <div class="p-3.5 bg-[#151922] border-b border-[#252d3d] flex items-center justify-between gap-3 shrink-0">
+  <div class="p-3.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between gap-3 shrink-0">
     <div class="flex items-center gap-2.5 min-w-0">
       <div class="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 border border-blue-500/30">
         <Files size={18} />
       </div>
       <div>
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="font-bold text-sm text-white">{totalCount} objekt markerade</span>
-          <span class="px-2 py-0.5 rounded-full bg-[#222838] text-slate-300 font-mono text-[11px] font-semibold border border-[#2d374d]">
+          <span class="font-bold text-sm text-[var(--text-primary)]">{totalCount} objekt markerade</span>
+          <span class="px-2 py-0.5 rounded-full bg-[var(--bg-active)] text-[var(--text-primary)] font-mono text-[11px] font-semibold border border-[var(--border)]">
             {formattedTotalSize}
           </span>
         </div>
-        <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+        <div class="text-[11px] text-[var(--text-secondary)] font-mono mt-0.5">
           {fileCount} {fileCount === 1 ? 'fil' : 'filer'}{#if dirCount > 0}, {dirCount} {dirCount === 1 ? 'mapp' : 'mappar'}{/if}
         </div>
       </div>
@@ -355,7 +355,7 @@
     <!-- Clear Selection -->
     {#if onClearSelection}
       <button
-        class="p-1.5 rounded-lg bg-[#0e1015] hover:bg-white/10 border border-[#252d3d] text-slate-400 hover:text-white transition-colors"
+        class="p-1.5 rounded-lg bg-[var(--bg-base)] hover:bg-white/10 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         on:click={onClearSelection}
         title="Avmarkera alla filer (Esc)"
       >
@@ -365,10 +365,10 @@
   </div>
 
   <!-- Primary Batch Action Buttons -->
-  <div class="p-3 bg-[#11141b] border-b border-[#252d3d] flex items-center gap-2 flex-wrap shrink-0">
+  <div class="p-3 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center gap-2 flex-wrap shrink-0">
     <!-- Save All permanently to Downloads -->
     <button
-      class="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm {isSavedAll ? 'bg-emerald-600 text-white' : ''}"
+      class="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm {isSavedAll ? 'bg-emerald-600 text-[var(--text-primary)]' : ''}"
       on:click={handleSaveAllToDownloads}
       disabled={$isSavingFile}
       title={downloadButtonTitle}
@@ -377,7 +377,7 @@
         <div class="w-3 h-3 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
         <span>Sparar...</span>
       {:else if isSavedAll}
-        <Check size={13} class="text-white" />
+        <Check size={13} class="text-[var(--text-primary)]" />
         <span>Sparade alla!</span>
       {:else}
         <Download size={13} class="text-emerald-400" />
@@ -394,7 +394,7 @@
       >
         <ArrowRightLeft size={13} class="text-cyan-400" />
         <span>Överför ({totalCount})</span>
-        <kbd class="ml-1 px-1 py-0.2 rounded bg-black/40 text-[9px] font-mono opacity-70">F5</kbd>
+        <kbd class="ml-1 px-1 py-0.2 rounded bg-[var(--bg-active)] text-[9px] font-mono opacity-70">F5</kbd>
       </button>
     {/if}
 
@@ -407,7 +407,7 @@
     >
       <Trash2 size={13} class="text-red-400" />
       <span>Kasta ({totalCount})</span>
-      <kbd class="ml-1 px-1 py-0.2 rounded bg-black/40 text-[9px] font-mono opacity-70">⌘⌫</kbd>
+      <kbd class="ml-1 px-1 py-0.2 rounded bg-[var(--bg-active)] text-[9px] font-mono opacity-70">⌘⌫</kbd>
     </button>
 
     <!-- Stash Shelf -->
@@ -446,7 +446,7 @@
 
     <!-- Copy Absolute Paths -->
     <button
-      class="px-3 py-1.5 rounded-lg bg-[#181d27] hover:bg-[#222836] text-slate-300 hover:text-white border border-[#252d3d] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+      class="px-3 py-1.5 rounded-lg bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] hover:text-[var(--text-primary)] border border-[var(--border)] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
       on:click={copyPaths}
       title="Kopiera absoluta sökvägar till urklipp"
     >
@@ -462,7 +462,7 @@
     <!-- Genomics Hub & Viewer Launch (if Genomics tracks present) -->
     {#if genomicsItems.length > 0}
       <button
-        class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-[var(--text-primary)] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
         on:click={handleOpenRsnap}
         title="Öppna markerade spår i rsnap Desktop Viewer"
       >
@@ -471,7 +471,7 @@
       </button>
 
       <button
-        class="px-3 py-1.5 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-blue-600/90 hover:bg-blue-500 text-[var(--text-primary)] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
         on:click={handleSendGenomicsToIgv}
         disabled={isSendingIgv}
         title="Skicka markerade spår till IGV desktop (port 60151)"
@@ -481,7 +481,7 @@
       </button>
 
       <button
-        class="px-3 py-1.5 rounded-lg bg-[#202738] hover:bg-[#2c364c] text-emerald-300 hover:text-white border border-[#323e57] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
+        class="px-3 py-1.5 rounded-lg bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-emerald-300 hover:text-[var(--text-primary)] border border-[var(--border)] font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm"
         on:click={handleOpenGenomicsHub}
         title="Öppna Genomics Track Hub (hantera spår, server och IGV)"
       >
@@ -493,7 +493,7 @@
 
   <!-- Batch QC over everything selected that rs-qc can read -->
   {#if qcCandidates.length > 1}
-    <div class="p-3 bg-[#11141b] border-b border-[#252d3d] shrink-0 space-y-2">
+    <div class="p-3 bg-[var(--bg-surface)] border-b border-[var(--border)] shrink-0 space-y-2">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="flex items-center gap-1.5 text-[11px] font-semibold text-purple-300 shrink-0">
           <Activity size={13} class="text-purple-400" />
@@ -520,7 +520,7 @@
           </div>
         {:else}
           <button
-            class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-[var(--text-primary)] font-semibold text-xs transition-colors flex items-center gap-1.5"
             on:click={handleRunQcBatch}
             title="rs-qc väljer modul per fil: rna för spliced alignments, dna för övriga, fastq för läsningar. Resultaten skrivs bredvid filerna."
           >
@@ -531,17 +531,17 @@
       </div>
 
       {#if qcProgress?.current_file}
-        <div class="text-[10px] font-mono text-slate-400 truncate">{qcProgress.current_file}</div>
+        <div class="text-[10px] font-mono text-[var(--text-secondary)] truncate">{qcProgress.current_file}</div>
       {/if}
       {#if qcMessage}
-        <pre class="text-[10.5px] text-slate-300 bg-[#0c0d10] border border-[#252d3d] rounded p-2 whitespace-pre-wrap break-words m-0 font-mono max-h-32 overflow-auto">{qcMessage}</pre>
+        <pre class="text-[10.5px] text-[var(--text-primary)] bg-[var(--bg-base)] border border-[var(--border)] rounded p-2 whitespace-pre-wrap break-words m-0 font-mono max-h-32 overflow-auto">{qcMessage}</pre>
       {/if}
     </div>
   {/if}
 
   <!-- Multi-sample rsnap snapshot: all selected alignments, one region -->
   {#if alignmentItems.length > 1}
-    <div class="p-3 bg-[#11141b] border-b border-[#252d3d] shrink-0 space-y-2">
+    <div class="p-3 bg-[var(--bg-surface)] border-b border-[var(--border)] shrink-0 space-y-2">
       <div class="flex items-center gap-2 flex-wrap">
         <span class="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-300 shrink-0">
           <Camera size={13} class="text-emerald-400" />
@@ -555,7 +555,7 @@
           class="flex-1 min-w-[14rem] bg-[var(--bg-panel)] text-[11px] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none font-mono placeholder:text-[var(--text-muted)]"
         />
         <button
-          class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
+          class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-[var(--text-primary)] font-semibold text-xs transition-colors flex items-center gap-1.5 shrink-0"
           on:click={handleMultiSnapshot}
           disabled={isGeneratingSnapshot || !snapshotRegion.trim()}
         >
@@ -585,9 +585,9 @@
 
   <!-- Category Breakdown Chips -->
   {#if categories.length > 0}
-    <div class="px-3 py-2 bg-[#0e1015] border-b border-[#252d3d] flex items-center gap-1.5 flex-wrap shrink-0">
+    <div class="px-3 py-2 bg-[var(--bg-base)] border-b border-[var(--border)] flex items-center gap-1.5 flex-wrap shrink-0">
       <button
-        class="px-2 py-0.5 rounded-full text-[10.5px] font-medium transition-colors border {filterCategory === null ? 'bg-blue-600 text-white border-blue-500 font-bold' : 'bg-[#181d27] text-slate-400 border-[#252d3d] hover:text-white'}"
+        class="px-2 py-0.5 rounded-full text-[10.5px] font-medium transition-colors border {filterCategory === null ? 'bg-blue-600 text-[var(--text-primary)] border-blue-500 font-bold' : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text-primary)]'}"
         on:click={() => (filterCategory = null)}
       >
         Alla ({totalCount})
@@ -608,24 +608,24 @@
   <div class="flex-1 overflow-y-auto p-2 divide-y divide-[#1f2533]/50">
     {#each filteredItems as item}
       {@const iconInfo = getFileIcon(item)}
-      <div class="py-1.5 px-2 rounded hover:bg-[#161a24] flex items-center justify-between gap-2 group transition-colors">
+      <div class="py-1.5 px-2 rounded hover:bg-[var(--bg-panel)] flex items-center justify-between gap-2 group transition-colors">
         <!-- File Name and Icon -->
         <div class="flex items-center gap-2 min-w-0 flex-1">
           <svelte:component this={iconInfo.icon} size={14} class="{iconInfo.color} shrink-0" />
-          <span class="truncate font-sans {item.is_dir ? 'font-semibold text-white' : 'text-slate-200'}" title={item.path}>
+          <span class="truncate font-sans {item.is_dir ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}" title={item.path}>
             {item.name}
           </span>
         </div>
 
         <!-- Size & Actions -->
         <div class="flex items-center gap-2 shrink-0">
-          <span class="font-mono text-[10.5px] text-slate-400">
+          <span class="font-mono text-[10.5px] text-[var(--text-secondary)]">
             {item.is_dir ? '--' : item.formatted_size}
           </span>
 
           <!-- Reveal in OS -->
           <button
-            class="opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-400 hover:text-white transition-opacity"
+            class="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-opacity"
             on:click={() => revealInOs(item.path)}
             title="Visa i Finder"
           >
@@ -635,7 +635,7 @@
           <!-- Deselect individual item -->
           {#if onDeselectItem}
             <button
-              class="opacity-0 group-hover:opacity-100 p-0.5 rounded text-slate-400 hover:text-red-400 transition-opacity"
+              class="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[var(--text-secondary)] hover:text-red-400 transition-opacity"
               on:click={() => onDeselectItem && onDeselectItem(item.path)}
               title="Avmarkera denna fil"
             >

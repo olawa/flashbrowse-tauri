@@ -535,7 +535,7 @@
             {@const isSelected = $selectedDirectories.size === 0 || $selectedDirectories.has(group.directory_path)}
             {@const isParentOfActive = $activeHighlightedParentDir === group.directory_path}
             <div
-              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
+              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-white' : 'opacity-60 hover:opacity-90'}"
               on:mouseenter={() => handleFolderHover(group)}
               on:mouseleave={handleFolderLeave}
               on:click={(e) => handleFolderClick(group, e)}
@@ -554,7 +554,7 @@
 
               <div class="flex-1 min-w-0">
                 <div class="flex items-center justify-between gap-1">
-                  <span class="font-semibold text-xs truncate {isParentOfActive ? 'text-white' : ''}" title={group.directory_name}>
+                  <span class="font-semibold text-xs truncate {isParentOfActive ? 'text-[var(--text-primary)]' : ''}" title={group.directory_name}>
                     {group.directory_name}
                   </span>
                   <div class="flex items-center gap-1 shrink-0">

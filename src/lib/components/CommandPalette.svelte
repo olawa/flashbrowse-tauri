@@ -211,7 +211,7 @@
             {#each filteredCommands as cmd, i}
               {@const globalIndex = i}
               <button
-                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors {globalIndex === selectedIdx ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+                class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left transition-colors {globalIndex === selectedIdx ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--bg-hover)] text-white'}"
                 on:click={() => { cmd.action(); onClose(); }}
               >
                 <div class="flex items-center gap-2.5 min-w-0">
@@ -234,7 +234,7 @@
             {#each fileMatches as file, i}
               {@const globalIndex = filteredCommands.length + i}
               <button
-                class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition-colors {globalIndex === selectedIdx ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--bg-hover)] text-[var(--text-primary)]'}"
+                class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition-colors {globalIndex === selectedIdx ? 'bg-[var(--accent)] text-white' : 'hover:bg-[var(--bg-hover)] text-white'}"
                 on:click={() => { handleFileSelect(file); onClose(); }}
               >
                 <div class="flex items-center gap-2.5 min-w-0 flex-1">

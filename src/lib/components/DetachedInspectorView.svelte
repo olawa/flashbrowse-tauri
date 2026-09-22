@@ -166,27 +166,27 @@
   }
 </script>
 
-<div class="flex flex-col h-screen w-screen bg-[#0d0e11] text-[#f1f5f9] font-sans select-none overflow-hidden relative">
+<div class="flex flex-col h-screen w-screen bg-[var(--bg-base)] text-[#f1f5f9] font-sans select-none overflow-hidden relative">
   <!-- Cast Toast Banner -->
   {#if castAlert}
-    <div class="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-full bg-emerald-600 text-white text-xs font-bold shadow-2xl flex items-center gap-2 animate-bounce border border-emerald-400">
+    <div class="absolute top-12 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-full bg-emerald-600 text-[var(--text-primary)] text-xs font-bold shadow-2xl flex items-center gap-2 animate-bounce border border-emerald-400">
       <Rocket size={14} />
       <span>Fil kastad hit från filtabellen!</span>
     </div>
   {/if}
 
   <!-- Top Bar -->
-  <div class="flex items-center justify-between px-4 py-2.5 bg-[#14171d] border-b border-[#262d3d] shrink-0">
+  <div class="flex items-center justify-between px-4 py-2.5 bg-[var(--bg-surface)] border-b border-[var(--border)] shrink-0">
     <div class="flex items-center gap-2.5 min-w-0">
-      <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#e85422]/20 text-[#e85422] border border-[#e85422]/40 text-[11px] font-bold tracking-wider uppercase">
+      <div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] border border-[var(--accent)]/40 text-[11px] font-bold tracking-wider uppercase">
         <Sparkles size={11} />
         <span>Stora Inspektorn</span>
       </div>
-      <span class="font-bold text-sm text-white truncate max-w-lg select-text" title={currentItem ? currentItem.path : ''}>
+      <span class="font-bold text-sm text-[var(--text-primary)] truncate max-w-lg select-text" title={currentItem ? currentItem.path : ''}>
         {currentItem ? currentItem.name : 'Väntar på fil...'}
       </span>
       {#if currentItem?.extension}
-        <span class="px-1.5 py-0.2 rounded bg-slate-800 text-slate-300 text-[10px] font-mono border border-slate-700">
+        <span class="px-1.5 py-0.2 rounded bg-slate-800 text-[var(--text-primary)] text-[10px] font-mono border border-slate-700">
           {currentItem.extension.toUpperCase()}
         </span>
       {/if}
@@ -198,7 +198,7 @@
     {#if currentItem}
       <div class="flex items-center gap-2">
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#191d24] hover:bg-[#222834] border border-[#262d3d] text-xs text-slate-300 hover:text-white transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-xs text-[var(--text-primary)] hover:text-[var(--text-primary)] transition-colors"
           on:click={() => loadPreview(currentItem ? currentItem.path : '')}
           title="Ladda om filinnehåll"
         >
@@ -207,7 +207,7 @@
         </button>
 
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#191d24] hover:bg-[#222834] border border-[#262d3d] text-xs text-slate-300 hover:text-white transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-xs text-[var(--text-primary)] hover:text-[var(--text-primary)] transition-colors"
           on:click={() => openInDefault(currentItem ? currentItem.path : '')}
           title="Öppna i standardprogram"
         >
@@ -216,7 +216,7 @@
         </button>
 
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#191d24] hover:bg-[#222834] border border-[#262d3d] text-xs text-slate-300 hover:text-white transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-active)] border border-[var(--border)] text-xs text-[var(--text-primary)] hover:text-[var(--text-primary)] transition-colors"
           on:click={() => revealInOs(currentItem ? currentItem.path : '')}
           title="Visa i Finder"
         >
@@ -225,7 +225,7 @@
         </button>
 
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[#e85422]/20 hover:bg-[#e85422] text-[#e85422] hover:text-white border border-[#e85422]/40 text-xs font-medium ml-1 transition-colors"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--accent)]/20 hover:bg-[var(--accent)] text-[var(--accent)] hover:text-white border border-[var(--accent)]/40 text-xs font-medium ml-1 transition-colors"
           on:click={reattach}
           title="Stäng detta fönster"
         >
@@ -237,9 +237,9 @@
   </div>
 
   <!-- Content Body -->
-  <div class="flex-1 overflow-auto bg-[#0a0b0e] flex flex-col font-mono text-xs select-text">
+  <div class="flex-1 overflow-auto bg-[var(--bg-base)] flex flex-col font-mono text-xs select-text">
     {#if !currentItem}
-      <div class="h-full flex flex-col items-center justify-center text-slate-500">
+      <div class="h-full flex flex-col items-center justify-center text-[var(--text-muted)]">
         <FileText size={40} class="opacity-20 mb-3" />
         <span>Väntar på att filer markeras eller sveps uppåt i Flashbrowse...</span>
       </div>
@@ -248,7 +248,7 @@
     {:else if isArchive}
       <ArchiveInspector item={currentItem} />
     {:else if isLoading}
-      <div class="h-full flex items-center justify-center text-slate-500">
+      <div class="h-full flex items-center justify-center text-[var(--text-muted)]">
         Läser in filinnehåll...
       </div>
     {:else if currentItem.is_dir || (preview && preview.kind === 'directory')}
@@ -257,23 +257,23 @@
       <!-- 1. HTML REPORT PREVIEW (MultiQC / FastQC) -->
       {#if preview.kind === 'html' && preview.html_content}
         <div class="flex-1 flex flex-col h-full overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-1.5 bg-[#161a24] border-b border-[#252d3d] text-xs">
+          <div class="flex items-center justify-between px-4 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] text-xs">
             <div class="flex items-center gap-1.5">
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {htmlViewMode === 'rendered' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {htmlViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (htmlViewMode = 'rendered')}
               >
                 🌐 Renderad rapport
               </button>
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {htmlViewMode === 'source' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {htmlViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (htmlViewMode = 'source')}
               >
                 📄 Källkod
               </button>
             </div>
             <button
-              class="text-slate-400 hover:text-white flex items-center gap-1 text-xs"
+              class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 text-xs"
               on:click={() => currentItem && openInDefault(currentItem.path)}
             >
               <ExternalLink size={12} />
@@ -291,7 +291,7 @@
               ></iframe>
             </div>
           {:else}
-            <div class="p-4 font-mono text-xs leading-relaxed text-slate-200 overflow-auto select-text">
+            <div class="p-4 font-mono text-xs leading-relaxed text-[var(--text-primary)] overflow-auto select-text">
               <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
             </div>
           {/if}
@@ -300,23 +300,23 @@
       <!-- 2. PDF DOCUMENT PREVIEW -->
       {:else if preview.kind === 'pdf' && preview.pdf_base64}
         <div class="flex-1 flex flex-col h-full overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-1.5 bg-[#161a24] border-b border-[#252d3d] text-xs">
+          <div class="flex items-center justify-between px-4 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] text-xs">
             <div class="flex items-center gap-1.5">
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {pdfViewMode === 'pdf' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {pdfViewMode === 'pdf' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (pdfViewMode = 'pdf')}
               >
                 📄 PDF-visning
               </button>
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {pdfViewMode === 'hex' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {pdfViewMode === 'hex' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (pdfViewMode = 'hex')}
               >
                 🔢 Hex-dump
               </button>
             </div>
             <button
-              class="text-slate-400 hover:text-white flex items-center gap-1 text-xs"
+              class="text-[var(--text-secondary)] hover:text-[var(--text-primary)] flex items-center gap-1 text-xs"
               on:click={() => currentItem && openInDefault(currentItem.path)}
             >
               <ExternalLink size={12} />
@@ -344,16 +344,16 @@
       <!-- 3. MARKDOWN PREVIEW -->
       {:else if preview.kind === 'markdown' && preview.text_content}
         <div class="flex-1 flex flex-col h-full overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-1.5 bg-[#161a24] border-b border-[#252d3d] text-xs">
+          <div class="flex items-center justify-between px-4 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] text-xs">
             <div class="flex items-center gap-1.5">
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {mdViewMode === 'rendered' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {mdViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (mdViewMode = 'rendered')}
               >
                 📖 Formaterad
               </button>
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {mdViewMode === 'source' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {mdViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (mdViewMode = 'source')}
               >
                 📝 Råtext
@@ -366,7 +366,7 @@
               {@html renderMarkdown(preview.text_content)}
             </div>
           {:else}
-            <div class="p-4 font-mono text-xs leading-relaxed text-slate-200 overflow-auto select-text">
+            <div class="p-4 font-mono text-xs leading-relaxed text-[var(--text-primary)] overflow-auto select-text">
               <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
             </div>
           {/if}
@@ -378,7 +378,7 @@
           <video
             src="data:{preview.media_mime || 'video/mp4'};base64,{preview.media_base64}"
             controls
-            class="max-h-[75vh] max-w-4xl rounded-xl shadow-2xl border border-[#252d3d]"
+            class="max-h-[75vh] max-w-4xl rounded-xl shadow-2xl border border-[var(--border)]"
           >
             <track kind="captions" />
           </video>
@@ -386,32 +386,32 @@
 
       <!-- 5. AUDIO PREVIEW -->
       {:else if preview.kind === 'audio' && preview.media_base64}
-        <div class="flex-1 flex flex-col items-center justify-center p-12 bg-[#12151c]">
+        <div class="flex-1 flex flex-col items-center justify-center p-12 bg-[var(--bg-surface)]">
           <div class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-4">
             <Volume2 size={32} />
           </div>
-          <h3 class="font-bold text-lg text-white mb-2">{currentItem.name}</h3>
+          <h3 class="font-bold text-lg text-[var(--text-primary)] mb-2">{currentItem.name}</h3>
           <audio
             src="data:{preview.media_mime || 'audio/mpeg'};base64,{preview.media_base64}"
             controls
             class="w-96 mb-2"
           ></audio>
-          <span class="text-xs text-slate-400">{preview.formatted_size}</span>
+          <span class="text-xs text-[var(--text-secondary)]">{preview.formatted_size}</span>
         </div>
 
       <!-- 6. SVG PREVIEW -->
       {:else if preview.kind === 'svg'}
         <div class="flex-1 flex flex-col h-full overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-1.5 bg-[#161a24] border-b border-[#252d3d] text-xs">
+          <div class="flex items-center justify-between px-4 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)] text-xs">
             <div class="flex items-center gap-1.5">
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {svgViewMode === 'rendered' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {svgViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (svgViewMode = 'rendered')}
               >
                 🎨 Vektorbild
               </button>
               <button
-                class="px-3 py-1 rounded font-medium transition-colors {svgViewMode === 'source' ? 'bg-[#e85422] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+                class="px-3 py-1 rounded font-medium transition-colors {svgViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
                 on:click={() => (svgViewMode = 'source')}
               >
                 📄 XML-kod
@@ -420,7 +420,7 @@
           </div>
 
           {#if svgViewMode === 'rendered' && preview.image_base64}
-            <div class="flex-1 flex items-center justify-center p-8 bg-black/40">
+            <div class="flex-1 flex items-center justify-center p-8 bg-[var(--bg-active)]">
               <img
                 src="data:image/svg+xml;base64,{preview.image_base64}"
                 alt={currentItem.name}
@@ -428,7 +428,7 @@
               />
             </div>
           {:else if preview.text_content}
-            <div class="p-4 font-mono text-xs leading-relaxed text-slate-200 overflow-auto select-text">
+            <div class="p-4 font-mono text-xs leading-relaxed text-[var(--text-primary)] overflow-auto select-text">
               <pre class="m-0 whitespace-pre-wrap break-words">{preview.text_content}</pre>
             </div>
           {/if}
@@ -474,7 +474,7 @@
 
       <!-- 10. BINARY HEX PREVIEW -->
       {:else if preview.kind === 'hex' && preview.hex_lines}
-        <div class="p-4 rounded-xl bg-[#14171d] border border-[#262d3d] m-4 text-purple-300 leading-tight">
+        <div class="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] m-4 text-purple-300 leading-tight">
           {#each preview.hex_lines as line}
             <div>{line}</div>
           {/each}
@@ -491,11 +491,11 @@
 
   <!-- Bottom Metadata Bar -->
   {#if currentItem}
-    <div class="px-4 py-2 bg-[#14171d] border-t border-[#262d3d] flex items-center justify-between text-xs font-mono text-slate-400 shrink-0">
+    <div class="px-4 py-2 bg-[var(--bg-surface)] border-t border-[var(--border)] flex items-center justify-between text-xs font-mono text-[var(--text-secondary)] shrink-0">
       <div class="flex items-center gap-3 truncate">
         <span class="truncate max-w-[500px]" title={currentItem.path}>{currentItem.path}</span>
         <button
-          class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#262d3d] hover:bg-[#e85422] hover:text-white text-slate-200 transition-colors"
+          class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-active)] hover:bg-[var(--accent)] hover:text-white text-white transition-colors"
           on:click={copyPath}
         >
           {#if copied}
