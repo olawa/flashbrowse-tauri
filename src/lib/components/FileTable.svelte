@@ -1684,7 +1684,7 @@
                   </div>
 
                   <!-- Modified -->
-                  <div class="col-span-3 text-right text-slate-500 text-[11px] truncate tabular-nums" title={item.formatted_modified}>
+                  <div class="col-span-3 min-w-[92px] text-right text-[var(--text-secondary)] text-[10.5px] truncate tabular-nums whitespace-nowrap" title={item.formatted_modified}>
                     {item.formatted_modified}
                   </div>
                 </div>
@@ -1754,7 +1754,7 @@
         </button>
 
         <button
-          class="col-span-3 flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
+          class="col-span-3 min-w-[92px] flex items-center gap-1 justify-end hover:text-[var(--text-primary)] transition-colors pr-1"
           on:click={() => sortPaneItems(paneId, 'modified')}
           title="Sortera efter ändringsdatum"
         >
@@ -1883,7 +1883,7 @@
                 </div>
 
                 <!-- Modified Column -->
-                <div class="col-span-3 text-[var(--text-secondary)] text-[11.5px] truncate text-right pr-1 font-mono tabular-nums whitespace-nowrap" title={item.formatted_modified}>
+                <div class="col-span-3 min-w-[92px] text-[var(--text-secondary)] text-[11px] truncate text-right pr-1 font-mono tabular-nums whitespace-nowrap" title={item.formatted_modified}>
                   {item.formatted_modified}
                 </div>
               </div>

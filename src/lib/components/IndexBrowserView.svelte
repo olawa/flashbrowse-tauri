@@ -721,7 +721,7 @@
                     </div>
 
                     <!-- Modified -->
-                    <div class="col-span-2 text-right pr-1 text-[var(--text-muted)] font-mono text-[11px] truncate">
+                    <div class="col-span-2 min-w-[92px] text-right pr-1 text-[var(--text-secondary)] font-mono text-[11px] truncate whitespace-nowrap" title={item.formatted_modified}>
                       {item.formatted_modified}
                     </div>
                   </div>
