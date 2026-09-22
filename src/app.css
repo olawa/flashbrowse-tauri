@@ -40,7 +40,11 @@
   --bg-active: #eaeef2;
   --text-primary: #24292f;
   --text-secondary: #57606a;
-  --text-muted: #8c959f;
+  /* 5.25:1 on white, 4.9:1 on the surface - AA, and still a step lighter than
+     secondary. The old #8c959f was 3.0:1, unreadable for the 10px uppercase
+     section labels it is mostly used for; making it equal to secondary fixed
+     that by removing the distinction between the two levels. */
+  --text-muted: #656d76;
   --accent: #e95420;
   --accent-hover: #d04618;
   --accent-subtle: rgba(233, 84, 32, 0.12);

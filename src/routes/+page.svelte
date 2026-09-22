@@ -623,28 +623,28 @@
               </div>
 
               <!-- Full filename in bold -->
-              <span class="font-bold text-xs text-white select-text font-mono truncate hover:overflow-visible hover:whitespace-normal" title={active.name}>
+              <span class="font-bold text-xs text-[var(--text-primary)] select-text font-mono truncate hover:overflow-visible hover:whitespace-normal" title={active.name}>
                 {active.name}
               </span>
 
               <!-- Type / Extension badge -->
-              <span class="px-1.5 py-0.2 rounded bg-[#191d26] text-slate-300 text-[10px] font-mono border border-[#262d3d] shrink-0">
+              <span class="px-1.5 py-0.2 rounded bg-[var(--bg-panel)] text-[var(--text-secondary)] text-[10px] font-mono border border-[var(--border)] shrink-0">
                 {active.is_dir ? 'MAPP' : active.extension.toUpperCase() || 'FIL'}
               </span>
 
               <!-- Size & Modified -->
-              <span class="text-[11px] text-slate-400 font-mono shrink-0">
+              <span class="text-[11px] text-[var(--text-secondary)] font-mono shrink-0">
                 {active.is_dir ? '' : active.formatted_size} • {active.formatted_modified}
               </span>
 
               <!-- Full path in subtle font with copy button -->
-              <span class="text-[10.5px] text-slate-500 font-mono truncate hidden md:inline select-text" title={active.path}>
+              <span class="text-[10.5px] text-[var(--text-muted)] font-mono truncate hidden md:inline select-text" title={active.path}>
                 {active.path}
               </span>
             </div>
           {/if}
         {:else}
-          <div class="text-[11px] text-slate-500 font-mono">
+          <div class="text-[11px] text-[var(--text-muted)] font-mono">
             Hovra eller markera en fil för att visa fullständigt namn och sökväg
           </div>
         {/if}
@@ -654,7 +654,7 @@
             {@const active = $activeHoveredItem || ($activePaneId === 'left' ? leftPreviewItem : rightPreviewItem)}
             {#if active}
               <button
-                class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#191d26] hover:bg-[#222836] border border-[#262d3d] text-[10.5px] text-slate-300 hover:text-white shrink-0 font-mono transition-colors"
+                class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-[10.5px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] shrink-0 font-mono transition-colors"
                 on:click={() => navigator.clipboard.writeText(active.path)}
                 title="Kopiera fullständig sökväg"
               >
@@ -666,18 +666,18 @@
 
           <!-- Terminal Toggle Button -->
           <button
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-semibold transition-all {$isTerminalOpen ? 'bg-amber-500 text-black border-amber-400 shadow-md' : 'bg-[#141822] hover:bg-[#1f2535] text-slate-300 border-[#252d3d]'}"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded border text-xs font-semibold transition-all {$isTerminalOpen ? 'bg-amber-500 text-black border-amber-400 shadow-md' : 'bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] border-[var(--border)]'}"
             on:click={toggleTerminal}
             title="Öppna/Stäng Terminal (⌘J)"
           >
             <TerminalIcon size={13} class={$isTerminalOpen ? 'text-black' : 'text-amber-400'} />
             <span class="font-mono">Terminal</span>
-            <kbd class="px-1 py-0.2 rounded text-[9px] font-mono {$isTerminalOpen ? 'bg-black/20 text-black' : 'bg-white/10 text-slate-400'}">⌘J</kbd>
+            <kbd class="px-1 py-0.2 rounded text-[9px] font-mono {$isTerminalOpen ? 'bg-black/20 text-black' : 'bg-[var(--border)] text-[var(--text-muted)]'}">⌘J</kbd>
           </button>
 
           <!-- Leave the workstation for the stripped-down layout -->
           <button
-            class="flex items-center gap-1 px-2 py-1 rounded border border-[#252d3d] bg-[#141822] text-slate-400 hover:text-white hover:border-[var(--accent)] text-[10.5px] shrink-0 transition-colors"
+            class="flex items-center gap-1 px-2 py-1 rounded border border-[var(--border)] bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] text-[10.5px] shrink-0 transition-colors"
             on:click={() => setLayoutMode('clean')}
             title="Clean-läge: en filbrowser, sökfältet i centrum, inga bioinformatikverktyg"
           >
@@ -686,9 +686,9 @@
           </button>
 
           <!-- Browser Count: one or two file panes -->
-          <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">
+          <div class="flex items-center gap-0.5 bg-[var(--bg-panel)] p-0.5 rounded border border-[var(--border)] shrink-0 text-[10.5px]">
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {!$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {!$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => setDualPane(false)}
               title="En filbrowser (⌘⇧D)"
             >
@@ -696,7 +696,7 @@
               <span class="hidden md:inline">1 panel</span>
             </button>
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$isDualPane ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => setDualPane(true)}
               title="Två filbrowsers sida vid sida (⌘⇧D)"
             >
@@ -706,18 +706,18 @@
           </div>
 
           <!-- Inspector Layout Preset Switcher -->
-          <div class="flex items-center gap-0.5 bg-[#141822] p-0.5 rounded border border-[#252d3d] shrink-0 text-[10.5px]">
+          <div class="flex items-center gap-0.5 bg-[var(--bg-panel)] p-0.5 rounded border border-[var(--border)] shrink-0 text-[10.5px]">
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'center' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'center' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => inspectorPreset.set('center')}
               title="Inspektör i mitten (Gemensam standard)"
             >
               <Columns3 size={11} />
-              <span class="hidden md:inline">Center</span>
+              <span class="hidden md:inline">Mitten</span>
             </button>
 
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'right' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'right' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => inspectorPreset.set('right')}
               title="Inspektör till höger"
             >
@@ -726,7 +726,7 @@
             </button>
 
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'dual' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'dual' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => inspectorPreset.set('dual')}
               title="Dubbla inspektörer (Vänster + Höger)"
             >
@@ -735,7 +735,7 @@
             </button>
 
             <button
-              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'none' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1 px-2 py-0.5 rounded transition-colors {$inspectorPreset === 'none' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => inspectorPreset.set('none')}
               title="Dölj inspektör i huvudfönstret"
             >
