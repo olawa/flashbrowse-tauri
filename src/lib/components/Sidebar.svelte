@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { getVersion } from '@tauri-apps/api/app';
   import { getHomeDirectory } from '../invoke';
   import {
     navigatePane,
@@ -61,6 +62,7 @@
 
   let homeDir = '';
   let devProjectsDir = '';
+  let appVersion = '0.4.0';
 
   interface SshServerItem {
     name: string;
@@ -78,6 +80,7 @@
 
   onMount(async () => {
     try {
+      appVersion = await getVersion();
       homeDir = await getHomeDirectory();
       devProjectsDir = `${homeDir}/dev/projects`;
       const stored = localStorage.getItem('flashbrowse_ssh_servers');
@@ -169,7 +172,7 @@
     { id: 'bam', label: 'BAM & CRAM', extensions: ['bam', 'cram', 'sam'], badge: 'BAM', icon: Dna, color: 'text-emerald-400' },
     { id: 'vcf', label: 'VCF & BCF', extensions: ['vcf', 'vcf.gz', 'bcf'], badge: 'VCF', icon: Dna, color: 'text-purple-400' },
     { id: 'fastq', label: 'FASTQ Reads', extensions: ['fastq', 'fq', 'fastq.gz', 'fq.gz'], badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },
-    { id: 'table', label: 'Tabeller & Sheets', extensions: ['csv', 'tsv', 'tab', 'xlsx', 'xls', 'ods'], badge: 'TABLE', icon: Table, color: 'text-blue-400' },
+    { id: 'table', label: 'Tabeller & Kalkylark', extensions: ['csv', 'tsv', 'tab', 'xlsx', 'xls', 'ods'], badge: 'TABLE', icon: Table, color: 'text-blue-400' },
     { id: 'bed', label: 'Annotationer', extensions: ['bed', 'gtf', 'gff', 'gff3', 'bigwig', 'bw'], badge: 'BED', icon: Bookmark, color: 'text-pink-400' },
     { id: 'code', label: 'Källkod & Projekt', extensions: ['rs', 'py', 'ipynb', 'ts', 'js', 'sh', 'bash', 'zsh', 'c', 'cpp', 'h', 'swift', 'go', 'r', 'smk', 'snakefile', 'nf', 'nextflow.config', 'makefile', 'cargo.toml', 'cargo.lock', 'pyproject.toml', 'requirements.txt', 'json', 'toml', 'yaml', 'yml', 'md'], badge: 'CODE', icon: Code, color: 'text-amber-400' },
     { id: 'doc', label: 'Dokument & Text', extensions: ['md', 'pdf', 'txt', 'doc', 'docx', 'rtf'], badge: 'DOC', icon: FileText, color: 'text-slate-300' },
@@ -196,7 +199,7 @@
     </div>
     <div class="flex flex-col">
       <span class="font-bold text-[var(--text-primary)] text-sm leading-tight">Flashbrowse</span>
-      <span class="text-[10px] text-[var(--text-secondary)] font-mono">v0.1 Tauri Edition</span>
+      <span class="text-[10px] text-[var(--text-secondary)] font-mono">v{appVersion} Tauri Edition</span>
     </div>
   </div>
 
@@ -343,7 +346,7 @@
     <!-- Remote SSH Servers -->
     <div>
       <div class="px-2 flex items-center justify-between">
-        <span class="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Remote (SSH)</span>
+        <span class="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Fjärrservrar (SSH)</span>
         <button
           class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white"
           on:click={() => (isAddingSsh = !isAddingSsh)}
@@ -494,7 +497,7 @@
 
     <!-- Downloads Target Folder -->
     <div>
-      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Downloads-Mapp</span>
+      <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Hämtad mapp</span>
       <div class="mt-1 px-2 py-1.5 rounded bg-[var(--bg-panel)] border border-[var(--border)]">
         <div class="flex items-center justify-between text-[11px] gap-1">
           <div class="flex items-center gap-1.5 text-slate-300 min-w-0 flex-1">
