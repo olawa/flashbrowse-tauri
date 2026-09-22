@@ -430,7 +430,7 @@
 >
   <!-- Save permanently to Downloads -->
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-emerald-400"
     on:click={handleSaveToDownloads}
     title={downloadButtonTitle}
   >
@@ -444,7 +444,7 @@
   <!-- Transfer to other pane -->
   {#if $isDualPane}
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-cyan-600 hover:text-white text-left transition-colors font-medium text-cyan-400"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-cyan-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-cyan-400"
       on:click={handleTransferToOtherPane}
       title="Överför till motsatt panel"
     >
@@ -458,7 +458,7 @@
 
   <!-- Select all of same type -->
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors font-medium text-emerald-400 hover:text-white"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors font-medium text-emerald-400 hover:text-[var(--text-primary)]"
     on:click={handleSelectSameType}
   >
     <div class="flex items-center gap-2 min-w-0">
@@ -472,7 +472,7 @@
 
   <!-- Compress to Zip -->
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-orange-600 hover:text-white text-left transition-colors font-medium text-orange-400 hover:text-white"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-orange-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-orange-400 hover:text-[var(--text-primary)]"
     on:click={handleCompress}
     title="Komprimera till zip-arkiv"
   >
@@ -487,7 +487,7 @@
 
   {#if isBamOrCram}
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-purple-600 hover:text-white text-purple-400 font-medium text-left transition-colors"
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-purple-600 hover:text-[var(--text-primary)] text-purple-400 font-medium text-left transition-colors"
       on:click={handleRsQc}
     >
       <Activity size={13} />
@@ -495,7 +495,7 @@
     </button>
 
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-emerald-600 hover:text-[var(--text-primary)] text-emerald-400 font-medium text-left transition-colors"
       on:click={handleFindRelated}
       title="Läser @PG-kommandoraden och @RG-läsgrupperna i headern och jämför med övriga BAM-filer i listan och indexet"
     >
@@ -506,7 +506,7 @@
 
   {#if isGenomics}
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-emerald-400 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-[var(--text-primary)] text-emerald-400 font-medium text-left transition-colors"
       on:click={handleRsnap}
       title="Öppna i rsnap Desktop Viewer"
     >
@@ -522,7 +522,7 @@
     </button>
 
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-blue-400 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-[var(--text-primary)] text-blue-400 font-medium text-left transition-colors"
       on:click={handleSendToIgv}
       title="Skicka till IGV Desktop (port 60151)"
     >
@@ -538,7 +538,7 @@
     </button>
 
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[#273144] text-emerald-300 font-medium text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-active)] text-emerald-300 font-medium text-left transition-colors"
       on:click={handleOpenHub}
       title="Öppna i Genomics Hub..."
     >
@@ -556,7 +556,7 @@
   {/if}
 
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-amber-600 hover:text-white text-left text-amber-400 font-medium transition-colors"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-amber-600 hover:text-[var(--text-primary)] text-left text-amber-400 font-medium transition-colors"
     on:click={handleCast}
     title="Kasta fil till stort inspektörsfönster (⌘K, ⌥⏎ eller dra uppåt)"
   >
@@ -568,7 +568,7 @@
   </button>
 
   <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left"
     on:click={handleAddToStash}
   >
     <Layers size={13} class="text-[var(--accent)]" />
@@ -581,7 +581,7 @@
     <!-- Smart contextual primary action based on file type -->
     {#if isTable}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-white text-left transition-colors font-medium text-emerald-400 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-emerald-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-emerald-400 cursor-pointer"
         on:click={() => handleOpenWith('Microsoft Excel')}
         title="Öppna i Microsoft Excel"
       >
@@ -597,7 +597,7 @@
       </button>
     {:else if isDocx}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-white text-left transition-colors font-medium text-blue-400 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-blue-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-blue-400 cursor-pointer"
         on:click={() => handleOpenWith('Microsoft Word')}
         title="Öppna i Microsoft Word"
       >
@@ -613,7 +613,7 @@
       </button>
     {:else if isPdf}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-rose-600 hover:text-white text-left transition-colors font-medium text-rose-400 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-rose-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-rose-400 cursor-pointer"
         on:click={handleOpen}
         title="Öppna PDF"
       >
@@ -629,7 +629,7 @@
       </button>
     {:else if isCode}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-sky-400 cursor-pointer"
         on:click={() => handleOpenInEditor()}
         title="Öppna filen i {$favoriteEditor} (Kortkommando: ⌘E)"
       >
@@ -643,7 +643,7 @@
       </button>
     {:else}
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors font-medium text-slate-200 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors font-medium text-[var(--text-primary)] cursor-pointer"
         on:click={handleOpen}
         title="Öppna filen"
       >
@@ -662,14 +662,14 @@
     <!-- Open with submenu -->
     <div class="relative">
       <button
-        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-slate-300 cursor-pointer"
+        class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--bg-hover)] text-left transition-colors text-[var(--text-primary)] cursor-pointer"
         on:click={() => (isOpenWithSubmenu = !isOpenWithSubmenu)}
       >
         <div class="flex items-center gap-2 min-w-0">
-          <ExternalLink size={13} class="text-slate-400 shrink-0" />
+          <ExternalLink size={13} class="text-[var(--text-secondary)] shrink-0" />
           <span>Öppna med...</span>
         </div>
-        <ChevronRight size={12} class="text-slate-400 {isOpenWithSubmenu ? 'rotate-90' : ''} transition-transform" />
+        <ChevronRight size={12} class="text-[var(--text-secondary)] {isOpenWithSubmenu ? 'rotate-90' : ''} transition-transform" />
       </button>
 
       {#if isOpenWithSubmenu}
@@ -677,7 +677,7 @@
           {#if isTable}
             <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Kalkylark</div>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-white text-emerald-400 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-600 hover:text-[var(--text-primary)] text-emerald-400 text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith('Microsoft Excel')}
             >
               <div class="flex items-center gap-2">
@@ -687,7 +687,7 @@
               <span class="text-[9px] font-mono opacity-70">Excel</span>
             </button>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-700 hover:text-white text-emerald-300 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-emerald-700 hover:text-[var(--text-primary)] text-emerald-300 text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith('Numbers')}
             >
               <div class="flex items-center gap-2">
@@ -697,7 +697,7 @@
               <span class="text-[9px] font-mono opacity-70">Numbers</span>
             </button>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-[var(--text-primary)] text-[var(--text-primary)] text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith(undefined)}
             >
               <div class="flex items-center gap-2">
@@ -709,7 +709,7 @@
             <div class="h-px my-1 bg-[var(--border)]"></div>
             <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Text / Rådata</div>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-slate-200 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-[var(--text-primary)] text-[var(--text-primary)] text-left transition-colors cursor-pointer"
               on:click={() => handleOpenInEditor('Visual Studio Code')}
             >
               <div class="flex items-center gap-2 min-w-0">
@@ -721,7 +721,7 @@
           {:else if isDocx}
             <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Dokument</div>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-white text-blue-400 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-blue-600 hover:text-[var(--text-primary)] text-blue-400 text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith('Microsoft Word')}
             >
               <div class="flex items-center gap-2">
@@ -731,7 +731,7 @@
               <span class="text-[9px] font-mono opacity-70">Word</span>
             </button>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-white text-slate-300 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-slate-700 hover:text-[var(--text-primary)] text-[var(--text-primary)] text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith(undefined)}
             >
               <div class="flex items-center gap-2">
@@ -744,7 +744,7 @@
             <div class="px-2 py-0.5 text-[9.5px] font-bold text-[var(--text-muted)] uppercase tracking-wider">Editorer</div>
             {#each SUPPORTED_EDITORS as ed}
               <button
-                class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-white text-slate-200 text-left transition-colors cursor-pointer"
+                class="flex items-center justify-between px-2 py-1 rounded hover:bg-sky-600 hover:text-[var(--text-primary)] text-[var(--text-primary)] text-left transition-colors cursor-pointer"
                 on:click={() => handleOpenInEditor(ed.appName)}
                 title="Öppna och sätt {ed.name} som standard (⌘E)"
               >
@@ -760,7 +760,7 @@
             {/each}
             <div class="h-px my-1 bg-[var(--border)]"></div>
             <button
-              class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-white text-amber-400 text-left transition-colors cursor-pointer"
+              class="flex items-center justify-between px-2 py-1 rounded hover:bg-amber-600 hover:text-[var(--text-primary)] text-amber-400 text-left transition-colors cursor-pointer"
               on:click={() => handleOpenWith(undefined)}
             >
               <div class="flex items-center gap-2">
@@ -776,7 +776,7 @@
   {:else}
     <!-- Directory actions -->
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-white text-left transition-colors font-medium text-sky-400 cursor-pointer"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-sky-600 hover:text-[var(--text-primary)] text-left transition-colors font-medium text-sky-400 cursor-pointer"
       on:click={() => handleOpenInEditor()}
       title="Öppna projektmappen i {$favoriteEditor} (Kortkommando: ⌘E)"
     >
@@ -792,7 +792,7 @@
 
   {#if !isSSH}
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left"
       on:click={handleReveal}
     >
       <FolderOpen size={13} />
@@ -801,7 +801,7 @@
   {/if}
 
   <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left"
     on:click={handleCopyPath}
   >
     <Copy size={13} />
@@ -809,7 +809,7 @@
   </button>
 
   <button
-    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+    class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left"
     on:click={handleOpenInTerminal}
   >
     <TerminalIcon size={13} />
@@ -818,7 +818,7 @@
 
   {#if item.is_dir}
     <button
-      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left"
+      class="w-full flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left"
       on:click={handleDu}
     >
       <PieChart size={13} />
@@ -829,7 +829,7 @@
   <div class="h-px my-1 bg-[var(--border)]"></div>
 
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-white text-red-400 text-left transition-colors"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-[var(--text-primary)] text-red-400 text-left transition-colors"
     on:click={handleTrash}
   >
     <div class="flex items-center gap-2 min-w-0">
@@ -852,23 +852,23 @@
 <!-- rs-qc Modal Output -->
 {#if qcResultModal}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
-    <div class="w-[680px] max-h-[80vh] flex flex-col bg-[#14171d] border border-[#262d3d] rounded-2xl shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 bg-[#191d24] border-b border-[#262d3d]">
+    <div class="w-[680px] max-h-[80vh] flex flex-col bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 bg-[var(--bg-panel)] border-b border-[var(--border)]">
         <div class="flex items-center gap-2 text-purple-400 font-bold text-sm">
           <Activity size={16} />
           <span>rs-qc Alignment QC: {item.name}</span>
         </div>
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+          class="p-1 rounded hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           on:click={() => { qcResultModal = ''; onClose(); }}
         >
           <X size={16} />
         </button>
       </div>
-      <div class="flex-1 overflow-auto p-4 font-mono text-xs text-slate-200 bg-[#0c0d10] leading-relaxed select-text">
+      <div class="flex-1 overflow-auto p-4 font-mono text-xs text-[var(--text-primary)] bg-[var(--bg-base)] leading-relaxed select-text">
         <pre class="m-0 whitespace-pre-wrap">{qcResultModal}</pre>
       </div>
-      <div class="px-4 py-2.5 bg-[#191d24] border-t border-[#262d3d] flex justify-end">
+      <div class="px-4 py-2.5 bg-[var(--bg-panel)] border-t border-[var(--border)] flex justify-end">
         <button
           class="px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold"
           on:click={() => { qcResultModal = ''; onClose(); }}

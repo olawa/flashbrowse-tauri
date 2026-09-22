@@ -588,13 +588,13 @@
           </button>
         </div>
       {:else if $isInspectorDetached}
-        <div class="flex items-center justify-between px-4 py-1.5 bg-[#14171d] border-b border-[#262d3d] text-xs text-slate-300">
+        <div class="flex items-center justify-between px-4 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] text-xs text-[var(--text-primary)]">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span>Inspektor är löskopplad till eget fönster</span>
           </div>
           <button
-            class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-[#e85422]/20 hover:bg-[#e85422] text-[#e85422] hover:text-white border border-[#e85422]/40 text-[11px] font-medium transition-colors"
+            class="flex items-center gap-1 px-2.5 py-0.5 rounded bg-[var(--accent)]/20 hover:bg-[var(--accent)] text-[var(--accent)] hover:text-[var(--text-primary)] border border-[var(--accent)]/40 text-[11px] font-medium transition-colors"
             on:click={() => isInspectorDetached.set(false)}
           >
             <PanelRightClose size={11} />

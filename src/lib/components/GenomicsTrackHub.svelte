@@ -174,28 +174,28 @@
     on:click={() => isGenomicsHubOpen.set(false)}
   >
     <div
-      class="w-[740px] max-h-[90vh] flex flex-col bg-[#11141b] border border-[#252d3d] rounded-2xl shadow-2xl overflow-hidden font-sans text-slate-200"
+      class="w-[740px] max-h-[90vh] flex flex-col bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden font-sans text-[var(--text-primary)]"
       on:click|stopPropagation
     >
       <!-- Header -->
-      <div class="px-5 py-3.5 bg-[#171c26] border-b border-[#252d3d] flex items-center justify-between">
+      <div class="px-5 py-3.5 bg-[var(--bg-panel)] border-b border-[var(--border)] flex items-center justify-between">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800/80 flex items-center justify-center text-emerald-400">
             <Dna size={18} />
           </div>
           <div>
             <div class="flex items-center gap-2">
-              <span class="font-bold text-sm text-white">Genomics Viewer & Server Hub</span>
+              <span class="font-bold text-sm text-[var(--text-primary)]">Genomics Viewer & Server Hub</span>
               <span class="px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-800/60">
                 {$stagedTracks.length} {$stagedTracks.length === 1 ? 'spår' : 'spår'}
               </span>
             </div>
-            <span class="text-[11px] text-slate-400">Styr rsnap (Viewer & Server) och IGV Desktop direkt från Flashbrowse</span>
+            <span class="text-[11px] text-[var(--text-secondary)]">Styr rsnap (Viewer & Server) och IGV Desktop direkt från Flashbrowse</span>
           </div>
         </div>
 
         <button
-          class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#222938] transition-colors"
+          class="p-1.5 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-active)] transition-colors"
           on:click={() => isGenomicsHubOpen.set(false)}
         >
           <X size={16} />
@@ -220,7 +220,7 @@
         <!-- 1. Staged Tracks List -->
         <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <span class="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-1.5">
               <Layers size={13} class="text-emerald-400" />
               Aktiva Spår ({$stagedTracks.length})
             </span>
@@ -235,14 +235,14 @@
           </div>
 
           {#if $stagedTracks.length === 0}
-            <div class="p-6 rounded-xl border border-dashed border-[#2b354c] bg-[#141822] text-center text-xs text-slate-400 space-y-1">
-              <p class="font-medium text-slate-300">Inga spår är laddade ännu</p>
-              <p class="text-[11px] text-slate-500">
+            <div class="p-6 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-surface)] text-center text-xs text-[var(--text-secondary)] space-y-1">
+              <p class="font-medium text-[var(--text-primary)]">Inga spår är laddade ännu</p>
+              <p class="text-[11px] text-[var(--text-muted)]">
                 Markera BAM, CRAM, VCF eller BED-filer i Flashbrowse och klicka "Skicka till rsnap / IGV", eller dra filer hit.
               </p>
             </div>
           {:else}
-            <div class="max-h-48 overflow-y-auto rounded-xl border border-[#252d3d] bg-[#0d1017] divide-y divide-[#1d2331]">
+            <div class="max-h-48 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-base)] divide-y divide-[#1d2331]">
               {#each $stagedTracks as track}
                 <div class="px-3 py-2 flex items-center justify-between gap-3 text-xs">
                   <div class="flex items-center gap-2.5 min-w-0 flex-1">
@@ -253,28 +253,28 @@
                     {:else if track.kind === 'bed'}
                       <span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 font-mono text-[9.5px] font-bold border border-cyan-800 shrink-0">BED</span>
                     {:else}
-                      <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[9.5px] shrink-0">FIL</span>
+                      <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[var(--text-primary)] font-mono text-[9.5px] shrink-0">FIL</span>
                     {/if}
 
                     <div class="flex flex-col min-w-0 flex-1">
                       <div class="flex items-center gap-2">
-                        <span class="font-medium text-white truncate">{track.name}</span>
+                        <span class="font-medium text-[var(--text-primary)] truncate">{track.name}</span>
                         {#if track.detected_build && track.detected_build !== 'unknown'}
                           <span class="px-1.5 py-0.2 rounded font-mono text-[9px] font-bold border {track.detected_build === 'hg38' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : 'bg-blue-950 text-blue-300 border-blue-800'}">
                             {track.detected_build.toUpperCase()}
                           </span>
                         {/if}
                       </div>
-                      <span class="font-mono text-[10px] text-slate-500 truncate" title={track.path}>{track.path}</span>
+                      <span class="font-mono text-[10px] text-[var(--text-muted)] truncate" title={track.path}>{track.path}</span>
                     </div>
                   </div>
 
                   <div class="flex items-center gap-2 shrink-0">
                     {#if track.formatted_size}
-                      <span class="font-mono text-[10px] text-slate-400">{track.formatted_size}</span>
+                      <span class="font-mono text-[10px] text-[var(--text-secondary)]">{track.formatted_size}</span>
                     {/if}
                     <button
-                      class="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"
+                      class="p-1 text-[var(--text-muted)] hover:text-red-400 rounded transition-colors"
                       on:click={() => removeTrackFromHub(track.path)}
                       title="Ta bort från spårlista"
                     >
@@ -288,10 +288,10 @@
         </div>
 
         <!-- 2. Genome & Reference Configuration -->
-        <div class="p-3.5 rounded-xl bg-[#151922] border border-[#252d3d] space-y-2.5">
+        <div class="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] space-y-2.5">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
-              <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+              <span class="text-xs font-bold text-[var(--text-primary)] flex items-center gap-1.5">
                 <Dna size={14} class="text-emerald-400" /> Referensgenom & Gener:
               </span>
             </div>
@@ -299,7 +299,7 @@
             <div class="flex items-center gap-2">
               <select
                 bind:value={$selectedGenome}
-                class="bg-[#1e2433] text-xs text-white rounded px-2.5 py-1 border border-[#303a4e] focus:border-emerald-500 focus:outline-none font-semibold font-mono"
+                class="bg-[var(--bg-active)] text-xs text-[var(--text-primary)] rounded px-2.5 py-1 border border-[var(--border)] focus:border-emerald-500 focus:outline-none font-semibold font-mono"
               >
                 {#each $configuredGenomes as g}
                   <option value={g.id}>{g.name} {g.is_available ? '✓' : '⚠️'}</option>
@@ -308,7 +308,7 @@
 
               {#if activeGenomeInfo}
                 <button
-                  class="p-1.5 rounded-lg bg-[#1e2433] hover:bg-[#283247] text-slate-300 hover:text-white border border-[#303a4e] transition-colors"
+                  class="p-1.5 rounded-lg bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] hover:text-[var(--text-primary)] border border-[var(--border)] transition-colors"
                   on:click={() => openEditGenome(activeGenomeInfo)}
                   title="Konfigurera sökvägar till FASTA och GTF"
                 >
@@ -320,9 +320,9 @@
 
           <!-- Active Genome Path Details -->
           {#if activeGenomeInfo}
-            <div class="p-2.5 rounded-lg bg-[#0c0e14] border border-[#202736] space-y-1.5 text-[11px] font-mono">
+            <div class="p-2.5 rounded-lg bg-[var(--bg-base)] border border-[var(--border)] space-y-1.5 text-[11px] font-mono">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-slate-400 shrink-0">FASTA (.fa/.fasta):</span>
+                <span class="text-[var(--text-secondary)] shrink-0">FASTA (.fa/.fasta):</span>
                 <span class="text-emerald-300 truncate text-right flex-1" title={activeGenomeInfo.fasta_path || 'Ingen'}>
                   {activeGenomeInfo.fasta_path || '⚠️ Inte konfigurerad'}
                 </span>
@@ -332,7 +332,7 @@
               </div>
 
               <div class="flex items-center justify-between gap-2">
-                <span class="text-slate-400 shrink-0">Gener (GTF/GFF/BED):</span>
+                <span class="text-[var(--text-secondary)] shrink-0">Gener (GTF/GFF/BED):</span>
                 <span class="text-purple-300 truncate text-right flex-1" title={activeGenomeInfo.gtf_path || 'Ingen'}>
                   {activeGenomeInfo.gtf_path || '⚠️ Ingen gen-annotation'}
                 </span>
@@ -346,23 +346,23 @@
           <!-- Locus input -->
           <div class="space-y-1.5 pt-1">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-bold text-slate-300">Locus / Genkoordinater:</span>
-              <span class="text-[10.5px] text-slate-500">t.ex. chr7:55152000-55153000 eller EGFR</span>
+              <span class="text-xs font-bold text-[var(--text-primary)]">Locus / Genkoordinater:</span>
+              <span class="text-[10.5px] text-[var(--text-muted)]">t.ex. chr7:55152000-55153000 eller EGFR</span>
             </div>
 
             <input
               type="text"
               bind:value={$selectedLocus}
               placeholder="t.ex. chr7:55152000-55153000 eller EGFR"
-              class="w-full bg-[#0c0e14] text-xs text-white px-3 py-2 rounded-lg border border-[#252d3d] focus:border-emerald-400 focus:outline-none font-mono tracking-wide"
+              class="w-full bg-[var(--bg-base)] text-xs text-[var(--text-primary)] px-3 py-2 rounded-lg border border-[var(--border)] focus:border-emerald-400 focus:outline-none font-mono tracking-wide"
             />
 
             <!-- Quick Gene Chips -->
             <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-              <span class="text-[10.5px] text-slate-500 font-medium">Snabba gener:</span>
+              <span class="text-[10.5px] text-[var(--text-muted)] font-medium">Snabba gener:</span>
               {#each quickGenes as g}
                 <button
-                  class="px-2 py-0.5 rounded-md bg-[#1d2331] hover:bg-emerald-900/40 text-slate-300 hover:text-emerald-300 text-[10.5px] font-mono border border-[#2e374d] hover:border-emerald-700 transition-colors"
+                  class="px-2 py-0.5 rounded-md bg-[var(--bg-panel)] hover:bg-emerald-900/40 text-[var(--text-primary)] hover:text-emerald-300 text-[10.5px] font-mono border border-[var(--border)] hover:border-emerald-700 transition-colors"
                   on:click={() => selectedLocus.set(g.locus)}
                   title="{g.name} ({g.desc}): {g.locus}"
                 >
@@ -376,7 +376,7 @@
         <!-- 3. Two Launch Engines: rsnap & IGV -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           <!-- rsnap Panel -->
-          <div class="p-3.5 rounded-xl bg-[#141822] border border-[#252d3d] flex flex-col justify-between space-y-3">
+          <div class="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] flex flex-col justify-between space-y-3">
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
@@ -385,20 +385,20 @@
                   </span>
                 </div>
                 <!-- Server Status Pill -->
-                <div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {$isRsnapServerRunning ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-[#1e2433] text-slate-400 border border-[#2c3548]'}">
+                <div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {$isRsnapServerRunning ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-[var(--bg-active)] text-[var(--text-secondary)] border border-[var(--border)]'}">
                   <div class="w-1.5 h-1.5 rounded-full {$isRsnapServerRunning ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}"></div>
                   {$isRsnapServerRunning ? `Server Port 5555` : 'Server Stoppad'}
                 </div>
               </div>
 
-              <p class="text-[11px] text-slate-400 leading-relaxed">
+              <p class="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 Supersnabb egui-native alignment viewer och rendering via bakgrundsserver.
               </p>
 
               <!-- Server Controller -->
               <div class="pt-1 flex items-center justify-between">
                 <button
-                  class="px-2.5 py-1 rounded bg-[#1e2433] hover:bg-[#273043] text-slate-300 hover:text-white text-[11px] font-medium border border-[#303a4e] flex items-center gap-1.5 transition-colors"
+                  class="px-2.5 py-1 rounded bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] hover:text-[var(--text-primary)] text-[11px] font-medium border border-[var(--border)] flex items-center gap-1.5 transition-colors"
                   on:click={handleToggleRsnapServer}
                 >
                   <Server size={12} class={$isRsnapServerRunning ? 'text-amber-400' : 'text-emerald-400'} />
@@ -428,20 +428,20 @@
           </div>
 
           <!-- IGV Desktop Panel -->
-          <div class="p-3.5 rounded-xl bg-[#141822] border border-[#252d3d] flex flex-col justify-between space-y-3">
+          <div class="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border)] flex flex-col justify-between space-y-3">
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <span class="font-bold text-xs text-blue-400 flex items-center gap-1.5">
                   <Radio size={14} /> IGV Desktop Bridge
                 </span>
                 <!-- IGV Status Pill -->
-                <div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {$isIgvConnected ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'bg-[#1e2433] text-slate-400 border border-[#2c3548]'}">
+                <div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold {$isIgvConnected ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'bg-[var(--bg-active)] text-[var(--text-secondary)] border border-[var(--border)]'}">
                   <div class="w-1.5 h-1.5 rounded-full {$isIgvConnected ? 'bg-blue-400' : 'bg-slate-500'}"></div>
                   {$isIgvConnected ? 'IGV Ansluten (60151)' : 'IGV Ej Aktiv'}
                 </div>
               </div>
 
-              <p class="text-[11px] text-slate-400 leading-relaxed">
+              <p class="text-[11px] text-[var(--text-secondary)] leading-relaxed">
                 Skickar spår och navigerar automatiskt i ditt öppna IGV Desktop-fönster via REST API port 60151.
               </p>
 
@@ -477,14 +477,14 @@
 <!-- Genome Configuration Sub-Modal -->
 {#if isConfigModalOpen && editingGenome}
   <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm select-none">
-    <div class="w-[600px] bg-[#171c26] border border-[#2b354c] rounded-2xl shadow-2xl p-5 space-y-4 text-slate-200">
-      <div class="flex items-center justify-between border-b border-[#252d3d] pb-3">
+    <div class="w-[600px] bg-[var(--bg-panel)] border border-[var(--border)] rounded-2xl shadow-2xl p-5 space-y-4 text-[var(--text-primary)]">
+      <div class="flex items-center justify-between border-b border-[var(--border)] pb-3">
         <div class="flex items-center gap-2">
           <Settings size={18} class="text-emerald-400" />
-          <span class="font-bold text-sm text-white">Konfigurera {editingGenome.name}</span>
+          <span class="font-bold text-sm text-[var(--text-primary)]">Konfigurera {editingGenome.name}</span>
         </div>
         <button
-          class="p-1 rounded-lg text-slate-400 hover:text-white"
+          class="p-1 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           on:click={() => (isConfigModalOpen = false)}
         >
           <X size={16} />
@@ -493,41 +493,41 @@
 
       <div class="space-y-3 text-xs">
         <div class="space-y-1">
-          <label class="font-semibold text-slate-300">FASTA referenssekvens (.fa / .fasta):</label>
+          <label class="font-semibold text-[var(--text-primary)]">FASTA referenssekvens (.fa / .fasta):</label>
           <input
             type="text"
             bind:value={editingGenome.fasta_path}
             placeholder="/Users/.../GRCh38.fasta"
-            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+            class="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] font-mono text-[11px] focus:outline-none focus:border-emerald-400"
           />
-          <span class="text-[10px] text-slate-500 block">Kräver en matchande .fai indexfil i samma katalog</span>
+          <span class="text-[10px] text-[var(--text-muted)] block">Kräver en matchande .fai indexfil i samma katalog</span>
         </div>
 
         <div class="space-y-1">
-          <label class="font-semibold text-slate-300">FAI indexfil (.fai):</label>
+          <label class="font-semibold text-[var(--text-primary)]">FAI indexfil (.fai):</label>
           <input
             type="text"
             bind:value={editingGenome.fai_path}
             placeholder="/Users/.../GRCh38.fasta.fai"
-            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+            class="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] font-mono text-[11px] focus:outline-none focus:border-emerald-400"
           />
         </div>
 
         <div class="space-y-1">
-          <label class="font-semibold text-slate-300">Gen-annotationer (GTF / GFF / BED):</label>
+          <label class="font-semibold text-[var(--text-primary)]">Gen-annotationer (GTF / GFF / BED):</label>
           <input
             type="text"
             bind:value={editingGenome.gtf_path}
             placeholder="/Users/.../gencode.v46.annotation.sorted.gtf.gz"
-            class="w-full bg-[#0d1017] border border-[#252d3d] rounded-lg px-3 py-2 text-white font-mono text-[11px] focus:outline-none focus:border-emerald-400"
+            class="w-full bg-[var(--bg-base)] border border-[var(--border)] rounded-lg px-3 py-2 text-[var(--text-primary)] font-mono text-[11px] focus:outline-none focus:border-emerald-400"
           />
-          <span class="text-[10px] text-slate-500 block">Om filen slutar på .gtf.gz krävs en .tbi indexfil (skapas med tabix -p gff)</span>
+          <span class="text-[10px] text-[var(--text-muted)] block">Om filen slutar på .gtf.gz krävs en .tbi indexfil (skapas med tabix -p gff)</span>
         </div>
       </div>
 
-      <div class="flex items-center justify-end gap-2 pt-2 border-t border-[#252d3d]">
+      <div class="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
         <button
-          class="px-3 py-1.5 rounded-lg border border-[#303a4e] text-xs hover:bg-[#202738]"
+          class="px-3 py-1.5 rounded-lg border border-[var(--border)] text-xs hover:bg-[var(--bg-active)]"
           on:click={() => (isConfigModalOpen = false)}
         >
           Avbryt

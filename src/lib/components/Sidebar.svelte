@@ -307,7 +307,7 @@
           >
             <div class="flex items-center gap-2 truncate">
               <svelte:component this={cat.icon} size={14} class="{cat.color} shrink-0" />
-              <span class="truncate {isActive ? 'text-[var(--accent)]' : 'group-hover:text-white'}">{cat.label}</span>
+              <span class="truncate {isActive ? 'text-[var(--accent)]' : 'group-hover:text-[var(--text-primary)]'}">{cat.label}</span>
             </div>
             {#if isActive}
               <span class="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-[var(--accent)] text-white font-bold flex items-center gap-0.5">
@@ -315,7 +315,7 @@
                 <XIcon size={9} />
               </span>
             {:else}
-              <span class="text-[9.5px] font-mono px-1 py-0.2 rounded bg-[#191d26] text-slate-400 group-hover:text-slate-200 border border-[#262d3d]">
+              <span class="text-[9.5px] font-mono px-1 py-0.2 rounded bg-[var(--bg-panel)] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] border border-[var(--border)]">
                 {cat.badge}
               </span>
             {/if}
@@ -336,7 +336,7 @@
             <Layers size={14} class={$stashItems.length > 0 ? 'text-[var(--accent)]' : ''} />
             <span>Samlingsfack (Stash)</span>
           </div>
-          <span class="text-[10px] px-1.5 py-0.2 rounded-full {$stashItems.length > 0 ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--border)] text-slate-400 font-mono'}">
+          <span class="text-[10px] px-1.5 py-0.2 rounded-full {$stashItems.length > 0 ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--border)] text-[var(--text-secondary)] font-mono'}">
             {$stashItems.length}
           </span>
         </button>
@@ -348,7 +348,7 @@
       <div class="px-2 flex items-center justify-between">
         <span class="text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Fjärrservrar (SSH)</span>
         <button
-          class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white"
+          class="p-0.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           on:click={() => (isAddingSsh = !isAddingSsh)}
           title="Lägg till SSH-server"
         >
@@ -357,23 +357,23 @@
       </div>
 
       {#if isAddingSsh}
-        <div class="mt-1 p-2 bg-[#12151c] rounded-lg border border-[#252d3d] space-y-1.5 text-xs">
+        <div class="mt-1 p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border)] space-y-1.5 text-xs">
           <input
             type="text"
             bind:value={newSshName}
             placeholder="Namn (t.ex. Marvin)"
-            class="w-full bg-[#1c2230] text-[var(--text-primary)] px-2 py-1 rounded border border-[#2e394e] text-xs focus:outline-none focus:border-[var(--accent)]"
+            class="w-full bg-[var(--bg-panel)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border)] text-xs focus:outline-none focus:border-[var(--accent)]"
           />
           <input
             type="text"
             bind:value={newSshHost}
             placeholder="Värd (user@host:port)"
-            class="w-full bg-[#1c2230] text-[var(--text-primary)] px-2 py-1 rounded border border-[#2e394e] text-xs font-mono focus:outline-none focus:border-[var(--accent)]"
+            class="w-full bg-[var(--bg-panel)] text-[var(--text-primary)] px-2 py-1 rounded border border-[var(--border)] text-xs font-mono focus:outline-none focus:border-[var(--accent)]"
             on:keydown={(e) => e.key === 'Enter' && handleAddSsh()}
           />
           <div class="flex items-center justify-end gap-1 pt-1">
             <button
-              class="px-2 py-0.5 rounded text-slate-400 hover:text-white text-[11px]"
+              class="px-2 py-0.5 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px]"
               on:click={() => (isAddingSsh = false)}
             >
               Avbryt
@@ -403,7 +403,7 @@
 
             {#if srv.host !== 'marvin.cgu.igp.uu.se'}
               <button
-                class="opacity-0 group-hover:opacity-100 p-1 mr-1 rounded text-slate-500 hover:text-red-400"
+                class="opacity-0 group-hover:opacity-100 p-1 mr-1 rounded text-[var(--text-muted)] hover:text-red-400"
                 on:click={(e) => handleRemoveSsh(srv.host, e)}
                 title="Ta bort server"
               >
@@ -500,7 +500,7 @@
       <span class="px-2 text-[10px] font-semibold text-[var(--text-muted)] tracking-wider uppercase">Hämtad mapp</span>
       <div class="mt-1 px-2 py-1.5 rounded bg-[var(--bg-panel)] border border-[var(--border)]">
         <div class="flex items-center justify-between text-[11px] gap-1">
-          <div class="flex items-center gap-1.5 text-slate-300 min-w-0 flex-1">
+          <div class="flex items-center gap-1.5 text-[var(--text-primary)] min-w-0 flex-1">
             <Download size={13} class="text-cyan-400 shrink-0" />
             <span class="truncate font-mono text-[10px]" title={$downloadDirectory || '~/Downloads'}>
               {$downloadDirectory || '~/Downloads'}

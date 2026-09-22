@@ -115,7 +115,7 @@
 </script>
 
 <div
-  class="flex flex-col bg-[#0c0d10] border-[var(--border)] select-none shrink-0 overflow-hidden {isSideDocked
+  class="flex flex-col bg-[var(--bg-base)] border-[var(--border)] select-none shrink-0 overflow-hidden {isSideDocked
     ? 'h-full border-l'
     : 'w-full border-t'}"
   style={isSideDocked
@@ -133,7 +133,7 @@
         <button
           class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium transition-colors {$activeTerminalTab === 'local'
             ? 'bg-[var(--accent)] text-white shadow-sm'
-            : 'text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)]'}"
+            : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'}"
           on:click={() => selectTab('local')}
           title="Lokal Terminal (zsh/bash)"
         >
@@ -145,7 +145,7 @@
           <button
             class="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium transition-colors {$activeTerminalTab === 'ssh'
               ? 'bg-emerald-600 text-white shadow-sm'
-              : 'text-emerald-400 hover:text-white hover:bg-emerald-950/50'}"
+              : 'text-emerald-400 hover:text-[var(--text-primary)] hover:bg-emerald-950/50'}"
             on:click={() => selectTab('ssh')}
             title="Fjärrterminal över SSH ({knownSshHost})"
           >

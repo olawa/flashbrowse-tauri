@@ -127,7 +127,7 @@
         >
           <!-- Level 0 Row -->
           <button
-            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isExpanded ? 'bg-[var(--bg-hover)] text-white' : ''}"
+            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isExpanded ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : ''}"
             on:click={(e) => navigate(node.path, e)}
           >
             <Folder size={13} class="shrink-0 text-amber-400 group-hover:text-amber-300" />
@@ -157,7 +157,7 @@
                 >
                   <!-- Level 1 Row -->
                   <button
-                    class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isL2Expanded ? 'bg-[var(--bg-hover)] text-white' : ''}"
+                    class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-primary)] text-left group cursor-pointer {isL2Expanded ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : ''}"
                     on:click={(e) => navigate(child.path, e)}
                   >
                     <Folder size={11} class="shrink-0 text-amber-400/80 group-hover:text-amber-300" />
@@ -176,7 +176,7 @@
                     <div class="flex flex-col ml-3 my-0.5 pl-2 border-l border-[var(--border)]/60 bg-black/15 rounded-r">
                       {#each child.children as grandchild (grandchild.path)}
                         <button
-                          class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-secondary)] hover:text-white text-left text-[11px] cursor-pointer"
+                          class="w-full flex items-center gap-1.5 px-2 py-1 rounded hover:bg-[var(--bg-hover)] transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-left text-[11px] cursor-pointer"
                           on:click={(e) => navigate(grandchild.path, e)}
                         >
                           <Folder size={10} class="shrink-0 text-amber-400/60" />

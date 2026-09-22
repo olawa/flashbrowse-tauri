@@ -297,7 +297,7 @@
         <!-- Root Directory Selector Dropdown -->
         <div class="relative shrink-0">
           <button
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-[var(--text-secondary)] hover:text-white transition-colors"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             on:click={() => (isRootMenuOpen = !isRootMenuOpen)}
           >
             <FolderTree size={12} class="text-[var(--accent)]" />
@@ -358,7 +358,7 @@
       <div class="flex items-center gap-2 shrink-0 ml-auto">
         <!-- Search filter inside index -->
         <div class="relative flex items-center">
-          <Search size={11} class="absolute left-2 text-slate-500" />
+          <Search size={11} class="absolute left-2 text-[var(--text-muted)]" />
           <input
             type="text"
             placeholder="Filtrera index..."
@@ -377,7 +377,7 @@
           />
           {#if $indexSearchQuery}
             <button
-              class="absolute right-1.5 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+              class="absolute right-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] p-0.5 cursor-pointer"
               on:click={() => ($indexSearchQuery = '')}
               title="Rensa filter"
             >
@@ -402,7 +402,7 @@
         {#if isCodeCategory($activeIndexMeta.id)}
           <div class="flex items-center gap-0.5 bg-[var(--bg-panel)] rounded-lg p-0.5 border border-[var(--border)] text-[11px] font-medium shrink-0">
             <button
-              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => (isCodeTreeView = true)}
               title="Hierarkisk projekt- och trädvy (standard)"
             >
@@ -410,7 +410,7 @@
               <span>Trädvy</span>
             </button>
             <button
-              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {!isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-slate-400 hover:text-white'}"
+              class="flex items-center gap-1.5 px-2.5 py-1 rounded transition-all {!isCodeTreeView ? 'bg-[var(--accent)] text-white font-bold shadow-sm' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
               on:click={() => (isCodeTreeView = false)}
               title="Klassisk 2-kolumns platt fillista"
             >
@@ -422,7 +422,7 @@
 
         <!-- Refresh Index Button -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-[var(--text-primary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
           on:click={refreshCurrentIndex}
           disabled={$isIndexScanning}
           title="Läs om och uppdatera indexet från disk"
@@ -433,7 +433,7 @@
 
         <!-- Close Index Button -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-slate-300 hover:text-white transition-colors cursor-pointer"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] border border-[var(--border)] text-xs text-[var(--text-primary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
           on:click={closeIndexView}
           title="Stäng index och återgå till vanlig fillista (Esc)"
         >
@@ -463,14 +463,14 @@
         <!-- Group by directory, or by what the files are -->
         <div class="px-2 py-1.5 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center gap-0.5 text-[10.5px]">
           <button
-            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'directory' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'directory' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
             on:click={() => indexGrouping.set('directory')}
             title="Gruppera efter mapp på disk"
           >
             Mappar
           </button>
           <button
-            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'type' ? 'bg-[var(--accent)] text-white font-bold' : 'text-slate-400 hover:text-white'}"
+            class="flex-1 px-2 py-1 rounded transition-colors {$indexGrouping === 'type' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
             on:click={switchToTypeGrouping}
             title="Virtuella mappar: gruppera efter vad filerna innehåller (RNA, kortläsning, HiFi, ONT)"
           >
@@ -487,9 +487,9 @@
             >
               Alla
             </button>
-            <span class="text-slate-600">•</span>
+            <span class="text-[var(--text-muted)]">•</span>
             <button
-              class="text-slate-400 hover:underline text-[10.5px]"
+              class="text-[var(--text-secondary)] hover:underline text-[10.5px]"
               on:click={deselectAllIndexDirs}
             >
               Rensa
@@ -535,7 +535,7 @@
             {@const isSelected = $selectedDirectories.size === 0 || $selectedDirectories.has(group.directory_path)}
             {@const isParentOfActive = $activeHighlightedParentDir === group.directory_path}
             <div
-              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-white' : 'opacity-60 hover:opacity-90'}"
+              class="px-3 py-2 flex items-start gap-2 cursor-pointer transition-all group {isParentOfActive ? 'bg-[var(--accent)]/15 border-l-4 border-l-[var(--accent)] ring-1 ring-[var(--accent)]/30 text-white font-medium shadow-sm' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--text-primary)]' : 'opacity-60 hover:opacity-90'}"
               on:mouseenter={() => handleFolderHover(group)}
               on:mouseleave={handleFolderLeave}
               on:click={(e) => handleFolderClick(group, e)}
@@ -559,7 +559,7 @@
                   </span>
                   <div class="flex items-center gap-1 shrink-0">
                     <button
-                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--accent)] hover:text-white text-slate-400 transition-all cursor-pointer"
+                      class="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-[var(--text-secondary)] transition-all cursor-pointer"
                       on:click|stopPropagation={() => jumpToFolder(group.directory_path)}
                       title="Öppna mappen '{group.directory_name}' i vanliga filbläddraren och stäng index"
                     >
@@ -657,7 +657,7 @@
                 {#each visibleItems as item (item.path)}
                   {@const isHovered = hoveredPath === item.path}
                   <div
-                    class="grid grid-cols-12 gap-2 px-3 h-[38px] max-h-[38px] box-border items-center cursor-pointer transition-colors duration-100 group {isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-[var(--text-primary)]'}"
+                    class="grid grid-cols-12 gap-2 px-3 h-[38px] max-h-[38px] box-border items-center cursor-pointer transition-colors duration-100 group {isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
                     style="height: {ROW_HEIGHT}px;"
                     on:click={() => handleFileClick(item)}
                     on:dblclick={() => handleFileDblClick(item)}
@@ -692,21 +692,21 @@
                       <!-- Action buttons on hover -->
                       <div class="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 ml-1">
                         <button
-                          class="p-1 rounded hover:bg-sky-600 hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          class="p-1 rounded hover:bg-sky-600 hover:text-[var(--text-primary)] text-[var(--text-secondary)] transition-colors cursor-pointer"
                           on:click|stopPropagation={() => openInFavoriteEditor(item.path)}
                           title="Öppna i {$favoriteEditor} (⌘E)"
                         >
                           <FileCode size={12} />
                         </button>
                         <button
-                          class="p-1 rounded hover:bg-[var(--accent)] hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          class="p-1 rounded hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-[var(--text-secondary)] transition-colors cursor-pointer"
                           on:click|stopPropagation={() => handleFileDblClick(item)}
                           title="Öppna mappen i fillistan och stäng index"
                         >
                           <FolderOpen size={12} />
                         </button>
                         <button
-                          class="p-1 rounded hover:bg-[var(--bg-panel)] hover:text-white text-slate-400 transition-colors cursor-pointer"
+                          class="p-1 rounded hover:bg-[var(--bg-panel)] hover:text-[var(--text-primary)] text-[var(--text-secondary)] transition-colors cursor-pointer"
                           on:click|stopPropagation={() => revealInOs(item.path)}
                           title="Visa i Finder"
                         >

@@ -349,7 +349,7 @@
       <!-- Tab Toggles: Preview | Anteckningar | AI -->
       <div class="flex items-center gap-0.5 bg-[var(--bg-surface)] p-0.5 rounded-lg border border-[var(--border)] mr-0.5">
         <button
-          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors {currentTab === 'preview' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+          class="px-2 py-0.5 rounded text-[10.5px] font-medium transition-colors {currentTab === 'preview' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (currentTab = 'preview')}
           title="Visa standard filförhandsgranskning"
         >
@@ -589,13 +589,13 @@
           <div class="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-panel)] border-b border-[var(--border)] text-[10.5px]">
             <div class="flex items-center gap-1">
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (htmlViewMode = 'rendered')}
               >
                 🌐 Renderad
               </button>
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {htmlViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (htmlViewMode = 'source')}
               >
                 📄 Källkod
@@ -634,13 +634,13 @@
           <div class="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-panel)] border-b border-[var(--border)] text-[10.5px]">
             <div class="flex items-center gap-1">
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'pdf' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'pdf' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (pdfViewMode = 'pdf')}
               >
                 📄 PDF-visning
               </button>
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'hex' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {pdfViewMode === 'hex' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (pdfViewMode = 'hex')}
               >
                 🔢 Hex-dump
@@ -680,13 +680,13 @@
           <div class="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-panel)] border-b border-[var(--border)] text-[10.5px]">
             <div class="flex items-center gap-1">
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (mdViewMode = 'rendered')}
               >
                 📖 Formaterad
               </button>
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {mdViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (mdViewMode = 'source')}
               >
                 📝 Råtext
@@ -738,13 +738,13 @@
           <div class="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-panel)] border-b border-[var(--border)] text-[10.5px]">
             <div class="flex items-center gap-1">
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'rendered' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (svgViewMode = 'rendered')}
               >
                 🎨 Vektorbild
               </button>
               <button
-                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-white'}"
+                class="px-2 py-0.5 rounded font-medium transition-colors {svgViewMode === 'source' ? 'bg-[var(--accent)] text-white font-bold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
                 on:click={() => (svgViewMode = 'source')}
               >
                 📄 XML-kod
@@ -873,7 +873,7 @@
           {truncateMiddle(item.path, 32)}
         </span>
         <button
-          class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[var(--border)] hover:bg-[var(--accent)] hover:text-white text-white transition-colors"
+          class="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-[var(--border)] hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-white transition-colors"
           on:click={copyPath}
           title="Kopiera fullständig sökväg"
         >

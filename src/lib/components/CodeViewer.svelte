@@ -201,7 +201,7 @@
 
       <!-- Wrap Lines Toggle -->
       <button
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-white border border-[var(--border)]'}"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors {wrapLines ? 'bg-[var(--accent)] text-white font-bold' : 'bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] border border-[var(--border)]'}"
         on:click={() => (wrapLines = !wrapLines)}
         title="Växla radbrytning (Wrap lines)"
       >

@@ -289,14 +289,14 @@
     <div class="flex items-center justify-between pt-1 border-t border-[var(--border)]/60">
       <div class="flex items-center p-0.5 rounded-lg bg-[var(--bg-base)] border border-[var(--border)]">
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'summary' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-white'}"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'summary' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (viewMode = 'summary')}
         >
           <LayoutDashboard size={11} />
           <span>Summering</span>
         </button>
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'list' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-white'}"
+          class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors {viewMode === 'list' ? 'bg-[var(--accent)] text-white shadow-sm font-semibold' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}"
           on:click={() => (viewMode = 'list')}
         >
           <List size={11} />

@@ -198,7 +198,7 @@
 
 <div
   bind:this={container}
-  class="w-full h-full overflow-hidden bg-[#0c0d10] p-1.5 focus:outline-none"
+  class="w-full h-full overflow-hidden bg-[var(--bg-base)] p-1.5 focus:outline-none"
   tabindex="0"
   on:click={() => term?.focus()}
   on:keydown={() => {}}

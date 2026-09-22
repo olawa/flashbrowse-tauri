@@ -1440,7 +1440,7 @@
       <div class="hidden sm:flex items-center gap-1 shrink-0 overflow-x-auto scrollbar-none">
         {#each topExtensions as [ext, cnt]}
           <button
-            class="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white border border-[var(--border)] text-[10px] font-mono transition-colors"
+            class="px-1.5 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] text-[10px] font-mono transition-colors"
             on:click={() => applyQuickFilter(ext)}
             title="Filtrera på .{ext} ({cnt} filer)"
           >
@@ -1453,7 +1453,7 @@
     <!-- View Mode Selector (List vs Grouped Clusters) -->
     <div class="flex items-center gap-1 shrink-0">
       <button
-        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {!isGroupedMode ? 'bg-[var(--accent)] text-white border-[var(--accent)] font-semibold shadow-sm' : 'bg-[var(--bg-panel)] text-slate-400 border-[var(--border)] hover:text-white'}"
+        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {!isGroupedMode ? 'bg-[var(--accent)] text-white border-[var(--accent)] font-semibold shadow-sm' : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text-primary)]'}"
         on:click={() => (isGroupedMode = false)}
         title="Vanlig fillista"
       >
@@ -1462,7 +1462,7 @@
       </button>
 
       <button
-        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {isGroupedMode ? 'bg-purple-600 text-white border-purple-500 font-bold shadow-sm' : 'bg-[var(--bg-panel)] text-slate-400 border-[var(--border)] hover:text-white'}"
+        class="px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1 transition-colors {isGroupedMode ? 'bg-purple-600 text-white border-purple-500 font-bold shadow-sm' : 'bg-[var(--bg-panel)] text-[var(--text-secondary)] border-[var(--border)] hover:text-[var(--text-primary)]'}"
         on:click={() => (isGroupedMode = true)}
         title="Gruppera filer per typ (BAM, VCF, FASTQ, etc.)"
       >
@@ -1477,14 +1477,14 @@
     {@const count = pane.selectedPaths.size}
     {@const totalBytes = getSelectedTotalSize(pane.selectedPaths)}
     <div
-      class="mx-2.5 my-1.5 px-3 py-1.5 rounded-lg bg-[#141b29] border border-blue-500/50 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg select-none shrink-0 animate-fadeIn"
+      class="mx-2.5 my-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-panel)] border border-blue-500/50 text-xs flex flex-wrap items-center justify-between gap-2 shadow-lg select-none shrink-0 animate-fadeIn"
     >
       <!-- Info -->
       <div class="flex items-center gap-2 text-blue-300 font-medium min-w-0">
         <CheckCheck size={14} class="text-blue-400 shrink-0" />
         <span class="truncate"><b>{count} filer</b> markerade</span>
         {#if totalBytes > 0}
-          <span class="text-[10px] text-slate-400 font-mono shrink-0">({formatBytes(totalBytes)})</span>
+          <span class="text-[10px] text-[var(--text-secondary)] font-mono shrink-0">({formatBytes(totalBytes)})</span>
         {/if}
       </div>
 
@@ -1492,7 +1492,7 @@
       <div class="flex items-center gap-1.5 flex-wrap">
         <!-- Delete -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-white border border-red-800/80 font-semibold text-[11px] transition-colors shadow-sm"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-[var(--text-primary)] border border-red-800/80 font-semibold text-[11px] transition-colors shadow-sm"
           on:click={handleBatchTrash}
           title="Flytta markerade filer till papperskorgen (⌘⌫)"
         >
@@ -1502,7 +1502,7 @@
 
         <!-- Move to other pane -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-900/60 hover:bg-blue-800 text-blue-200 hover:text-white border border-blue-700/60 font-medium text-[11px] transition-colors shadow-sm"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-900/60 hover:bg-blue-800 text-blue-200 hover:text-[var(--text-primary)] border border-blue-700/60 font-medium text-[11px] transition-colors shadow-sm"
           on:click={handleBatchTransfer}
           title="Flytta alla markerade filer till den andra panelen"
         >
@@ -1512,7 +1512,7 @@
 
         <!-- Zip -->
         <button
-          class="flex items-center gap-1 px-2 py-1 rounded bg-[#202738] hover:bg-[#2b354a] text-slate-300 hover:text-white border border-[var(--border)] text-[11px] transition-colors"
+          class="flex items-center gap-1 px-2 py-1 rounded bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] hover:text-[var(--text-primary)] border border-[var(--border)] text-[11px] transition-colors"
           on:click={handleBatchZip}
           title="Skapa zip-arkiv av markerade filer"
         >
@@ -1522,7 +1522,7 @@
 
         <!-- Clear selection -->
         <button
-          class="p-1 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white text-[11px] transition-colors ml-1"
+          class="p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[11px] transition-colors ml-1"
           on:click={clearSelection}
           title="Avmarkera alla (Esc)"
         >
@@ -1578,7 +1578,7 @@
   {:else if isGroupedMode}
     <!-- Grouped Clusters View (Inline Expandable Accordion) -->
     <div class="flex-1 overflow-y-auto p-2.5 space-y-2 select-none bg-[var(--bg-base)]">
-      <div class="flex items-center justify-between text-[11px] text-slate-400 px-1">
+      <div class="flex items-center justify-between text-[11px] text-[var(--text-secondary)] px-1">
         <span>Klustrade filtyper ({fileTypeGroups.length} grupper)</span>
         <span class="text-[10px] font-mono opacity-70">
           Hovra eller klicka för att fälla ut filer under gruppen
@@ -1592,13 +1592,13 @@
         {@const proportion = Math.min(100, (group.count / Math.max(1, filteredItems.length)) * 100)}
 
         <div
-          class="rounded-xl border transition-all overflow-hidden bg-[#11141b] {isAllSelected ? 'border-purple-500 ring-1 ring-purple-500/40' : isExpanded ? 'border-purple-500/70 shadow-lg' : 'border-[#222938] hover:border-purple-500/40'}"
+          class="rounded-xl border transition-all overflow-hidden bg-[var(--bg-surface)] {isAllSelected ? 'border-purple-500 ring-1 ring-purple-500/40' : isExpanded ? 'border-purple-500/70 shadow-lg' : 'border-[var(--border)] hover:border-purple-500/40'}"
           on:mouseenter={() => handleGroupMouseEnter(group)}
           on:mouseleave={() => handleGroupMouseLeave(group)}
         >
           <!-- Group Header Row -->
           <div
-            class="p-2.5 cursor-pointer flex items-center justify-between gap-3 relative transition-colors {isExpanded ? 'bg-[#181d28]' : 'hover:bg-[#161a22]'}"
+            class="p-2.5 cursor-pointer flex items-center justify-between gap-3 relative transition-colors {isExpanded ? 'bg-[var(--bg-panel)]' : 'hover:bg-[var(--bg-panel)]'}"
             on:click={() => toggleGroupExpand(group)}
             on:dblclick={() => handleGroupDblClick(group)}
             role="button"
@@ -1618,21 +1618,21 @@
               <div class="flex flex-col min-w-0">
                 <div class="flex items-center gap-2">
                   <span class="font-semibold text-xs text-[var(--text-primary)] truncate">{group.label}</span>
-                  <span class="px-1.5 py-0.2 rounded-full bg-[#202738] text-purple-300 font-mono text-[10px] font-bold border border-[#2b354c]">
+                  <span class="px-1.5 py-0.2 rounded-full bg-[var(--bg-active)] text-purple-300 font-mono text-[10px] font-bold border border-[var(--border)]">
                     {group.count} {group.count === 1 ? 'fil' : 'filer'}
                   </span>
                 </div>
-                <span class="text-[10px] text-slate-400 font-mono truncate">{group.sublabel}</span>
+                <span class="text-[10px] text-[var(--text-secondary)] font-mono truncate">{group.sublabel}</span>
               </div>
             </div>
 
             <!-- Right Size, Select Button & Chevron -->
             <div class="flex items-center gap-2 shrink-0 relative z-10">
-              <span class="font-mono text-xs text-slate-300 font-semibold">{group.formattedSize}</span>
+              <span class="font-mono text-xs text-[var(--text-primary)] font-semibold">{group.formattedSize}</span>
 
               <!-- Quick Select All in Group -->
               <button
-                class="p-1 rounded hover:bg-purple-900/50 text-slate-400 hover:text-purple-300 transition-colors"
+                class="p-1 rounded hover:bg-purple-900/50 text-[var(--text-secondary)] hover:text-purple-300 transition-colors"
                 on:click={(e) => selectAllInGroup(group, e)}
                 title={isAllSelected ? 'Avmarkera alla i gruppen' : 'Markera alla i gruppen'}
               >
@@ -1643,7 +1643,7 @@
                 {/if}
               </button>
 
-              <div class="text-slate-400 transition-transform duration-200 {isExpanded ? 'rotate-180 text-purple-400' : ''}">
+              <div class="text-[var(--text-secondary)] transition-transform duration-200 {isExpanded ? 'rotate-180 text-purple-400' : ''}">
                 <ChevronDown size={14} />
               </div>
             </div>
@@ -1652,7 +1652,7 @@
           <!-- Inline Expanded Files List Under Group -->
           {#if isExpanded}
             {@const displayItems = group.items.length > 80 ? group.items.slice(0, 80) : group.items}
-            <div class="border-t border-[#202738] bg-[#0c0e14] max-h-80 overflow-y-auto divide-y divide-[#1c2230]/60 text-[11px] font-mono select-none">
+            <div class="border-t border-[var(--border)] bg-[var(--bg-base)] max-h-80 overflow-y-auto divide-y divide-[#1c2230]/60 text-[11px] font-mono select-none">
               {#each displayItems as item}
                 {@const isSelected = pane.selectedPaths.has(item.path)}
                 {@const isRowHovered = hoveredPath === item.path}
@@ -1662,7 +1662,7 @@
                   on:dragstart={(e) => handleRowDragStart(item, e)}
                   on:drag={handleRowDrag}
                   on:dragend={(e) => handleRowDragEnd(item, e)}
-                  class="grid grid-cols-12 gap-2 px-3 py-1.5 items-center cursor-pointer transition-colors {isCasting ? '-translate-y-1 bg-amber-500/20 shadow-lg text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isRowHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-slate-300'}"
+                  class="grid grid-cols-12 gap-2 px-3 py-1.5 items-center cursor-pointer transition-colors {isCasting ? '-translate-y-1 bg-amber-500/20 shadow-lg text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isRowHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'}"
                   on:click={(e) => handleRowClick(item, e)}
                   on:dblclick={() => handleDoubleClick(item)}
                   on:mouseenter={(e) => handleRowMouseEnter(item, e)}
@@ -1679,7 +1679,7 @@
                   </div>
 
                   <!-- Size -->
-                  <div class="col-span-2 text-right text-slate-400 text-[11px]">
+                  <div class="col-span-2 text-right text-[var(--text-secondary)] text-[11px]">
                     {item.formatted_size}
                   </div>
 
@@ -1691,7 +1691,7 @@
               {/each}
 
               {#if group.items.length > 80}
-                <div class="p-2 text-center text-slate-500 text-[10px] bg-[#11141b]/80 border-t border-[#1c2230]">
+                <div class="p-2 text-center text-[var(--text-muted)] text-[10px] bg-[var(--bg-surface)]/80 border-t border-[var(--border)]">
                   Visar de första 80 av {group.count} filer (byt till tabellvy för att bläddra i alla med virtuell rullning)
                 </div>
               {/if}
@@ -1717,7 +1717,7 @@
         <div class="absolute inset-0 z-40 bg-cyan-950/85 border-2 border-cyan-400 border-dashed rounded m-1 flex flex-col items-center justify-center text-cyan-200 pointer-events-none backdrop-blur-sm animate-pulse">
           <ArrowDownToLine size={28} class="text-cyan-400 mb-1.5" />
           <span class="font-bold text-xs">Släpp för att föra över till denna mapp</span>
-          <span class="text-[10px] text-slate-300 font-mono mt-0.5">{pane.currentPath}</span>
+          <span class="text-[10px] text-[var(--text-primary)] font-mono mt-0.5">{pane.currentPath}</span>
         </div>
       {/if}
 
@@ -1797,7 +1797,7 @@
                 on:dragstart={(e) => handleRowDragStart(item, e)}
                 on:drag={handleRowDrag}
                 on:dragend={(e) => handleRowDragEnd(item, e)}
-                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-white' : 'text-white'} {depth > 0 ? 'bg-black/5' : ''}"
+                class="grid grid-cols-12 gap-2 px-3 h-[28px] max-h-[28px] box-border items-center cursor-pointer transition-colors duration-150 relative {isCasting ? '-translate-y-2.5 bg-amber-500/20 shadow-lg shadow-amber-500/20 text-amber-300 ring-1 ring-amber-400' : isSelected ? 'bg-[var(--accent-subtle)] text-[var(--accent)] font-medium' : isHovered ? 'bg-[var(--bg-hover)] text-[var(--text-primary)]' : 'text-[var(--text-primary)]'} {depth > 0 ? 'bg-black/5' : ''}"
                 style="height: {ROW_HEIGHT}px;"
                 on:click={(e) => handleRowClick(item, e)}
                 on:dblclick={() => handleDoubleClick(item)}
@@ -1830,7 +1830,7 @@
                   {#if item.is_dir}
                     <button
                       type="button"
-                      class="w-4 h-4 -ml-0.5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0 z-10"
+                      class="w-4 h-4 -ml-0.5 flex items-center justify-center rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-amber-400 transition-colors cursor-pointer shrink-0 z-10"
                       on:click|stopPropagation={() => toggleFolderExpanded(item)}
                       on:mouseenter={() => handleChevronHover(item)}
                       on:mouseleave={clearChevronHover}

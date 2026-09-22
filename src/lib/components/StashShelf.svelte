@@ -102,12 +102,12 @@
 </script>
 
 {#if $isStashOpen && $stashItems.length > 0}
-  <div class="border-t border-[var(--border)] bg-[#12151b] text-xs select-none shadow-2xl flex flex-col max-h-48 transition-all">
+  <div class="border-t border-[var(--border)] bg-[var(--bg-surface)] text-xs select-none shadow-2xl flex flex-col max-h-48 transition-all">
     <!-- Stash Header Bar -->
-    <div class="flex items-center justify-between px-3 py-1.5 bg-[#171b22] border-b border-[#262d3d]">
+    <div class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-panel)] border-b border-[var(--border)]">
       <div class="flex items-center gap-2">
         <Layers size={13} class="text-[var(--accent)]" />
-        <span class="font-bold text-slate-200">Samlingsfack (Stash Shelf)</span>
+        <span class="font-bold text-[var(--text-primary)]">Samlingsfack (Stash Shelf)</span>
         <span class="px-1.5 py-0.2 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] font-mono text-[10px] font-bold">
           {$stashItems.length}
         </span>
@@ -116,7 +116,7 @@
       <div class="flex items-center gap-1.5">
         {#if hasBams}
           <button
-            class="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-white border border-emerald-500/40 text-[11px] font-semibold transition-colors"
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-[var(--text-primary)] border border-emerald-500/40 text-[11px] font-semibold transition-colors"
             on:click={openAllInRsnap}
             title="Öppna alla stashed filer i rsnap viewer"
           >
@@ -125,7 +125,7 @@
           </button>
 
           <button
-            class="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-white border border-blue-500/40 text-[11px] font-semibold transition-colors"
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-[var(--text-primary)] border border-blue-500/40 text-[11px] font-semibold transition-colors"
             on:click={sendStashToIgv}
             title="Skicka stashed spår till IGV desktop"
           >
@@ -134,7 +134,7 @@
           </button>
 
           <button
-            class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#2a3449] hover:bg-[#394764] text-emerald-300 hover:text-white border border-[#3e4f71] text-[11px] font-semibold transition-colors"
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-emerald-300 hover:text-[var(--text-primary)] border border-[var(--border)] text-[11px] font-semibold transition-colors"
             on:click={handleOpenGenomicsHub}
             title="Öppna Genomics Track Hub med alla stashed spår"
           >
@@ -143,7 +143,7 @@
           </button>
 
           <button
-            class="flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-white border border-purple-500/40 text-[11px] font-semibold transition-colors"
+            class="flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/20 hover:bg-purple-500 text-purple-300 hover:text-[var(--text-primary)] border border-purple-500/40 text-[11px] font-semibold transition-colors"
             on:click={runQcOnStash}
             disabled={isRunningQc}
             title="Kör rs-qc align på BAM-fil"
@@ -154,7 +154,7 @@
         {/if}
 
         <button
-          class="flex items-center gap-1 px-2 py-0.5 rounded bg-[#202530] hover:bg-[#2c3342] text-slate-300 border border-[#2f384a] text-[11px] transition-colors"
+          class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-active)] hover:bg-[var(--bg-active)] text-[var(--text-primary)] border border-[var(--border)] text-[11px] transition-colors"
           on:click={copyAllPaths}
           title="Kopiera alla sökvägar rad för rad"
         >
@@ -168,7 +168,7 @@
         </button>
 
         <button
-          class="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 text-[11px] transition-colors"
+          class="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-red-500/20 text-[var(--text-secondary)] hover:text-red-400 text-[11px] transition-colors"
           on:click={clearStash}
           title="Rensa hela stashen"
         >
@@ -177,7 +177,7 @@
         </button>
 
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+          class="p-1 rounded hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           on:click={() => isStashOpen.set(false)}
           title="Minimera stashen"
         >
@@ -187,12 +187,12 @@
     </div>
 
     <!-- Stash Items Horizontal Carousel / Grid -->
-    <div class="p-2 overflow-x-auto flex items-center gap-2 bg-[#0d0e12]">
+    <div class="p-2 overflow-x-auto flex items-center gap-2 bg-[var(--bg-base)]">
       {#each $stashItems as item (item.path)}
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#191d26] border border-[#2a3244] hover:border-[var(--accent)] text-slate-200 text-xs shrink-0 group transition-all">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--bg-panel)] border border-[var(--border)] hover:border-[var(--accent)] text-[var(--text-primary)] text-xs shrink-0 group transition-all">
           <svelte:component this={getFileIcon(item)} size={13} class="text-[var(--accent)] shrink-0" />
           <span class="font-medium truncate max-w-[160px]" title={item.path}>{item.name}</span>
-          <span class="text-[10px] text-slate-500 font-mono">{item.formatted_size}</span>
+          <span class="text-[10px] text-[var(--text-muted)] font-mono">{item.formatted_size}</span>
           <button
             class="opacity-50 group-hover:opacity-100 hover:text-red-400 p-0.5 transition-opacity"
             on:click|stopPropagation={() => removeFromStash(item.path)}
@@ -209,23 +209,23 @@
 <!-- rs-qc Modal Output -->
 {#if qcReportModal}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-6">
-    <div class="w-[680px] max-h-[80vh] flex flex-col bg-[#14171d] border border-[#262d3d] rounded-2xl shadow-2xl overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 bg-[#191d24] border-b border-[#262d3d]">
+    <div class="w-[680px] max-h-[80vh] flex flex-col bg-[var(--bg-surface)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 bg-[var(--bg-panel)] border-b border-[var(--border)]">
         <div class="flex items-center gap-2 text-purple-400 font-bold">
           <Activity size={16} />
           <span>rs-qc Alignment QC Rapport</span>
         </div>
         <button
-          class="p-1 rounded hover:bg-white/10 text-slate-400 hover:text-white"
+          class="p-1 rounded hover:bg-white/10 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           on:click={() => (qcReportModal = '')}
         >
           <X size={16} />
         </button>
       </div>
-      <div class="flex-1 overflow-auto p-4 font-mono text-xs text-slate-200 bg-[#0c0d10] leading-relaxed select-text">
+      <div class="flex-1 overflow-auto p-4 font-mono text-xs text-[var(--text-primary)] bg-[var(--bg-base)] leading-relaxed select-text">
         <pre class="m-0 whitespace-pre-wrap">{qcReportModal}</pre>
       </div>
-      <div class="px-4 py-2 bg-[#191d24] border-t border-[#262d3d] flex justify-end">
+      <div class="px-4 py-2 bg-[var(--bg-panel)] border-t border-[var(--border)] flex justify-end">
         <button
           class="px-4 py-1.5 rounded-lg bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold"
           on:click={() => (qcReportModal = '')}

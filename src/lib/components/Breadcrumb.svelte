@@ -250,7 +250,7 @@
         class="flex-1 bg-[var(--bg-panel)] text-xs text-[var(--text-primary)] px-2 py-0.5 rounded border border-[var(--accent)] font-mono focus:outline-none shadow-inner"
       />
       <button
-        class="p-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-white border border-[var(--border)]"
+        class="p-1 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)]"
         on:mousedown|preventDefault
         on:click={pasteIntoInput}
         title="Klistra in från urklipp"
@@ -310,7 +310,7 @@
             {#each savedServers as srv}
               {@const isCur = pane.isSSH && pane.sshHost === srv.host}
               <button
-                class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-[var(--bg-hover)] text-left {isCur ? 'text-green-400 font-semibold bg-green-950/30' : 'text-slate-300'}"
+                class="w-full flex items-center justify-between px-2.5 py-1.5 hover:bg-[var(--bg-hover)] text-left {isCur ? 'text-green-400 font-semibold bg-green-950/30' : 'text-[var(--text-primary)]'}"
                 on:click={() => switchToSSH(srv.host)}
               >
                 <div class="flex items-center gap-2 truncate">
@@ -343,7 +343,7 @@
     >
       <!-- Root slash or tilde -->
       <button
-        class="px-1 py-0.2 rounded hover:bg-[var(--bg-hover)] text-slate-400 hover:text-white transition-colors font-mono font-bold shrink-0"
+        class="px-1 py-0.2 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors font-mono font-bold shrink-0"
         on:click={(e) => {
           e.stopPropagation();
           navigatePane(paneId, pane.isSSH ? '~' : '/');
@@ -354,11 +354,11 @@
       </button>
 
       {#each pathSegments as segment, index}
-        <span class="path-divider text-slate-600 font-mono select-none px-0.5 shrink-0">/</span>
+        <span class="path-divider text-[var(--text-muted)] font-mono select-none px-0.5 shrink-0">/</span>
 
         {@const isLast = index === pathSegments.length - 1}
         <button
-          class="px-1 py-0.2 rounded transition-colors shrink-0 {isLast ? 'font-bold text-white bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-slate-300 hover:text-white hover:bg-[var(--bg-hover)]'}"
+          class="px-1 py-0.2 rounded transition-colors shrink-0 {isLast ? 'font-bold text-white bg-[var(--accent)]/20 text-[var(--accent)]' : 'text-[var(--text-primary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'}"
           on:click={(e) => {
             e.stopPropagation();
             navigateToSegment(index);
@@ -374,7 +374,7 @@
   <!-- Compact Right Utility Icons (Copy & Terminal) -->
   <div class="flex items-center gap-0.5 shrink-0 ml-1">
     <button
-      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] transition-colors {copiedPath ? 'text-green-400 bg-green-950/40' : ''}"
+      class="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors {copiedPath ? 'text-green-400 bg-green-950/40' : ''}"
       on:click={copyCurrentPath}
       title={copiedPath ? 'Sökväg kopierad!' : 'Kopiera fullständig sökväg'}
     >
@@ -386,7 +386,7 @@
     </button>
 
     <button
-      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)]"
+      class="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
       on:click={pastePathAndGo}
       title="Klistra in sökväg från urklipp och gå dit direkt (⌘⇧G)"
     >
@@ -394,7 +394,7 @@
     </button>
 
     <button
-      class="p-1 rounded text-slate-400 hover:text-white hover:bg-[var(--bg-hover)] transition-colors {$isTerminalOpen && $activePaneId === paneId ? 'text-amber-400 bg-amber-500/20' : ''}"
+      class="p-1 rounded text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors {$isTerminalOpen && $activePaneId === paneId ? 'text-amber-400 bg-amber-500/20' : ''}"
       on:click={() => {
         activePaneId.set(paneId);
         toggleTerminal();
@@ -415,7 +415,7 @@
     tabindex="-1"
   >
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors"
       on:click={() => {
         isContextMenuOpen = false;
         pastePathAndGo();
@@ -429,7 +429,7 @@
     </button>
 
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors"
       on:click={() => {
         isContextMenuOpen = false;
         copyCurrentPath();
@@ -442,7 +442,7 @@
     </button>
 
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors"
       on:click={() => {
         isContextMenuOpen = false;
         activePaneId.set(paneId);
@@ -459,14 +459,14 @@
     <div class="h-px bg-[var(--border)] my-1"></div>
 
     <button
-      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-white text-left transition-colors"
+      class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-[var(--accent)] hover:text-[var(--text-primary)] text-left transition-colors"
       on:click={() => {
         isContextMenuOpen = false;
         startEditing();
       }}
     >
       <div class="flex items-center gap-2">
-        <Edit3 size={13} class="text-slate-400" />
+        <Edit3 size={13} class="text-[var(--text-secondary)]" />
         <span>Redigera sökväg</span>
       </div>
       <kbd class="text-[9px] font-mono opacity-70">⌘L</kbd>

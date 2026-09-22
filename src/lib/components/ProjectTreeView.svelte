@@ -482,7 +482,7 @@
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
               <button
                 type="button"
-                class="text-slate-400 hover:text-amber-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
+                class="text-[var(--text-secondary)] hover:text-amber-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
                 on:click|stopPropagation={(e) => toggleFolder(node.path, e)}
                 on:mouseenter|stopPropagation={() => handleFolderMouseEnter(node.path, node.item)}
                 title={isOpen ? 'Klicka för att fälla ihop' : 'Klicka eller hovra för att fälla ut'}
@@ -500,14 +500,14 @@
             <!-- Action buttons on hover -->
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0 ml-1">
               <button
-                class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 on:click|stopPropagation={() => onNavigateFolder(node.path)}
                 title="Öppna mappen i fillistan och stäng index"
               >
                 <FolderOpen size={11} />
               </button>
               <button
-                class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 on:click|stopPropagation={() => revealInOs(node.path)}
                 title="Visa i Finder"
               >
@@ -559,14 +559,14 @@
             <!-- Action buttons on hover -->
             <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
               <button
-                class="p-1 rounded hover:bg-sky-600 hover:text-white text-slate-400 transition-colors cursor-pointer"
+                class="p-1 rounded hover:bg-sky-600 hover:text-[var(--text-primary)] text-[var(--text-secondary)] transition-colors cursor-pointer"
                 on:click|stopPropagation={() => openInFavoriteEditor(node.path)}
                 title="Öppna i {$favoriteEditor} (⌘E)"
               >
                 <FileCode size={11} />
               </button>
               <button
-                class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                 on:click|stopPropagation={() => revealInOs(node.path)}
                 title="Visa i Finder"
               >
@@ -630,7 +630,7 @@
                   <div class="flex items-center gap-2 min-w-0 flex-1">
                     <button
                       type="button"
-                      class="text-slate-400 hover:text-amber-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
+                      class="text-[var(--text-secondary)] hover:text-amber-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
                       on:click|stopPropagation={(e) => onLocalToggleFolder(project.path, e)}
                       on:mouseenter|stopPropagation={() => onLocalFolderMouseEnter(project.path, project.item)}
                       title={isProjectOpen ? 'Klicka för att fälla ihop' : 'Klicka eller hovra för att fälla ut'}
@@ -654,7 +654,7 @@
                   <!-- Action buttons on hover -->
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0 ml-2">
                     <button
-                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
+                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-[var(--text-primary)] border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
                       on:click|stopPropagation={() => openInFavoriteEditor(project.path)}
                       title="Öppna hela projektet i {$favoriteEditor} (⌘E)"
                     >
@@ -662,14 +662,14 @@
                       <span>Öppna i {$favoriteEditor}</span>
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => onNavigateFolder(project.path)}
                       title="Öppna mappen i fillistan och stäng index"
                     >
                       <FolderOpen size={13} />
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => revealInOs(project.path)}
                       title="Visa i Finder"
                     >
@@ -743,7 +743,7 @@
                   <div class="flex items-center gap-2 min-w-0 flex-1">
                     <button
                       type="button"
-                      class="text-slate-400 hover:text-emerald-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
+                      class="text-[var(--text-secondary)] hover:text-emerald-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
                       on:click|stopPropagation={(e) => onLocalToggleFolder(project.path, e)}
                       on:mouseenter|stopPropagation={() => onLocalFolderMouseEnter(project.path, project.item)}
                       title={isProjectOpen ? 'Klicka för att fälla ihop' : 'Klicka eller hovra för att fälla ut'}
@@ -766,7 +766,7 @@
 
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0 ml-2">
                     <button
-                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
+                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-[var(--text-primary)] border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
                       on:click|stopPropagation={() => openInFavoriteEditor(project.path)}
                       title="Öppna hela projektet i {$favoriteEditor} (⌘E)"
                     >
@@ -774,14 +774,14 @@
                       <span>Öppna i {$favoriteEditor}</span>
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => onNavigateFolder(project.path)}
                       title="Öppna mappen i fillistan och stäng index"
                     >
                       <FolderOpen size={13} />
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => revealInOs(project.path)}
                       title="Visa i Finder"
                     >
@@ -854,7 +854,7 @@
                   <div class="flex items-center gap-2 min-w-0 flex-1">
                     <button
                       type="button"
-                      class="text-slate-400 hover:text-yellow-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
+                      class="text-[var(--text-secondary)] hover:text-yellow-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
                       on:click|stopPropagation={(e) => onLocalToggleFolder(project.path, e)}
                       on:mouseenter|stopPropagation={() => onLocalFolderMouseEnter(project.path, project.item)}
                       title={isProjectOpen ? 'Klicka för att fälla ihop' : 'Klicka eller hovra för att fälla ut'}
@@ -877,7 +877,7 @@
 
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0 ml-2">
                     <button
-                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
+                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-[var(--text-primary)] border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
                       on:click|stopPropagation={() => openInFavoriteEditor(project.path)}
                       title="Öppna hela projektet i {$favoriteEditor} (⌘E)"
                     >
@@ -885,14 +885,14 @@
                       <span>Öppna i {$favoriteEditor}</span>
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => onNavigateFolder(project.path)}
                       title="Öppna mappen i fillistan och stäng index"
                     >
                       <FolderOpen size={13} />
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => revealInOs(project.path)}
                       title="Visa i Finder"
                     >
@@ -965,7 +965,7 @@
                   <div class="flex items-center gap-2 min-w-0 flex-1">
                     <button
                       type="button"
-                      class="text-slate-400 hover:text-sky-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
+                      class="text-[var(--text-secondary)] hover:text-sky-400 w-3.5 flex justify-center shrink-0 cursor-pointer"
                       on:click|stopPropagation={(e) => onLocalToggleFolder(project.path, e)}
                       on:mouseenter|stopPropagation={() => onLocalFolderMouseEnter(project.path, project.item)}
                       title={isProjectOpen ? 'Klicka för att fälla ihop' : 'Klicka eller hovra för att fälla ut'}
@@ -988,7 +988,7 @@
 
                   <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 shrink-0 ml-2">
                     <button
-                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-white border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
+                      class="flex items-center gap-1 px-2.5 py-1 rounded bg-sky-600/20 hover:bg-sky-600 text-sky-300 hover:text-[var(--text-primary)] border border-sky-500/40 text-[11px] font-sans font-semibold transition-colors cursor-pointer"
                       on:click|stopPropagation={() => openInFavoriteEditor(project.path)}
                       title="Öppna hela projektet i {$favoriteEditor} (⌘E)"
                     >
@@ -996,14 +996,14 @@
                       <span>Öppna i {$favoriteEditor}</span>
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => onNavigateFolder(project.path)}
                       title="Öppna mappen i fillistan och stäng index"
                     >
                       <FolderOpen size={13} />
                     </button>
                     <button
-                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-slate-400 hover:text-white transition-colors cursor-pointer"
+                      class="p-1 rounded hover:bg-[var(--bg-panel)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
                       on:click|stopPropagation={() => revealInOs(project.path)}
                       title="Visa i Finder"
                     >
