@@ -173,11 +173,22 @@ npm install
 # 3. Run in Development Mode
 npm run tauri dev
 
-# 4. Build Production Release Bundle (DMG + App)
+# 4. Build the app
 npm run tauri build
+
+# 5. Build a DMG for distribution (quit any running copy first)
+npm run bundle:dmg
 ```
 
-The production DMG and `.app` will be created in `src-tauri/target/release/bundle/dmg/`.
+`npm run tauri build` produces `src-tauri/target/release/bundle/macos/Flashbrowse.app` -
+that is the one to run when testing a change.
+
+The DMG is a separate command because building it mounts a temporary volume,
+and macOS launches the app from that volume while the bundler is arranging the
+Finder window. The running copy then holds the volume open, `hdiutil detach`
+fails, and the image cannot be sealed. Quit every running Flashbrowse before
+`npm run bundle:dmg`, and the DMG lands in
+`src-tauri/target/release/bundle/dmg/`.
 
 ---
 
