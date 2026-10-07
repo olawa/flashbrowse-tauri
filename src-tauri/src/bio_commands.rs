@@ -570,6 +570,32 @@ fn detect_build_from_bam(bam_path: &str) -> Option<&'static str> {
     None
 }
 
+/// Threads handed to every rsnap invocation.
+///
+/// rsnap defaults to every core, and each worker buffers its own share of the
+/// region, so peak memory scales with the thread count. Measured on an 18-core,
+/// 68 GB machine, HG002 BAM, warm cache, best of three:
+///
+/// ```text
+///                   -t 1    -t 2    -t 4    -t 8    default (18)
+/// 1 sample, 2 Mb    0.08s   0.09s   0.11s   0.14s
+/// 1 sample, 20 Mb   0.59s   0.68s   0.87s   1.18s
+/// 3 samples, 20 Mb  1.20s   1.29s   1.54s   2.04s
+/// 1 sample, 50 Mb   1.59s   1.90s   3.65s   14.1s   45.5s  (RSS 9 -> 31.5 GB)
+/// ```
+///
+/// One thread was fastest in every case, including several samples at once,
+/// where parallel loading should have helped most. Until rsnap's loader stops
+/// multiplying memory by its thread count, one is the right default.
+/// FLASHBROWSE_RSNAP_THREADS overrides it for experiments.
+pub fn rsnap_threads() -> usize {
+    std::env::var("FLASHBROWSE_RSNAP_THREADS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|n| *n > 0)
+        .unwrap_or(1)
+}
+
 #[tauri::command]
 pub async fn generate_rsnap_snapshot(
     bam_paths: Vec<String>,
@@ -607,6 +633,7 @@ pub async fn generate_rsnap_snapshot(
         }
         cmd.arg("-p").arg(&region);
         cmd.arg("-o").arg(&temp_out_str);
+        cmd.arg("-t").arg(rsnap_threads().to_string());
 
         // Resolve reference & GTF. Without an explicit choice, ask the BAM
         // header which build it was aligned to rather than assuming human.
@@ -743,6 +770,7 @@ pub fn start_rsnap_server(
 
     let mut cmd = Command::new(rsnap_bin);
     cmd.arg("--server");
+    cmd.arg("-t").arg(rsnap_threads().to_string());
 
     let resolved_bam_dir = if let Some(ref d) = bam_dir {
         let res = resolve_path(d);
@@ -850,6 +878,7 @@ pub fn launch_rsnap(
 
     let mut cmd = Command::new(rsnap_bin);
     cmd.arg("--viewer");
+    cmd.arg("-t").arg(rsnap_threads().to_string());
 
     if connect_to_server.unwrap_or(false) {
         let addr = server_address.unwrap_or_else(|| "localhost:5555".to_string());
@@ -1417,4 +1446,27 @@ pub async fn ensure_ollama_running() -> Result<OllamaStartup, String> {
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod rsnap_thread_tests {
+    use super::rsnap_threads;
+
+    #[test]
+    fn defaults_to_one_and_honours_a_valid_override() {
+        // One test, so the environment is not raced by a parallel sibling.
+        std::env::remove_var("FLASHBROWSE_RSNAP_THREADS");
+        assert_eq!(rsnap_threads(), 1);
+
+        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "4");
+        assert_eq!(rsnap_threads(), 4);
+
+        // Zero and junk fall back rather than handing rsnap "all cores".
+        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "0");
+        assert_eq!(rsnap_threads(), 1);
+        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "many");
+        assert_eq!(rsnap_threads(), 1);
+
+        std::env::remove_var("FLASHBROWSE_RSNAP_THREADS");
+    }
 }
