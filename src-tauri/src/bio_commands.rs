@@ -572,28 +572,38 @@ fn detect_build_from_bam(bam_path: &str) -> Option<&'static str> {
 
 /// Threads handed to every rsnap invocation.
 ///
-/// rsnap defaults to every core, and each worker buffers its own share of the
-/// region, so peak memory scales with the thread count. Measured on an 18-core,
-/// 68 GB machine, HG002 BAM, warm cache, best of three:
+/// Four, or fewer on a smaller machine. rsnap's own default is every core, and
+/// until olawa/rsnap#5 its pileup gave each thread a region-length copy, so
+/// memory grew with the thread count (a 50 Mb region went from 9.5 GB at -t 1
+/// to 30.6 GB and 43 s at -t 18). With the pileup built in place, threads stop
+/// costing memory and start paying. Measured on an 18-core, 68 GB machine,
+/// HG002 chr22 at 35x, reference given, best of three:
 ///
 /// ```text
-///                   -t 1    -t 2    -t 4    -t 8    default (18)
-/// 1 sample, 2 Mb    0.08s   0.09s   0.11s   0.14s
-/// 1 sample, 20 Mb   0.59s   0.68s   0.87s   1.18s
-/// 3 samples, 20 Mb  1.20s   1.29s   1.54s   2.04s
-/// 1 sample, 50 Mb   1.59s   1.90s   3.65s   14.1s   45.5s  (RSS 9 -> 31.5 GB)
+///                    -t 1    -t 4    -t 8
+/// 1 BAM, 2 Mb        1.27s   1.05s   1.04s
+/// 3 BAMs, 2 Mb       2.80s   1.95s   1.94s
+/// 1 BAM, 50 Mb (*)   1.17s   1.10s   1.10s   5.1 GB at every -t
 /// ```
+/// (*) low-coverage HG002, chr1.
 ///
-/// One thread was fastest in every case, including several samples at once,
-/// where parallel loading should have helped most. Until rsnap's loader stops
-/// multiplying memory by its thread count, one is the right default.
-/// FLASHBROWSE_RSNAP_THREADS overrides it for experiments.
+/// Past four nothing improves, and four leaves the rest of the machine for
+/// the app. FLASHBROWSE_RSNAP_THREADS overrides it for experiments.
 pub fn rsnap_threads() -> usize {
     std::env::var("FLASHBROWSE_RSNAP_THREADS")
         .ok()
         .and_then(|v| v.trim().parse::<usize>().ok())
         .filter(|n| *n > 0)
+        .unwrap_or_else(default_rsnap_threads)
+}
+
+const DEFAULT_RSNAP_THREADS: usize = 4;
+
+fn default_rsnap_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
         .unwrap_or(1)
+        .min(DEFAULT_RSNAP_THREADS)
 }
 
 #[tauri::command]
@@ -1450,22 +1460,26 @@ pub async fn ensure_ollama_running() -> Result<OllamaStartup, String> {
 
 #[cfg(test)]
 mod rsnap_thread_tests {
-    use super::rsnap_threads;
+    use super::{default_rsnap_threads, rsnap_threads};
 
     #[test]
-    fn defaults_to_one_and_honours_a_valid_override() {
+    fn defaults_to_four_at_most_and_honours_a_valid_override() {
         // One test, so the environment is not raced by a parallel sibling.
         std::env::remove_var("FLASHBROWSE_RSNAP_THREADS");
-        assert_eq!(rsnap_threads(), 1);
+        let cores = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1);
+        assert_eq!(default_rsnap_threads(), cores.min(4));
+        assert_eq!(rsnap_threads(), default_rsnap_threads());
 
-        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "4");
-        assert_eq!(rsnap_threads(), 4);
+        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "1");
+        assert_eq!(rsnap_threads(), 1);
+        std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "12");
+        assert_eq!(rsnap_threads(), 12);
 
         // Zero and junk fall back rather than handing rsnap "all cores".
         std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "0");
-        assert_eq!(rsnap_threads(), 1);
+        assert_eq!(rsnap_threads(), default_rsnap_threads());
         std::env::set_var("FLASHBROWSE_RSNAP_THREADS", "many");
-        assert_eq!(rsnap_threads(), 1);
+        assert_eq!(rsnap_threads(), default_rsnap_threads());
 
         std::env::remove_var("FLASHBROWSE_RSNAP_THREADS");
     }
