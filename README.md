@@ -53,6 +53,10 @@ Traditional file browsers are sluggish, memory-heavy, and completely disconnecte
 ---
 
 ### 🧬 2. Bioinformatics Command Center
+
+- **Genomikarbetsyta** i filtypsindexet: gruppera FASTQ, BAM/CRAM och VCF/BCF per prov över mappar. Provnamn från filhuvuden märks ut; kopplingar utifrån filnamn visas som förslag. VCF med flera prov hålls separat.
+- **Filhälsa**: visa saknade eller äldre index och kör en uttrycklig `samtools quickcheck` för visade BAM/CRAM. Skapa eller bygg om index från filraden när rätt verktyg finns installerat. Quickcheck läser inte hela filens innehåll.
+- **Jämför referenser**: välj BAM/CRAM, VCF/BCF, BED eller FASTA och jämför lästa contignamn, längder och identifierat referensbygge. Ofullständiga profiler ger ett osäkert resultat i stället för ett klartecken.
 - **BAM / CRAM Header Inspector**:
   - Automatically parses `@HD`, `@SQ` (reference contigs & lengths), `@RG` (read groups, sample names), and `@PG` (command lines, alignment tools).
   - **Automated Reference Matching**: Identifies matching reference genomes (`hg38`, `GRCh38`, `hg19`, `chm13_v2`, `mm10`, `mm39`) by comparing contig checksums and length distributions.

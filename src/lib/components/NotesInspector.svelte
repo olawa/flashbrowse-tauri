@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { getDirectoryNotes, saveDirectoryNotes, revealInOs, listDirectory } from '../invoke';
+  import { onDestroy } from 'svelte';
+  import { revealInOs, listDirectory } from '../invoke';
+  import { directoryNotes } from '../stores/directoryNotes';
   import { renderMarkdown } from '../markdown';
   import { isOllamaOnline, askOllamaStream, selectedModel, isAiGenerating } from '../stores/ollamaStore';
   import type { DirectoryNotes } from '../types';
@@ -31,60 +32,38 @@
   let lastSavedText = '';
   let viewMode: 'rendered' | 'edit' | 'split' = 'rendered';
   let copied = false;
-  let autoSaveTimeout: any = null;
+  let isDrafting = false;
+  let loadedPath = '';
   let textareaEl: HTMLTextAreaElement;
 
   $: if (dirPath) {
-    loadNotes(dirPath);
+    directoryNotes.open(dirPath);
   }
 
-  async function loadNotes(path: string) {
-    isLoading = true;
-    isDirty = false;
-    try {
-      notes = await getDirectoryNotes(path);
-      noteContent = notes.content;
-      if (notes.last_modified) {
-        lastSavedText = `Sparad ${notes.last_modified}`;
-      } else {
-        lastSavedText = notes.exists ? 'Laddad' : 'Ny anteckning';
-      }
-      // If note is empty, open in edit mode by default
-      if (!notes.exists || !notes.content.trim()) {
-        viewMode = 'edit';
-      }
-    } catch (e) {
-      console.error('Failed to load directory notes:', e);
-    } finally {
-      isLoading = false;
+  const unsubscribe = directoryNotes.subscribe((state) => {
+    notes = state.notes;
+    noteContent = state.content;
+    isLoading = state.isLoading;
+    isSaving = state.isSaving;
+    isDirty = state.isDirty;
+    lastSavedText = state.message;
+    if (notes && notes.path !== loadedPath) {
+      loadedPath = notes.path;
+      if (!notes.exists || !notes.content.trim()) viewMode = 'edit';
     }
-  }
+  });
 
-  function handleInput() {
-    isDirty = true;
-    lastSavedText = 'Osparade ändringar...';
-    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-    autoSaveTimeout = setTimeout(() => {
-      saveNotes();
-    }, 1500);
+  function handleInput(event?: Event) {
+    if (event) noteContent = (event.currentTarget as HTMLTextAreaElement).value;
+    directoryNotes.edit(noteContent);
   }
 
   async function saveNotes() {
-    if (!dirPath || isSaving) return;
-    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
-    isSaving = true;
-    try {
-      notes = await saveDirectoryNotes(dirPath, noteContent, notes?.filename);
-      isDirty = false;
-      lastSavedText = notes.last_modified ? `Sparad ${notes.last_modified}` : 'Sparad';
-    } catch (e: any) {
-      lastSavedText = `Kunde inte spara: ${e}`;
-    } finally {
-      isSaving = false;
-    }
+    await directoryNotes.save();
   }
 
   function insertTemplate(type: 'experiment' | 'todo' | 'timestamp') {
+    if (isLoading || !notes) return;
     const now = new Date();
     const dateStr = now.toISOString().slice(0, 10);
     const timeStr = now.toTimeString().slice(0, 5);
@@ -145,7 +124,7 @@
 
   async function handleAiDraft() {
     if ($isAiGenerating) return;
-    isLoading = true;
+    isDrafting = true;
     try {
       const items = await listDirectory(dirPath, false);
       const topFiles = items.slice(0, 20).map((f) => `- ${f.name} (${f.formatted_size})`).join('\n');
@@ -156,12 +135,13 @@
     } catch (e) {
       console.error('AI draft failed:', e);
     } finally {
-      isLoading = false;
+      isDrafting = false;
     }
   }
 
   onDestroy(() => {
-    if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
+    unsubscribe();
+    void directoryNotes.close();
   });
 </script>
 
@@ -224,7 +204,7 @@
       <button
         class="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-500 text-[var(--text-primary)] font-semibold text-xs shadow transition-colors flex items-center gap-1 disabled:opacity-50"
         on:click={saveNotes}
-        disabled={isSaving}
+        disabled={isSaving || isLoading || !notes}
         title="Spara (Cmd+S)"
       >
         {#if isSaving}
@@ -306,12 +286,17 @@
 
   <!-- Body Content -->
   <div class="flex-1 min-h-0 flex overflow-hidden">
-    {#if isLoading}
+    {#if isLoading || isDrafting}
       <div class="flex-1 flex items-center justify-center text-[var(--text-secondary)] gap-2">
         <RefreshCw size={16} class="animate-spin text-amber-400" />
         <span>Laddar anteckningar...</span>
       </div>
 
+    {:else if !notes}
+      <div class="p-4 text-amber-300">
+        <p>{lastSavedText}</p>
+        <button class="mt-2 underline" on:click={() => directoryNotes.open(dirPath)}>Försök igen</button>
+      </div>
     {:else if viewMode === 'rendered'}
       <!-- Rendered Markdown View -->
       <div class="flex-1 overflow-y-auto p-4 select-text leading-relaxed">
@@ -339,7 +324,7 @@
       <div class="flex-1 flex flex-col p-2 bg-[var(--bg-base)]">
         <textarea
           bind:this={textareaEl}
-          bind:value={noteContent}
+          value={noteContent}
           on:input={handleInput}
           placeholder="Skriv dina Markdown-anteckningar här... (Cmd+S för att spara)"
           class="flex-1 w-full bg-transparent text-[var(--text-primary)] font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-[var(--text-muted)] select-text"
@@ -353,7 +338,7 @@
         <div class="w-1/2 flex flex-col p-2 bg-[var(--bg-base)] overflow-hidden">
           <textarea
             bind:this={textareaEl}
-            bind:value={noteContent}
+            value={noteContent}
             on:input={handleInput}
             placeholder="Skriv dina Markdown-anteckningar här..."
             class="flex-1 w-full bg-transparent text-[var(--text-primary)] font-mono text-xs p-2 leading-relaxed resize-none focus:outline-none placeholder:text-[var(--text-muted)] select-text"

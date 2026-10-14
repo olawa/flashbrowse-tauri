@@ -290,13 +290,23 @@ pub(crate) fn parse_table_preview(content: &str, delimiter: char) -> (Vec<String
 /// Previewing reads (and sometimes decodes) file contents, which must not run
 /// on the IPC thread - see the note on list_directory.
 #[tauri::command]
-pub async fn get_preview(path: String, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
-    tauri::async_runtime::spawn_blocking(move || get_preview_sync(&path, max_bytes))
+pub async fn get_preview(
+    path: String,
+    max_bytes: Option<usize>,
+    load_full: Option<bool>,
+    tail: Option<bool>,
+) -> Result<PreviewContent, String> {
+    tauri::async_runtime::spawn_blocking(move || get_preview_sync(&path, max_bytes, load_full, tail))
         .await
         .map_err(|e| e.to_string())?
 }
 
-pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewContent, String> {
+pub fn get_preview_sync(
+    path: &str,
+    max_bytes: Option<usize>,
+    load_full: Option<bool>,
+    tail: Option<bool>,
+) -> Result<PreviewContent, String> {
     let resolved_path = resolve_path(path);
 
     if !resolved_path.exists() {
@@ -337,6 +347,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
             modified_str,
             permissions_str,
             error_message: None,
+            is_truncated: Some(false),
+            loaded_bytes: None,
+            is_tail: Some(false),
         });
     }
 
@@ -376,6 +389,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
     }
@@ -405,6 +421,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
     }
@@ -441,6 +460,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(file_size_bytes > bytes_read as u64),
+                loaded_bytes: Some(bytes_read),
+                is_tail: Some(false),
             });
         }
     }
@@ -477,6 +499,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(file_size_bytes > bytes_read as u64),
+                loaded_bytes: Some(bytes_read),
+                is_tail: Some(false),
             });
         }
     }
@@ -506,6 +531,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: Some("PDF file is too large (>50 MB) for instant preview".to_string()),
+                is_truncated: Some(true),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
 
@@ -538,12 +566,15 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
             modified_str,
             permissions_str,
             error_message: None,
+            is_truncated: Some(false),
+            loaded_bytes: Some(bytes.len()),
+            is_tail: Some(false),
         });
     }
 
     // 6. Markdown Preview
     if ext == "md" || ext == "markdown" {
-        let max_md = 4 * 1024 * 1024;
+        let max_md = if load_full.unwrap_or(false) { 50 * 1024 * 1024 } else { 4 * 1024 * 1024 };
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
         let to_read = (file_size_bytes as usize).min(max_md);
         let mut buffer = vec![0u8; to_read];
@@ -574,6 +605,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(file_size_bytes > bytes_read as u64),
+                loaded_bytes: Some(bytes_read),
+                is_tail: Some(false),
             });
         }
     }
@@ -605,6 +639,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
     }
@@ -636,6 +673,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
     }
@@ -665,6 +705,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: Some("Image is too large (>20 MB) for instant preview".to_string()),
+                is_truncated: Some(true),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
 
@@ -698,12 +741,16 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
             modified_str,
             permissions_str,
             error_message: None,
+            is_truncated: Some(false),
+            loaded_bytes: None,
+            is_tail: Some(false),
         });
     }
 
     // 10. CSV / TSV Table Preview
     if ext == "csv" || ext == "tsv" || ext == "tab" {
-        let max_read = 512 * 1024; // 512 KB
+        let is_full = load_full.unwrap_or(false);
+        let max_read = if is_full { 20 * 1024 * 1024 } else { 512 * 1024 };
         let mut file = File::open(file_path).map_err(|e| e.to_string())?;
         let mut buffer = vec![0u8; max_read.min(file_size_bytes as usize)];
         let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
@@ -735,6 +782,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                     modified_str,
                     permissions_str,
                     error_message: None,
+                    is_truncated: Some(file_size_bytes > bytes_read as u64),
+                    loaded_bytes: Some(bytes_read),
+                    is_tail: Some(false),
                 });
             }
         }
@@ -742,11 +792,18 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
 
     // 11. Gzip / Bgzip Compressed Files (.gz, .bgz, .vcf.gz, .fastq.gz, .tsv.gz, etc.)
     if ext == "gz" || ext == "bgz" || filename.ends_with(".gz") || filename.ends_with(".bgz") {
-        let max_decompressed = max_bytes.unwrap_or(512 * 1024);
+        let is_full = load_full.unwrap_or(false);
+        let max_decompressed = if is_full {
+            30 * 1024 * 1024
+        } else {
+            max_bytes.unwrap_or(512 * 1024)
+        };
         if let Ok(uncompressed_bytes) = decompress_gz_head(file_path, max_decompressed) {
             let is_binary = uncompressed_bytes.iter().take(1024).any(|&b| b == 0);
             if !is_binary {
                 if let Ok(text) = String::from_utf8(uncompressed_bytes) {
+                    let text_len = text.len();
+                    let is_truncated = text_len >= max_decompressed;
                     let inner_filename = if filename.ends_with(".gz") {
                         &filename[..filename.len() - 3]
                     } else if filename.ends_with(".bgz") {
@@ -787,6 +844,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                                 modified_str,
                                 permissions_str,
                                 error_message: None,
+                                is_truncated: Some(is_truncated),
+                                loaded_bytes: Some(text_len),
+                                is_tail: Some(false),
                             });
                         }
                     }
@@ -816,6 +876,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                         modified_str,
                         permissions_str,
                         error_message: None,
+                        is_truncated: Some(is_truncated),
+                        loaded_bytes: Some(text_len),
+                        is_tail: Some(false),
                     });
                 }
             }
@@ -823,12 +886,37 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
     }
 
     // 12. Text / Code Preview (with 100+ language detection!)
-    let max_read_limit = max_bytes.unwrap_or(512 * 1024); // 512 KB
+    let is_tail_request = tail.unwrap_or(false);
+    let is_full_request = load_full.unwrap_or(false);
+
+    let max_read_limit = if is_full_request {
+        50 * 1024 * 1024 // 50 MB
+    } else {
+        max_bytes.unwrap_or(512 * 1024) // 512 KB
+    };
+
     let mut file = File::open(file_path).map_err(|e| e.to_string())?;
-    let to_read = (file_size_bytes as usize).min(max_read_limit);
-    let mut buffer = vec![0u8; to_read];
-    let bytes_read = file.read(&mut buffer).map_err(|e| e.to_string())?;
-    buffer.truncate(bytes_read);
+
+    let (buffer, is_tail, is_truncated) = if is_tail_request && file_size_bytes > 512 * 1024 {
+        let seek_pos = file_size_bytes - (512 * 1024);
+        file.seek(SeekFrom::Start(seek_pos)).map_err(|e| e.to_string())?;
+        let mut buf = vec![0u8; 512 * 1024];
+        let bytes_read = file.read(&mut buf).map_err(|e| e.to_string())?;
+        buf.truncate(bytes_read);
+        // Advance past first partial newline
+        let start_offset = buf.iter().position(|&b| b == b'\n').map(|p| p + 1).unwrap_or(0);
+        let trimmed_buf = buf[start_offset..].to_vec();
+        (trimmed_buf, true, true)
+    } else {
+        let to_read = (file_size_bytes as usize).min(max_read_limit);
+        let mut buf = vec![0u8; to_read];
+        let bytes_read = file.read(&mut buf).map_err(|e| e.to_string())?;
+        buf.truncate(bytes_read);
+        let truncated = file_size_bytes > bytes_read as u64;
+        (buf, false, truncated)
+    };
+
+    let loaded_bytes = buffer.len();
 
     // Check if binary (contains null bytes)
     let is_binary = buffer.iter().take(1024).any(|&b| b == 0);
@@ -859,6 +947,9 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
                 modified_str,
                 permissions_str,
                 error_message: None,
+                is_truncated: Some(is_truncated),
+                loaded_bytes: Some(loaded_bytes),
+                is_tail: Some(is_tail),
             });
         }
     }
@@ -894,5 +985,8 @@ pub fn get_preview_sync(path: &str, max_bytes: Option<usize>) -> Result<PreviewC
         modified_str,
         permissions_str,
         error_message: None,
+        is_truncated: Some(false),
+        loaded_bytes: None,
+        is_tail: Some(false),
     })
 }

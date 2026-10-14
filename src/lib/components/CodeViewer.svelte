@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { createEventDispatcher } from 'svelte';
   import {
     Copy,
     Check,
@@ -8,6 +9,11 @@
     Code,
     FileText,
     Hash,
+    AlertTriangle,
+    ArrowDown,
+    ArrowUp,
+    DownloadCloud,
+    CheckCircle2,
   } from 'lucide-svelte';
 
   export let code: string = '';
@@ -16,6 +22,24 @@
   export let languageName: string = 'Plain Text';
   export let languageEmoji: string = '📄';
   export let formattedSize: string = '--';
+  export let isTruncated: boolean = false;
+  export let isTail: boolean = false;
+  export let loadedBytes: number = 0;
+  export let isLoadingFull: boolean = false;
+
+  const dispatch = createEventDispatcher<{
+    loadFull: void;
+    loadTail: void;
+    loadHead: void;
+  }>();
+
+  function formatBytes(bytes: number): string {
+    if (!bytes) return '--';
+    if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return bytes + ' B';
+  }
 
   let wrapLines = false;
   let showLineNumbers = true;
@@ -172,8 +196,14 @@
       </span>
 
       <!-- Stats Pill -->
-      <span class="text-[10px] text-[var(--text-secondary)] truncate">
-        {lineCount} {lineCount === 1 ? 'rad' : 'rader'} • {formattedSize}
+      <span class="text-[10px] text-[var(--text-secondary)] truncate flex items-center gap-1">
+        <span>{lineCount} {lineCount === 1 ? 'rad' : 'rader'} • {formattedSize}</span>
+        {#if !isTruncated && loadedBytes > 0 && formattedSize !== '--'}
+          <span class="text-emerald-400 font-semibold flex items-center gap-0.5 bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/20">
+            <CheckCircle2 size={9} />
+            <span>Hela filen</span>
+          </span>
+        {/if}
       </span>
     </div>
 
@@ -225,6 +255,57 @@
       </button>
     </div>
   </div>
+
+  <!-- Truncation / Tail Warning Bar -->
+  {#if isTruncated}
+    <div class="px-3 py-1.5 bg-amber-500/15 border-b border-amber-500/30 flex items-center justify-between gap-2 text-xs shrink-0 select-none">
+      <div class="flex items-center gap-1.5 text-amber-300 min-w-0">
+        <AlertTriangle size={13} class="text-amber-400 shrink-0" />
+        <span class="truncate text-[11px]">
+          {#if isTail}
+            Visar <strong>slutet</strong> av filen (senaste {formatBytes(loadedBytes)} av {formattedSize})
+          {:else}
+            Visar <strong>första {formatBytes(loadedBytes)}</strong> av {formattedSize}
+          {/if}
+        </span>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        {#if !isTail}
+          <button
+            class="px-2 py-0.5 rounded bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border border-amber-500/50 text-[10.5px] font-semibold flex items-center gap-1 transition-colors"
+            on:click={() => dispatch('loadTail')}
+            title="Hämta och visa slutet av loggen (Tail 512 KB) – perfekt för att se felmeddelanden och tracebacks"
+          >
+            <ArrowDown size={11} />
+            <span>Visa loggslut</span>
+          </button>
+        {:else}
+          <button
+            class="px-2 py-0.5 rounded bg-amber-500/25 hover:bg-amber-500/40 text-amber-200 border border-amber-500/50 text-[10.5px] font-semibold flex items-center gap-1 transition-colors"
+            on:click={() => dispatch('loadHead')}
+            title="Visa början av filen (Head)"
+          >
+            <ArrowUp size={11} />
+            <span>Visa början</span>
+          </button>
+        {/if}
+        <button
+          class="px-2.5 py-0.5 rounded bg-[var(--accent)] hover:opacity-90 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-sm transition-opacity disabled:opacity-50"
+          on:click={() => dispatch('loadFull')}
+          disabled={isLoadingFull}
+          title="Läs in hela filen lokalt på din Mac ({formattedSize})"
+        >
+          {#if isLoadingFull}
+            <div class="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Läser in...</span>
+          {:else}
+            <DownloadCloud size={11} />
+            <span>Läs in hela ({formattedSize})</span>
+          {/if}
+        </button>
+      </div>
+    </div>
+  {/if}
 
   <!-- Search Bar (Collapsible) -->
   {#if isSearchOpen}

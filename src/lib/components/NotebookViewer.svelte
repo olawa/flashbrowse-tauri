@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { renderMarkdown } from '../markdown';
+  import { renderMarkdown, sanitizePreviewHtml } from '../markdown';
   import { Copy, Check, Terminal, FileCode, Play } from 'lucide-svelte';
 
   export let jsonContent: string = '';
@@ -156,7 +156,7 @@
                           html:
                         </div>
                         <div class="flex-1 text-xs select-text overflow-x-auto text-[var(--text-primary)]">
-                          {@html getOutputText(out.data['text/html'])}
+                          {@html sanitizePreviewHtml(getOutputText(out.data['text/html']))}
                         </div>
                       </div>
                     <!-- Plain text return value -->

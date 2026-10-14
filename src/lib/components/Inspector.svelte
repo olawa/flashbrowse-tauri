@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { latestRequest } from '../latestRequest';
+  import { htmlPreviewDocument } from '../htmlPreview';
   import { emit } from '@tauri-apps/api/event';
   import { getPreview, sshGetPreview, calculateDirSize, revealInOs, openInDefault, openFileWith, sshOpenFileLocally, toggleDetachedInspector, findCompanions, type Companion } from '../invoke';
   import {
@@ -150,7 +152,7 @@
     // 1. If HTML or PDF iframe is visible, scroll it
     if (htmlViewMode === 'rendered' && htmlIframeEl?.contentWindow) {
       try {
-        htmlIframeEl.contentWindow.scrollBy({ top: deltaY, left: 0, behavior: 'auto' });
+        htmlIframeEl.contentWindow.postMessage({ type: 'flashbrowse:scroll', deltaY }, '*');
         return;
       } catch {}
     }
@@ -185,15 +187,25 @@
     (ext === 'bam' || ext === 'cram' || ext === 'sam' || item.name.endsWith('.bam') || item.name.endsWith('.cram'));
   $: isArchive = !!item && (ext === 'zip' || ext === 'tar' || ext === 'tgz' || item.name.endsWith('.tar.gz') || item.name.endsWith('.tar.bz2') || item.name.endsWith('.tar.xz'));
 
+  const previewRequests = latestRequest();
+  onDestroy(() => previewRequests.invalidate());
+  $: previewIsSSH = activePaneState.isSSH;
+  $: previewHost = activePaneState.sshHost;
+
   $: if (item) {
     if (!isBam && !isArchive) {
-      loadItemPreview(item);
+      loadItemPreview(item, previewIsSSH, previewHost);
     } else {
+      previewRequests.invalidate();
       preview = null;
+      dirSummary = null;
+      isLoading = false;
     }
   } else {
+    previewRequests.invalidate();
     preview = null;
     dirSummary = null;
+    isLoading = false;
   }
 
   async function handleDetach() {
@@ -208,18 +220,20 @@
     await castToSecondaryInspector(item);
   }
 
-  async function loadItemPreview(target: FileItem) {
+  async function loadItemPreview(target: FileItem, isSSH: boolean, host: string) {
+    const isCurrent = previewRequests.begin();
+    preview = null;
     isLoading = true;
     dirSummary = null;
     try {
       if (target.is_dir) {
         preview = null;
-      } else if (activePaneState.isSSH) {
-        preview = await sshGetPreview(activePaneState.sshHost, target.path);
       } else {
-        preview = await getPreview(target.path);
+        const result = isSSH ? await sshGetPreview(host, target.path) : await getPreview(target.path);
+        if (isCurrent()) preview = result;
       }
     } catch (e: any) {
+      if (!isCurrent()) return;
       preview = {
         kind: 'error',
         file_size_bytes: target.size_bytes,
@@ -229,8 +243,51 @@
         error_message: String(e),
       };
     } finally {
-      isLoading = false;
+      if (isCurrent()) isLoading = false;
     }
+  }
+
+  let isLoadingFull = false;
+
+  async function handleLoadFull() {
+    if (!item || item.is_dir) return;
+    isLoadingFull = true;
+    try {
+      const isSSH = activePaneState.isSSH;
+      const host = activePaneState.sshHost;
+      const result = isSSH
+        ? await sshGetPreview(host, item.path, true, false)
+        : await getPreview(item.path, undefined, true, false);
+      preview = result;
+    } catch (err: any) {
+      alert(`Kunde inte läsa in hela filen: ${err}`);
+    } finally {
+      isLoadingFull = false;
+    }
+  }
+
+  async function handleLoadTail() {
+    if (!item || item.is_dir) return;
+    isLoadingFull = true;
+    try {
+      const isSSH = activePaneState.isSSH;
+      const host = activePaneState.sshHost;
+      const result = isSSH
+        ? await sshGetPreview(host, item.path, false, true)
+        : await getPreview(item.path, undefined, false, true);
+      preview = result;
+    } catch (err: any) {
+      alert(`Kunde inte läsa in slutet av filen: ${err}`);
+    } finally {
+      isLoadingFull = false;
+    }
+  }
+
+  async function handleLoadHead() {
+    if (!item || item.is_dir) return;
+    const isSSH = activePaneState.isSSH;
+    const host = activePaneState.sshHost;
+    await loadItemPreview(item, isSSH, host);
   }
 
   async function calculateFolderDu() {
@@ -564,9 +621,19 @@
         onClearSelection={handleClearSelection}
       />
     {:else if currentTab === 'notes'}
-      <NotesInspector dirPath={activeNotesDirectory} />
+      {#if activePaneState.isSSH}
+        <div class="p-4 text-xs text-[var(--text-secondary)]">Anteckningar stöds endast för lokala mappar.</div>
+      {:else}
+        <NotesInspector dirPath={activeNotesDirectory} />
+      {/if}
     {:else if currentTab === 'ai'}
-      <AIInspector {item} {preview} />
+      <AIInspector
+        {item}
+        {preview}
+        {isLoadingFull}
+        onLoadFull={handleLoadFull}
+        onLoadTail={handleLoadTail}
+      />
     {:else if !item}
       <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)]">
         <FileText size={32} class="opacity-20 mb-2" />
@@ -615,10 +682,10 @@
             <div class="flex-1 bg-white min-h-[300px]">
               <iframe
                 bind:this={htmlIframeEl}
-                srcdoc={preview.html_content}
+                srcdoc={htmlPreviewDocument(preview.html_content)}
                 title={item.name}
                 class="w-full h-full border-0 bg-white"
-                sandbox="allow-scripts allow-same-origin allow-popups"
+                sandbox="allow-scripts"
               ></iframe>
             </div>
           {:else}
@@ -802,6 +869,13 @@
           languageName={preview.language_name || 'Plain Text'}
           languageEmoji={preview.language_emoji || '📄'}
           formattedSize={preview.formatted_size}
+          isTruncated={preview.is_truncated ?? false}
+          isTail={preview.is_tail ?? false}
+          loadedBytes={preview.loaded_bytes ?? 0}
+          {isLoadingFull}
+          on:loadFull={handleLoadFull}
+          on:loadTail={handleLoadTail}
+          on:loadHead={handleLoadHead}
         />
 
       <!-- 10. BINARY FILE PREVIEW -->

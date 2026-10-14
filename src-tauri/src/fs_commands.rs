@@ -455,7 +455,10 @@ fn move_path(src: &Path, target: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn trash_items(paths: Vec<String>) -> Result<(), String> {
+pub async fn trash_items(paths: Vec<String>, source_is_ssh: bool) -> Result<(), String> {
+    if source_is_ssh || paths.iter().any(|p| p.starts_with("ssh://")) {
+        return Err("Papperskorgen stöds endast för lokala filer.".into());
+    }
     tauri::async_runtime::spawn_blocking(move || {
         for p in paths {
             let path = resolve_path(&p);
@@ -1523,6 +1526,19 @@ pub async fn deep_search(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn remote_trash_cannot_touch_a_matching_local_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("precious.txt");
+        fs::write(&path, "keep me").unwrap();
+        let result = tauri::async_runtime::block_on(trash_items(vec![path.to_string_lossy().into_owned()], true));
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(&path).unwrap(), "keep me");
+        let result = tauri::async_runtime::block_on(trash_items(vec![format!("ssh://host{}", path.display())], false));
+        assert!(result.is_err());
+        assert!(path.exists());
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("fb_fs_test_{}_{}", tag, std::process::id()));

@@ -40,6 +40,7 @@
   } from '../stores/navigation';
   import { openInDefault, launchRsnap, revealInOs, findRelatedBams, type RelatedBamResult } from '../invoke';
   import RelatedBamsModal from './RelatedBamsModal.svelte';
+  import GenomicsWorkspace from './GenomicsWorkspace.svelte';
   import ProjectTreeView from './ProjectTreeView.svelte';
   import { favoriteEditor, openInFavoriteEditor } from '../stores/editorStore';
   import type { FileItem, DirectoryIndexGroup } from '../types';
@@ -444,7 +445,9 @@
     </div>
 
     <!-- Main Content Area: Project Tree View (Code) OR Split Columns (Flat List / other types) -->
-    {#if isCodeCategory($activeIndexMeta.id) && isCodeTreeView}
+    {#if $activeIndexMeta.id === 'genomics'}
+      <GenomicsWorkspace groups={$indexedGroups} query={$indexSearchQuery} {onSelectPreview} onNavigateFolder={jumpToFolder} />
+    {:else if isCodeCategory($activeIndexMeta.id) && isCodeTreeView}
       <div class="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
         <ProjectTreeView
           groups={$indexedGroups}

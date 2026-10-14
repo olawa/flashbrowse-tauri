@@ -168,11 +168,11 @@
   }
 
   async function handleTrash() {
-    if (items.length === 0 || isTrashing) return;
+    if (items.length === 0 || isTrashing || isSSH) return;
     isTrashing = true;
     try {
       const paths = items.map((i) => i.path);
-      await trashItems(paths);
+      await trashItems(paths, isSSH);
       if (onClearSelection) onClearSelection();
       reloadPane($activePaneId);
     } catch (e) {
@@ -402,8 +402,8 @@
     <button
       class="px-3 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 border border-red-800 font-semibold text-xs transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
       on:click={handleTrash}
-      disabled={isTrashing}
-      title="Flytta markerade objekt till Papperskorgen (Cmd+Backspace)"
+      disabled={isTrashing || isSSH}
+      title={isSSH ? 'Papperskorgen stöds endast för lokala filer' : 'Flytta markerade objekt till Papperskorgen (Cmd+Backspace)'}
     >
       <Trash2 size={13} class="text-red-400" />
       <span>Kasta ({totalCount})</span>

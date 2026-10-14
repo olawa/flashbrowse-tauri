@@ -185,11 +185,16 @@ fn existing_at_destination(
         .iter()
         .map(|n| {
             let full = format!("{}/{}", dest_dir.trim_end_matches('/'), n);
-            format!("[ -e {} ] && printf '%s\\n' {}", sh_quote(&full), sh_quote(n))
+            format!("if [ -e {0} ] || [ -L {0} ]; then printf '%s\\0' {1}; fi", sh_quote(&full), sh_quote(n))
         })
         .collect();
     let script = format!("{}; true", checks.join("; "));
 
+    let stdout = remote_probe(dest, script)?;
+    Ok(stdout.split('\0').filter(|s| !s.is_empty()).map(str::to_owned).collect())
+}
+
+fn remote_probe(dest: &Endpoint, script: String) -> Result<String, String> {
     let mut args = ssh_base_args();
     args.push(dest.host.clone());
     args.push(script);
@@ -199,11 +204,14 @@ fn existing_at_destination(
         .output()
         .map_err(|e| format!("Kunde inte kontrollera målmappen: {}", e))?;
 
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty())
-        .collect())
+    checked_probe_output(out)
+}
+
+fn checked_probe_output(out: std::process::Output) -> Result<String, String> {
+    if !out.status.success() {
+        return Err(format!("Kunde inte kontrollera målmappen: {}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    String::from_utf8(out.stdout).map_err(|e| format!("Ogiltigt svar från målvärden: {}", e))
 }
 
 pub struct TransferSpec {
@@ -280,7 +288,7 @@ pub fn run_transfer(app: Option<AppHandle>, id: &str, spec: TransferSpec) -> Res
             progress.percent = (index as f32 / source_paths.len() as f32) * 100.0;
             emit(&progress);
 
-            let target = resolve_target(&dest, &dest_dir, &progress.current_file, strategy);
+            let target = resolve_target(&dest, &dest_dir, &progress.current_file, strategy)?;
 
             match &rsync {
                 Some(bin) => run_rsync(
@@ -315,17 +323,62 @@ pub fn run_transfer(app: Option<AppHandle>, id: &str, spec: TransferSpec) -> Res
     }
 }
 
-/// Destination path for one item, applying the keep-both rule locally.
-///
-/// Remote destinations keep the plain name: renaming there would need another
-/// round trip per file, and the conflict probe above already gave the user the
-/// choice.
-fn resolve_target(dest: &Endpoint, dest_dir: &str, name: &str, strategy: ConflictStrategy) -> String {
-    if dest.is_ssh || strategy != ConflictStrategy::Rename {
-        return format!("{}/{}", dest_dir.trim_end_matches('/'), name);
+/// Destination path for one item, applying keep-both at the destination host.
+fn resolve_target(dest: &Endpoint, dest_dir: &str, name: &str, strategy: ConflictStrategy) -> Result<String, String> {
+    if strategy != ConflictStrategy::Rename {
+        return Ok(format!("{}/{}", dest_dir.trim_end_matches('/'), name));
+    }
+    if dest.is_ssh {
+        let output = remote_probe(dest, remote_unique_target_script(dest_dir, name))?;
+        return output.strip_suffix('\0').filter(|s| !s.is_empty() && !s.contains('\0'))
+            .map(str::to_owned).ok_or_else(|| "Ogiltig målsökväg från SSH-värden".into());
     }
     let unique = crate::fs_commands::unique_target(&resolve_path(dest_dir).join(name));
-    unique.to_string_lossy().to_string()
+    Ok(unique.to_string_lossy().to_string())
+}
+
+fn remote_unique_target_script(dest_dir: &str, name: &str) -> String {
+    let path = Path::new(name);
+    let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+    let extension = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    format!(
+        "dir={dir}; stem={stem}; ext={ext}; candidate={target}; \
+         [ -d \"$dir\" ] && [ -r \"$dir\" ] && [ -x \"$dir\" ] || exit 1; \
+         i=2; while [ -e \"$candidate\" ] || [ -L \"$candidate\" ]; do \
+         [ \"$i\" -lt 10000 ] || exit 1; \
+         candidate=\"$dir/$stem $i$ext\"; i=$((i + 1)); done; printf '%s\\0' \"$candidate\"",
+        dir = sh_quote(dest_dir), stem = sh_quote(&stem), ext = sh_quote(&extension),
+        target = sh_quote(&format!("{}/{}", dest_dir.trim_end_matches('/'), name)),
+    )
+}
+
+// Drain stderr while stdout is consumed / the child is running. Retain only the
+// diagnostic tail so verbose transfers neither deadlock nor grow memory forever.
+const STDERR_LIMIT: usize = 64 * 1024;
+
+fn drain_stderr(reader: impl Read + Send + 'static) -> std::thread::JoinHandle<std::io::Result<String>> {
+    std::thread::spawn(move || {
+        let mut reader = reader;
+        let mut tail = Vec::new();
+        let mut buffer = [0u8; 8192];
+        loop {
+            let size = match reader.read(&mut buffer) {
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                other => other?,
+            };
+            if size == 0 { break; }
+            tail.extend_from_slice(&buffer[..size]);
+            if tail.len() > STDERR_LIMIT {
+                tail.drain(..tail.len() - STDERR_LIMIT);
+            }
+        }
+        Ok(String::from_utf8_lossy(&tail).into_owned())
+    })
+}
+
+fn stderr_result(reader: std::thread::JoinHandle<std::io::Result<String>>) -> Result<String, String> {
+    reader.join().map_err(|_| "Kunde inte läsa överföringens felutmatning".to_string())?
+        .map_err(|e| e.to_string())
 }
 
 /// Local copy for platforms without rsync (Windows, mainly).
@@ -379,7 +432,7 @@ fn run_rsync<F: Fn(&TransferProgress)>(
     register(id, child.id());
 
     let stdout = child.stdout.take();
-    let mut stderr_reader = child.stderr.take();
+    let stderr_reader = drain_stderr(child.stderr.take().expect("piped stderr"));
 
     if let Some(stdout) = stdout {
         pump_progress(stdout, |percent, speed, eta| {
@@ -391,11 +444,9 @@ fn run_rsync<F: Fn(&TransferProgress)>(
         });
     }
 
-    let status = child.wait().map_err(|e| e.to_string())?;
-    let mut stderr = String::new();
-    if let Some(reader) = stderr_reader.as_mut() {
-        let _ = reader.read_to_string(&mut stderr);
-    }
+    let status = child.wait().map_err(|e| e.to_string());
+    let stderr = stderr_result(stderr_reader)?;
+    let status = status?;
 
     if status.success() || is_cancelled(id) {
         Ok(())
@@ -424,8 +475,13 @@ fn run_scp(
     args.push(source.scp_spec(source_path));
     args.push(dest.scp_spec(target));
 
-    let mut child = Command::new("scp")
-        .args(&args)
+    let mut command = Command::new("scp");
+    command.args(&args);
+    run_scp_command(command, id, source_path)
+}
+
+fn run_scp_command(mut command: Command, id: &str, source_path: &str) -> Result<(), String> {
+    let mut child = command
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -433,13 +489,10 @@ fn run_scp(
         .map_err(|e| format!("Kunde inte starta scp: {}", e))?;
     register(id, child.id());
 
-    let mut stderr_reader = child.stderr.take();
-    let status = child.wait().map_err(|e| e.to_string())?;
-
-    let mut stderr = String::new();
-    if let Some(reader) = stderr_reader.as_mut() {
-        let _ = reader.read_to_string(&mut stderr);
-    }
+    let stderr_reader = drain_stderr(child.stderr.take().expect("piped stderr"));
+    let status = child.wait().map_err(|e| e.to_string());
+    let stderr = stderr_result(stderr_reader)?;
+    let status = status?;
 
     if status.success() || is_cancelled(id) {
         Ok(())
@@ -521,6 +574,83 @@ pub fn transfer_backend() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    fn shell_target(dir: &Path, name: &str) -> Result<String, String> {
+        let output = Command::new("sh")
+            .args(["-c", &remote_unique_target_script(&dir.to_string_lossy(), name)])
+            .current_dir(dir.parent().unwrap()).output().unwrap();
+        checked_probe_output(output).map(|s| s.strip_suffix('\0').unwrap().to_owned())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn remote_keep_both_preserves_files_directories_and_dangling_links() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path();
+        assert_eq!(shell_target(dir, "sample.bam").unwrap(), dir.join("sample.bam").to_string_lossy());
+        std::fs::write(dir.join("sample.bam"), "original").unwrap();
+        std::os::unix::fs::symlink("missing", dir.join("sample 2.bam")).unwrap();
+        let target = shell_target(dir, "sample.bam").unwrap();
+        assert_eq!(target, dir.join("sample 3.bam").to_string_lossy());
+        std::fs::write(target, "new").unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("sample.bam")).unwrap(), "original");
+        std::fs::create_dir(dir.join("results")).unwrap();
+        assert_eq!(shell_target(dir, "results").unwrap(), dir.join("results 2").to_string_lossy());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn remote_keep_both_quotes_names_and_fails_closed() {
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("dir ' with spaces");
+        std::fs::create_dir(&dir).unwrap();
+        let name = "report ' $(touch injected)\n.html";
+        std::fs::write(dir.join(name), "original").unwrap();
+        assert_eq!(shell_target(&dir, name).unwrap(), dir.join("report ' $(touch injected)\n 2.html").to_string_lossy());
+        assert!(!temp.path().join("injected").exists());
+        assert!(shell_target(&temp.path().join("absent"), "report.html").is_err());
+        let failed = Command::new("sh").args(["-c", "printf unsafe; printf 'connection failed' >&2; exit 255"]).output().unwrap();
+        assert!(checked_probe_output(failed).unwrap_err().contains("connection failed"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn noisy_rsync_and_scp_do_not_block_on_stderr() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+        let temp = tempfile::tempdir().unwrap();
+        let program = temp.path().join("noisy-transfer");
+        std::fs::write(&program, format!(
+            "#!/bin/sh\ni=0; while [ $i -lt 128 ]; do printf '%s' '{}' >&2; i=$((i + 1)); done\nprintf '\\nfinal diagnostic\\n' >&2\nprintf '1,234  45%%  12.34MB/s  0:00:12\\r'\nexit 1\n", "x".repeat(8192)
+        )).unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for scp in [false, true] {
+            let id = format!("noisy-transfer-{}", scp);
+            let worker_id = id.clone();
+            let executable = program.clone();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = std::thread::spawn(move || {
+                let local = Endpoint { is_ssh: false, host: String::new() };
+                let mut progress = TransferProgress::new(&worker_id, 1);
+                let result = if scp {
+                    run_scp_command(Command::new(executable), &worker_id, "source")
+                } else {
+                    run_rsync(&executable, &worker_id, &local, "source", &local, "target", 0, 1, &mut progress, &|_| {})
+                };
+                let _ = tx.send((result, progress.percent));
+            });
+            let received = rx.recv_timeout(Duration::from_secs(10));
+            if received.is_err() { let _ = cancel_transfer(id.clone()); }
+            worker.join().unwrap();
+            unregister(&id);
+            let (result, percent) = received.expect("transfer must drain stderr while running");
+            let error = result.unwrap_err();
+            assert!(error.contains("final diagnostic"));
+            assert!(error.len() < STDERR_LIMIT + 200);
+            if !scp { assert_eq!(percent, 45.0); }
+        }
+    }
 
     #[test]
     fn parses_rsync_progress_output() {

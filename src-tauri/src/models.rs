@@ -28,7 +28,7 @@ pub struct DiskInfo {
     pub percentage_used: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct PreviewContent {
     pub kind: String, // "code", "text", "html", "pdf", "markdown", "image", "svg", "video", "audio", "table", "notebook", "hex", "too_large", "error"
     pub text_content: Option<String>,
@@ -51,6 +51,9 @@ pub struct PreviewContent {
     pub modified_str: String,
     pub permissions_str: String,
     pub error_message: Option<String>,
+    pub is_truncated: Option<bool>,
+    pub loaded_bytes: Option<usize>,
+    pub is_tail: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

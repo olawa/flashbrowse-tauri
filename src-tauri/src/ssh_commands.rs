@@ -273,7 +273,12 @@ fn get_or_fetch_ssh_cached_file(host: &str, remote_path: &str) -> Result<std::pa
 }
 
 #[tauri::command]
-pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewContent, String> {
+pub async fn ssh_get_preview(
+    host: String,
+    path: String,
+    load_full: Option<bool>,
+    tail: Option<bool>,
+) -> Result<PreviewContent, String> {
     let ext = Path::new(&path)
         .extension()
         .map(|e| e.to_string_lossy().to_lowercase())
@@ -284,7 +289,10 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         "xlsx" | "xls" | "ods" | "xlsb" | "docx" | "doc" | "pdf" | "ipynb" | "odt" | "rtf" | "epub"
     );
 
-    if is_rich_doc {
+    let is_load_full = load_full.unwrap_or(false);
+
+    // If rich doc OR user requested full load of file, download via scp cache and parse locally
+    if is_rich_doc || is_load_full {
         let host_c = host.clone();
         let path_c = path.clone();
         let cached_res = tauri::async_runtime::spawn_blocking(move || {
@@ -294,7 +302,12 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
         .map_err(|e| e.to_string())?;
 
         if let Ok(cached_path) = cached_res {
-            if let Ok(preview) = crate::preview_commands::get_preview_sync(&cached_path.to_string_lossy(), None) {
+            if let Ok(preview) = crate::preview_commands::get_preview_sync(
+                &cached_path.to_string_lossy(),
+                Some(50 * 1024 * 1024),
+                Some(true),
+                None,
+            ) {
                 return Ok(preview);
             }
         }
@@ -373,6 +386,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
 
@@ -388,7 +404,7 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
             let svg_str = String::from_utf8_lossy(&out.stdout).to_string();
             return Ok(PreviewContent {
                 kind: "svg".to_string(),
-                text_content: Some(svg_str),
+                text_content: Some(svg_str.clone()),
                 html_content: None,
                 pdf_base64: None,
                 media_base64: None,
@@ -408,14 +424,24 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: Some(svg_str.len()),
+                is_tail: Some(false),
             });
         }
 
         // 2. Text / Code / GZ decompression
-        let remote_read_cmd = if is_gz {
-            format!("gzip -dc {} 2>/dev/null | head -c 262144 || zcat {} 2>/dev/null | head -c 262144", quoted_path, quoted_path)
+        let is_tail_request = tail.unwrap_or(false);
+        let remote_read_cmd = if is_tail_request {
+            if is_gz {
+                format!("gzip -dc {} 2>/dev/null | tail -c 524288 || zcat {} 2>/dev/null | tail -c 524288", quoted_path, quoted_path)
+            } else {
+                format!("tail -c 524288 {} 2>/dev/null", quoted_path)
+            }
+        } else if is_gz {
+            format!("gzip -dc {} 2>/dev/null | head -c 524288 || zcat {} 2>/dev/null | head -c 524288", quoted_path, quoted_path)
         } else {
-            format!("head -c 262144 {} 2>/dev/null", quoted_path)
+            format!("head -c 524288 {} 2>/dev/null", quoted_path)
         };
 
         let mut read_args = ssh_base_args();
@@ -431,7 +457,16 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
             return Err(if err.is_empty() { "Kunde inte läsa filen över SSH".to_string() } else { err });
         }
 
-        let raw_bytes = out.stdout;
+        let (raw_bytes, is_tail) = if is_tail_request && file_size_bytes > 524288 {
+            let start = out.stdout.iter().position(|&b| b == b'\n').map(|p| p + 1).unwrap_or(0);
+            (out.stdout[start..].to_vec(), true)
+        } else {
+            (out.stdout, false)
+        };
+
+        let is_truncated = file_size_bytes > 524288;
+        let loaded_bytes = raw_bytes.len();
+
         if raw_bytes.is_empty() {
             return Ok(PreviewContent {
                 kind: "text".to_string(),
@@ -455,6 +490,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: Some(0),
+                is_tail: Some(false),
             });
         }
 
@@ -483,6 +521,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(false),
+                loaded_bytes: None,
+                is_tail: Some(false),
             });
         }
 
@@ -514,6 +555,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(is_truncated),
+                loaded_bytes: Some(loaded_bytes),
+                is_tail: Some(is_tail),
             });
         }
 
@@ -540,6 +584,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
                 modified_str,
                 permissions_str: "".to_string(),
                 error_message: None,
+                is_truncated: Some(is_truncated),
+                loaded_bytes: Some(loaded_bytes),
+                is_tail: Some(is_tail),
             });
         }
 
@@ -568,6 +615,9 @@ pub async fn ssh_get_preview(host: String, path: String) -> Result<PreviewConten
             modified_str,
             permissions_str: "".to_string(),
             error_message: None,
+            is_truncated: Some(is_truncated),
+            loaded_bytes: Some(loaded_bytes),
+            is_tail: Some(is_tail),
         })
     })
     .await

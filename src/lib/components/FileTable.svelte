@@ -731,10 +731,11 @@
   }
 
   async function handleBatchTrash() {
+    if (pane.isSSH) return;
     const paths = Array.from(pane.selectedPaths);
     if (paths.length === 0) return;
     if (confirm(`Flytta ${paths.length} ${paths.length === 1 ? 'objekt' : 'objekt'} till papperskorgen?`)) {
-      await trashItems(paths);
+      await trashItems(paths, pane.isSSH);
       clearSelection();
       await refreshPane(paneId);
     }
@@ -1210,10 +1211,11 @@
     // Cmd + Backspace or Delete -> Trash selected items!
     if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
       e.preventDefault();
+      if (pane.isSSH) return;
       const paths = Array.from(pane.selectedPaths);
       if (paths.length > 0) {
         try {
-          await trashItems(paths);
+          await trashItems(paths, pane.isSSH);
           reloadPane(paneId);
         } catch (err) {
           console.error('Failed to trash items:', err);
@@ -1492,9 +1494,10 @@
       <div class="flex items-center gap-1.5 flex-wrap">
         <!-- Delete -->
         <button
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-[var(--text-primary)] border border-red-800/80 font-semibold text-[11px] transition-colors shadow-sm"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-red-950/70 hover:bg-red-900 text-red-300 hover:text-[var(--text-primary)] border border-red-800/80 font-semibold text-[11px] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           on:click={handleBatchTrash}
-          title="Flytta markerade filer till papperskorgen (⌘⌫)"
+          disabled={pane.isSSH}
+          title={pane.isSSH ? 'Papperskorgen stöds endast för lokala filer' : 'Flytta markerade filer till papperskorgen (⌘⌫)'}
         >
           <Trash2 size={11} />
           <span>Ta bort ({count})</span>

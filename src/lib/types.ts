@@ -46,6 +46,9 @@ export interface PreviewContent {
   modified_str: string;
   permissions_str: string;
   error_message?: string;
+  is_truncated?: boolean;
+  loaded_bytes?: number;
+  is_tail?: boolean;
 }
 
 export interface TerminalOutput {
@@ -126,6 +129,28 @@ export interface DirectoryIndexGroup {
   directory_name: string;
   relative_path: string;
   items: FileItem[];
+}
+
+export interface ReferenceContig {
+  name: string;
+  length: number | null;
+}
+
+export interface GenomicsFileInfo {
+  path: string;
+  kind: 'alignment' | 'variant' | 'reads' | 'reference' | 'regions' | 'other';
+  samples: string[];
+  sample_source: 'header' | 'filename' | 'unknown';
+  sample_count: number;
+  contigs: ReferenceContig[];
+  contigs_truncated: boolean;
+  build: string | null;
+  header_status: 'read' | 'unavailable' | 'error' | 'not_applicable';
+  header_message: string | null;
+  index_status: 'present' | 'missing' | 'stale' | 'not_applicable';
+  index_path: string | null;
+  quickcheck_status: 'passed' | 'failed' | 'unavailable' | 'not_run';
+  quickcheck_message: string | null;
 }
 
 export interface FileTypeIndexMeta {
@@ -217,4 +242,3 @@ export interface SubdirNode {
   children: SubdirNode[];
   has_more: boolean;
 }
-

@@ -191,11 +191,12 @@
 
   async function handleTrash() {
     const store = paneId === 'left' ? $leftPane : $rightPane;
+    if (isSSH || store.isSSH) return;
     const paths = store.selectedPaths.has(item.path) && store.selectedPaths.size > 1
       ? Array.from(store.selectedPaths)
       : [item.path];
     if (confirm(`Flytta ${paths.length} ${paths.length === 1 ? 'fil' : 'filer'} till papperskorgen?`)) {
-      await trashItems(paths);
+      await trashItems(paths, store.isSSH);
       await refreshPane(paneId);
     }
     onClose();
@@ -829,8 +830,10 @@
   <div class="h-px my-1 bg-[var(--border)]"></div>
 
   <button
-    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-[var(--text-primary)] text-red-400 text-left transition-colors"
+    class="w-full flex items-center justify-between px-3 py-1.5 hover:bg-red-600 hover:text-[var(--text-primary)] text-red-400 text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
     on:click={handleTrash}
+    disabled={isSSH}
+    title={isSSH ? 'Papperskorgen stöds endast för lokala filer' : 'Flytta till papperskorgen'}
   >
     <div class="flex items-center gap-2 min-w-0">
       <Trash2 size={13} class="shrink-0" />

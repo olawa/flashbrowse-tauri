@@ -155,6 +155,10 @@
       closeIndexView();
     } else {
       const pane = $activePaneId === 'left' ? $leftPane : $rightPane;
+      if (cat.id === 'genomics' && pane.isSSH) {
+        alert('Genomikarbetsytan analyserar lokala filer. Välj en lokal mapp först.');
+        return;
+      }
       const currentDir = pane.isSSH ? homeDir : pane.currentPath;
       const meta: FileTypeIndexMeta = {
         id: cat.id,
@@ -169,6 +173,7 @@
   }
 
   const indexCategories = [
+    { id: 'genomics', label: 'Genomikarbetsyta', extensions: ['bam', 'cram', 'sam', 'fastq', 'fq', 'fastq.gz', 'fq.gz', 'vcf', 'vcf.gz', 'bcf', 'bed', 'bed.gz', 'fa', 'fasta', 'fna', 'fa.gz', 'fasta.gz'], badge: 'DNA', icon: Dna, color: 'text-teal-300' },
     { id: 'bam', label: 'BAM & CRAM', extensions: ['bam', 'cram', 'sam'], badge: 'BAM', icon: Dna, color: 'text-emerald-400' },
     { id: 'vcf', label: 'VCF & BCF', extensions: ['vcf', 'vcf.gz', 'bcf'], badge: 'VCF', icon: Dna, color: 'text-purple-400' },
     { id: 'fastq', label: 'FASTQ Reads', extensions: ['fastq', 'fq', 'fastq.gz', 'fq.gz'], badge: 'FASTQ', icon: Dna, color: 'text-cyan-400' },

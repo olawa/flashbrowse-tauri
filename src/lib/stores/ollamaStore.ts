@@ -265,7 +265,7 @@ export async function askOllamaStream(
   try {
     let fullPrompt = prompt;
     if (fileContext) {
-      fullPrompt = `Filinnehåll / Kontext:\n\`\`\`\n${fileContext.slice(0, 24000)}\n\`\`\`\n\nFråga / Instruktion:\n${prompt}`;
+      fullPrompt = `Filinnehåll / Kontext:\n\`\`\`\n${fileContext.slice(0, 80000)}\n\`\`\`\n\nFråga / Instruktion:\n${prompt}`;
     }
 
     const res = await fetch(`${endpoint}/api/generate`, {
@@ -277,6 +277,9 @@ export async function askOllamaStream(
         system:
           systemContext ||
           'Du är en snabb, hjälpsam AI-assistent integrerad i filutforskaren Flashbrowse. Svara koncist och tydligt på svenska med snygg GitHub-formaterad Markdown.',
+        options: {
+          num_ctx: 32768,
+        },
         keep_alive: '2m', // Auto-evict from VRAM after 2 minutes of idle
         stream: true,
       }),

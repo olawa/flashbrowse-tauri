@@ -8,6 +8,7 @@ import type {
   DiskInfo,
   FileItem,
   GenomeRefInfo,
+  GenomicsFileInfo,
   IgvResponse,
   PreviewContent,
   RsnapServerInfo,
@@ -34,8 +35,11 @@ export async function calculateDirSize(path: string): Promise<DirectorySummary> 
   return await invoke<DirectorySummary>('calculate_dir_size', { path });
 }
 
-export async function trashItems(paths: string[]): Promise<void> {
-  await invoke('trash_items', { paths });
+export async function trashItems(paths: string[], sourceIsSsh: boolean): Promise<void> {
+  if (sourceIsSsh || paths.some((path) => path.startsWith('ssh://'))) {
+    throw new Error('Papperskorgen stöds endast för lokala filer.');
+  }
+  await invoke('trash_items', { paths, sourceIsSsh });
 }
 
 /**
@@ -194,8 +198,13 @@ export async function revealInOs(path: string): Promise<void> {
   await invoke('reveal_in_os', { path });
 }
 
-export async function getPreview(path: string, maxBytes?: number): Promise<PreviewContent> {
-  return await invoke<PreviewContent>('get_preview', { path, maxBytes });
+export async function getPreview(
+  path: string,
+  maxBytes?: number,
+  loadFull?: boolean,
+  tail?: boolean,
+): Promise<PreviewContent> {
+  return await invoke<PreviewContent>('get_preview', { path, maxBytes, loadFull, tail });
 }
 
 export async function runCommand(cmd: string, cwd: string): Promise<TerminalOutput> {
@@ -215,8 +224,13 @@ export async function sshListDirectory(host: string, path: string): Promise<SshD
   return await invoke<SshDirectoryResult>('ssh_list_directory', { host, path });
 }
 
-export async function sshGetPreview(host: string, path: string): Promise<PreviewContent> {
-  return await invoke<PreviewContent>('ssh_get_preview', { host, path });
+export async function sshGetPreview(
+  host: string,
+  path: string,
+  loadFull?: boolean,
+  tail?: boolean,
+): Promise<PreviewContent> {
+  return await invoke<PreviewContent>('ssh_get_preview', { host, path, loadFull, tail });
 }
 
 export async function sshRunCommand(host: string, cmd: string, cwd: string): Promise<TerminalOutput> {
@@ -484,6 +498,14 @@ export async function scanDirectoryIndex(
   });
 }
 
+export async function inspectGenomicsFiles(paths: string[], quickcheck = false): Promise<GenomicsFileInfo[]> {
+  return await invoke<GenomicsFileInfo[]>('inspect_genomics_files', { paths, quickcheck });
+}
+
+export async function createGenomicsIndex(path: string): Promise<GenomicsFileInfo> {
+  return await invoke<GenomicsFileInfo>('create_genomics_index', { path });
+}
+
 export async function getBamAlignments(
   path: string,
   region?: string,
@@ -578,4 +600,3 @@ export async function warpMouseToClientPos(windowLabel: string, clientX: number,
 export async function toggleMouseBetweenWindows(): Promise<void> {
   await invoke('toggle_mouse_between_windows');
 }
-

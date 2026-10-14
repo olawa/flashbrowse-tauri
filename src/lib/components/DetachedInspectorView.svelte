@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { latestRequest } from '../latestRequest';
   import { listen } from '@tauri-apps/api/event';
   import {
     getPreview,
@@ -35,6 +36,7 @@
   } from 'lucide-svelte';
 
   let currentItem: FileItem | null = null;
+  const previewRequests = latestRequest();
   let titlePrefix = 'Detached Inspector';
   let preview: PreviewContent | null = null;
   let dirSummary: DirectorySummary | null = null;
@@ -118,11 +120,15 @@
   });
 
   onDestroy(() => {
+    previewRequests.invalidate();
     if (unlistenCastSync) unlistenCastSync();
     if (unlistenCastItem) unlistenCastItem();
   });
 
   async function loadPreview(path: string) {
+    const isCurrent = previewRequests.begin();
+    preview = null;
+    isLoading = false;
     if (!path) return;
     isLoading = true;
     dirSummary = null;
@@ -132,11 +138,14 @@
         const slashIdx = clean.indexOf('/');
         const host = slashIdx > 0 ? clean.slice(0, slashIdx) : clean;
         const remotePath = slashIdx > 0 ? clean.slice(slashIdx) : '/';
-        preview = await sshGetPreview(host, remotePath);
+        const result = await sshGetPreview(host, remotePath);
+        if (isCurrent()) preview = result;
       } else {
-        preview = await getPreview(path);
+        const result = await getPreview(path);
+        if (isCurrent()) preview = result;
       }
     } catch (e: any) {
+      if (!isCurrent()) return;
       preview = {
         kind: 'error',
         file_size_bytes: 0,
@@ -146,7 +155,72 @@
         error_message: String(e),
       };
     } finally {
-      isLoading = false;
+      if (isCurrent()) isLoading = false;
+    }
+  }
+
+  let isLoadingFull = false;
+
+  async function handleLoadFull() {
+    if (!currentItem || currentItem.is_dir) return;
+    isLoadingFull = true;
+    try {
+      const path = currentItem.path;
+      if (path.startsWith('ssh://')) {
+        const clean = path.replace(/^ssh:\/\//, '');
+        const slashIdx = clean.indexOf('/');
+        const host = slashIdx > 0 ? clean.slice(0, slashIdx) : clean;
+        const remotePath = slashIdx > 0 ? clean.slice(slashIdx) : '/';
+        preview = await sshGetPreview(host, remotePath, true, false);
+      } else {
+        preview = await getPreview(path, undefined, true, false);
+      }
+    } catch (err: any) {
+      alert(`Kunde inte läsa in hela filen: ${err}`);
+    } finally {
+      isLoadingFull = false;
+    }
+  }
+
+  async function handleLoadTail() {
+    if (!currentItem || currentItem.is_dir) return;
+    isLoadingFull = true;
+    try {
+      const path = currentItem.path;
+      if (path.startsWith('ssh://')) {
+        const clean = path.replace(/^ssh:\/\//, '');
+        const slashIdx = clean.indexOf('/');
+        const host = slashIdx > 0 ? clean.slice(0, slashIdx) : clean;
+        const remotePath = slashIdx > 0 ? clean.slice(slashIdx) : '/';
+        preview = await sshGetPreview(host, remotePath, false, true);
+      } else {
+        preview = await getPreview(path, undefined, false, true);
+      }
+    } catch (err: any) {
+      alert(`Kunde inte läsa in slutet av filen: ${err}`);
+    } finally {
+      isLoadingFull = false;
+    }
+  }
+
+  async function handleLoadHead() {
+    if (!currentItem || currentItem.is_dir) return;
+    isLoadingFull = true;
+    try {
+      const path = currentItem.path;
+      if (path.startsWith('ssh://')) {
+        const clean = path.replace(/^ssh:\/\//, '');
+        const slashIdx = clean.indexOf('/');
+        const host = slashIdx > 0 ? clean.slice(0, slashIdx) : clean;
+        const remotePath = slashIdx > 0 ? clean.slice(slashIdx) : '/';
+        preview = await sshGetPreview(host, remotePath, false, false);
+      } else {
+        preview = await getPreview(path, undefined, false, false);
+      }
+    } catch (err: any) {
+      alert(`Kunde inte läsa in början av filen: ${err}`);
+    } finally {
+      isLoadingFull = false;
     }
   }
 
@@ -287,7 +361,7 @@
                 srcdoc={preview.html_content}
                 title={currentItem.name}
                 class="w-full h-full border-0 bg-white"
-                sandbox="allow-scripts allow-same-origin allow-popups"
+                sandbox="allow-scripts"
               ></iframe>
             </div>
           {:else}
@@ -470,6 +544,13 @@
           languageName={preview.language_name || 'Plain Text'}
           languageEmoji={preview.language_emoji || '📄'}
           formattedSize={preview.formatted_size}
+          isTruncated={preview.is_truncated ?? false}
+          isTail={preview.is_tail ?? false}
+          loadedBytes={preview.loaded_bytes ?? 0}
+          {isLoadingFull}
+          on:loadFull={handleLoadFull}
+          on:loadTail={handleLoadTail}
+          on:loadHead={handleLoadHead}
         />
 
       <!-- 10. BINARY HEX PREVIEW -->

@@ -1,6 +1,7 @@
 pub mod bio_commands;
 pub mod companion_commands;
 pub mod fs_commands;
+pub mod genomics_workspace;
 pub mod models;
 pub mod preview_commands;
 pub mod qc_commands;
@@ -13,6 +14,7 @@ pub mod transfer_commands;
 use bio_commands::*;
 use companion_commands::*;
 use fs_commands::*;
+use genomics_workspace::*;
 use preview_commands::*;
 use qc_commands::*;
 use provenance_commands::*;
@@ -80,6 +82,8 @@ pub fn run() {
             run_rs_qc,
             list_archive_contents,
             scan_directory_index,
+            inspect_genomics_files,
+            create_genomics_index,
             get_bam_alignments,
             get_directory_notes,
             save_directory_notes,

@@ -84,15 +84,19 @@ function renderMarkdownUncached(md: string): string {
     return `<div class="fb-md"><pre>${escapeHtml(md)}</pre></div>`;
   }
 
+  return `<div class="fb-md">${sanitizePreviewHtml(html)}</div>`;
+}
+
+/** HTML from files and notebook outputs must never execute in the app origin. */
+export function sanitizePreviewHtml(html: string): string {
+  if (typeof window === 'undefined') return escapeHtml(html);
   installHooks();
-  const clean = DOMPurify.sanitize(html, {
+  return DOMPurify.sanitize(html, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ['style', 'form', 'input', 'button', 'iframe', 'script'],
     FORBID_ATTR: ['style', 'srcset'],
     ADD_ATTR: ['target', 'rel', 'align', 'loading'],
   });
-
-  return `<div class="fb-md">${clean}</div>`;
 }
 
 function escapeHtml(str: string): string {
