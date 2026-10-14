@@ -279,9 +279,9 @@
   }
 </script>
 
-<div class="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs select-none">
+<div class="flex-1 flex flex-col h-full min-h-0 bg-[var(--bg-surface)] text-[var(--text-primary)] text-xs">
   <!-- AI Top Control Bar -->
-  <div class="px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center justify-between gap-2 shrink-0">
+  <div class="px-3 py-2 border-b border-[var(--border)] bg-[var(--bg-panel)] flex items-center justify-between gap-2 shrink-0 select-none">
     <div class="flex items-center gap-2 min-w-0">
       <!-- Status Badge -->
       {#if $isOllamaOnline}
@@ -359,7 +359,7 @@
   </div>
 
   <!-- Security & Privacy Banner: Zero cluster access -->
-  <div class="px-3 py-1 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[10px] text-emerald-300">
+  <div class="px-3 py-1 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-[10px] text-emerald-300 select-none">
     <div class="flex items-center gap-1.5 truncate">
       <ShieldCheck size={12} class="text-emerald-400 shrink-0" />
       <span class="font-medium truncate">100% Lokal AI (Ollama) · Ingen åtkomst eller trafik till klustret</span>
@@ -371,7 +371,7 @@
 
   <!-- Truncation / Full file load notification banner -->
   {#if preview?.is_truncated}
-    <div class="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between text-[11px] text-amber-300 gap-2">
+    <div class="px-3 py-1.5 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between text-[11px] text-amber-300 gap-2 select-none">
       <div class="flex items-center gap-1.5 truncate">
         <AlertCircle size={13} class="text-amber-400 shrink-0" />
         <span class="truncate">
@@ -412,7 +412,7 @@
 
   <!-- AI Context Mode Selector & AI-Scroll ("så att AI kan scrolla") -->
   {#if preview?.text_content && (fileLines.length > 50 || preview.is_truncated)}
-    <div class="px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between text-[11px] gap-2 flex-wrap">
+    <div class="px-3 py-1.5 bg-[var(--bg-surface)] border-b border-[var(--border)] flex items-center justify-between text-[11px] gap-2 flex-wrap select-none">
       <div class="flex items-center gap-1 flex-wrap">
         <span class="text-[var(--text-muted)] font-semibold text-[9.5px] uppercase tracking-wider mr-1">Kontext:</span>
         <button
@@ -485,7 +485,7 @@
 
   <!-- Quick Action Chips -->
   {#if item}
-    <div class="px-3 py-2 border-b border-[var(--border)]/60 bg-[var(--bg-base)] flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none">
+    <div class="px-3 py-2 border-b border-[var(--border)]/60 bg-[var(--bg-base)] flex items-center gap-1.5 overflow-x-auto shrink-0 scrollbar-none select-none">
       <!-- Snakemake Specific Diagnostic Action -->
       {#if isSnakemakeCandidate}
         <button
@@ -547,9 +547,9 @@
   {/if}
 
   <!-- Main Chat Conversation Scroll Area -->
-  <div bind:this={chatScrollContainer} class="flex-1 overflow-y-auto p-3 space-y-3 bg-[var(--bg-base)]">
+  <div bind:this={chatScrollContainer} class="chat-scroll-container flex-1 overflow-y-auto p-3 space-y-3 bg-[var(--bg-base)] select-text cursor-text">
     {#if !$isOllamaOnline}
-      <div class="h-full flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)] space-y-3">
+      <div class="h-full flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)] space-y-3 select-none">
         <Bot size={36} class="opacity-30 text-amber-400" />
         <div class="space-y-1 max-w-xs">
           <p class="font-bold text-xs text-[var(--text-primary)]">Ollama är inte igång</p>
@@ -567,7 +567,7 @@
       </div>
 
     {:else if $aiChatMessages.length === 0}
-      <div class="h-full flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)] space-y-3">
+      <div class="h-full flex flex-col items-center justify-center p-6 text-center text-[var(--text-muted)] space-y-3 select-none">
         <Sparkles size={32} class="opacity-30 text-[var(--accent)]" />
         <div class="space-y-1.5 max-w-sm">
           <p class="font-bold text-xs text-[var(--text-primary)]">Lokal & Säker AI-Assistent</p>
@@ -587,34 +587,36 @@
     {:else}
       {#each $aiChatMessages as msg (msg.id)}
         {#if msg.role === 'user'}
-          <div class="flex justify-end">
-            <div class="max-w-[85%] rounded-2xl rounded-tr-sm px-3 py-2 bg-[var(--accent)] text-white font-sans text-xs shadow-md">
+          <div class="flex justify-end select-text">
+            <div class="max-w-[85%] rounded-2xl rounded-tr-sm px-3 py-2 bg-[var(--accent)] text-white font-sans text-xs shadow-md select-text cursor-text">
               {msg.content}
             </div>
           </div>
         {:else if msg.role === 'assistant'}
-          <div class="flex flex-col space-y-1 group">
-            <div class="flex items-center justify-between px-1">
+          <div class="flex flex-col space-y-1 group select-text">
+            <div class="flex items-center justify-between px-1 select-none">
               <div class="flex items-center gap-1 text-[10px] font-bold text-emerald-400 font-mono">
                 <Bot size={11} />
                 <span>{$selectedModel.split(':')[0]}</span>
               </div>
               <button
-                class="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--bg-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-opacity"
+                class="flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--bg-panel)] hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border)] text-[10.5px] font-medium transition-colors shadow-sm select-none"
                 on:click={() => copyMessage(msg.content, msg.id)}
-                title="Kopiera svar"
+                title="Kopiera hela svaret till urklipp (du kan även markera text med musen)"
               >
                 {#if copiedId === msg.id}
                   <Check size={11} class="text-emerald-400" />
+                  <span class="text-emerald-400 font-semibold">Kopierat!</span>
                 {:else}
                   <Copy size={11} />
+                  <span>Kopiera</span>
                 {/if}
               </button>
             </div>
 
-            <div class="rounded-xl px-3 py-2.5 bg-[var(--bg-panel)] border border-[var(--border)] text-xs text-[var(--text-primary)] leading-relaxed select-text font-sans shadow-sm prose-invert overflow-x-auto">
+            <div class="rounded-xl px-3 py-2.5 bg-[var(--bg-panel)] border border-[var(--border)] text-xs text-[var(--text-primary)] leading-relaxed select-text font-sans shadow-sm prose-invert overflow-x-auto cursor-text">
               {#if !msg.content && $isAiGenerating}
-                <div class="flex items-center gap-1.5 text-amber-400 text-xs font-mono py-1 animate-pulse">
+                <div class="flex items-center gap-1.5 text-amber-400 text-xs font-mono py-1 animate-pulse select-none">
                   <Sparkles size={13} class="animate-spin" />
                   <span>Tänker & analyserar...</span>
                 </div>
@@ -629,14 +631,14 @@
   </div>
 
   <!-- Bottom Input Bar -->
-  <div class="p-2.5 border-t border-[var(--border)] bg-[var(--bg-panel)] shrink-0">
+  <div class="p-2.5 border-t border-[var(--border)] bg-[var(--bg-panel)] shrink-0 select-none">
     <form on:submit|preventDefault={handleSend} class="flex items-center gap-2">
       <input
         type="text"
         placeholder={item ? `Fråga om ${item.name}...` : 'Ställ en fråga till modellen...'}
         bind:value={inputPrompt}
         disabled={!$isOllamaOnline || $isAiGenerating}
-        class="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] text-xs text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none placeholder-[var(--text-muted)] disabled:opacity-50"
+        class="flex-1 px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] text-xs text-[var(--text-primary)] border border-[var(--border)] focus:border-[var(--accent)] focus:outline-none placeholder-[var(--text-muted)] disabled:opacity-50 select-text"
       />
 
       {#if $isAiGenerating}
@@ -663,3 +665,30 @@
     </form>
   </div>
 </div>
+
+<style>
+  .chat-scroll-container,
+  .chat-scroll-container :global(*) {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+  }
+  .chat-scroll-container :global(button),
+  .chat-scroll-container :global(button *) {
+    -webkit-user-select: none !important;
+    user-select: none !important;
+  }
+  .chat-scroll-container :global(pre),
+  .chat-scroll-container :global(code),
+  .chat-scroll-container :global(p),
+  .chat-scroll-container :global(li),
+  .chat-scroll-container :global(span),
+  .chat-scroll-container :global(h1),
+  .chat-scroll-container :global(h2),
+  .chat-scroll-container :global(h3),
+  .chat-scroll-container :global(h4),
+  .chat-scroll-container :global(td),
+  .chat-scroll-container :global(th),
+  .chat-scroll-container :global(blockquote) {
+    cursor: text;
+  }
+</style>

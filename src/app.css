@@ -295,3 +295,39 @@ body {
   --border: color-mix(in srgb, var(--bg-active) 62%, var(--text-muted) 38%);
   --bg-hover: color-mix(in srgb, var(--text-primary) 10%, transparent);
 }
+
+/* ---------------------------------------------------------------
+   Text Selection in Inspectors, Previews & AI Chat
+   Ensure text selection works reliably across WebKit inside any .select-text container,
+   even when an ancestor has select-none.
+   --------------------------------------------------------------- */
+.select-text,
+.select-text * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+.select-text button,
+.select-text button *,
+.select-text .select-none,
+.select-text .select-none * {
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.fb-md,
+.fb-md * {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+}
+
+.fb-md pre,
+.fb-md code,
+.fb-md p,
+.fb-md span,
+.fb-md li,
+.fb-md td,
+.fb-md th {
+  cursor: text;
+}
+

@@ -613,7 +613,7 @@
   {/if}
 
   <!-- Inspector Body -->
-  <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)]">
+  <div bind:this={inspectorBodyEl} class="flex-1 min-h-0 overflow-hidden flex flex-col bg-[var(--bg-base)] {currentTab === 'ai' ? 'select-text' : ''}">
     {#if isMultiSelecting}
       <MultiItemInspector
         items={selectedItems}
